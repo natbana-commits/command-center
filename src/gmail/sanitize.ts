@@ -7,7 +7,7 @@ import sanitizeHtml from "sanitize-html";
 // Mailchimp, etc. all work this way), so http(s) <img src> stays intact.
 export function sanitizeNewsletterHtml(html: string): string {
   return sanitizeHtml(html, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h1", "h2", "span", "table", "tr", "td", "th", "tbody", "thead"]),
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "h1", "h2", "span", "table", "tr", "td", "th", "tbody", "thead", "style"]),
     allowedAttributes: {
       "*": ["style", "class", "align", "width", "height"],
       a: ["href", "name", "target", "rel"],

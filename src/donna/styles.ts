@@ -292,6 +292,28 @@ export const BASE_STYLES = `
   .news-link { font-size: 13px; color: var(--accent); text-decoration: none; }
   .news-link:hover { text-decoration: underline; }
 
+  /* --- home tab switcher (News / Newsletters) --- */
+  .home-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--sp-2);
+  }
+  .home-tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 4px;
+    margin-right: var(--sp-2);
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .home-tab-btn:hover { color: var(--ink); }
+  .home-tab-btn-active { color: var(--ink); border-bottom-color: var(--accent); }
+
   /* --- newsletters --- */
   .newsletter {
     border: 1px solid var(--border);
@@ -299,15 +321,21 @@ export const BASE_STYLES = `
     padding: var(--sp-2);
     margin-bottom: var(--sp-2);
   }
-  .newsletter-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-  }
-  .newsletter-subject { font-weight: 600; color: var(--ink); }
+  .newsletter-subject { font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
+  .newsletter-sender { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
   .newsletter-frame { width: 100%; height: 500px; border: none; }
+
+  .newsletter-link-row {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+  }
+  .newsletter-link-row:last-child { border-bottom: none; }
+  .newsletter-link-subject { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .newsletter-link-row:hover .newsletter-link-subject { color: var(--accent); }
+  .newsletter-link-meta { font-size: 12px; color: var(--text-muted); }
 
   /* --- agenda (calendar page) --- */
   .agenda-day-group { margin-bottom: var(--sp-3); }

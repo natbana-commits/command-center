@@ -138,29 +138,41 @@ function renderStoriesSection(context: DailyContext): string {
   return context.stories.map(renderNewsRow).join("\n");
 }
 
+function formatNewsletterDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function gmailLink(messageId: string): string {
+  return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
+}
+
 function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
   if (newsletters.length === 0) {
-    return "";
+    return `<p class="empty">No newsletters yet.</p>`;
   }
 
-  const cards = newsletters
-    .map(
-      (n) => `
-        <article class="newsletter">
-          <div class="newsletter-meta">
-            <span class="newsletter-subject">${escapeHtml(n.subject)}</span>
-            <span class="newsletter-sender">${escapeHtml(n.sender)}</span>
-          </div>
-          <iframe class="newsletter-frame" sandbox="allow-popups" srcdoc="${escapeHtml(n.html)}"></iframe>
-        </article>`
-    )
-    .join("\n");
+  const [latest, ...older] = newsletters;
 
-  return `
-    <section class="section">
-      <h1 class="section-title">Newsletters</h1>
-      ${cards}
-    </section>`;
+  const latestHtml = `
+    <article class="newsletter">
+      <div class="newsletter-subject">${escapeHtml(latest.subject)}</div>
+      <div class="newsletter-sender">${escapeHtml(latest.sender)} · ${escapeHtml(formatNewsletterDate(latest.receivedAt))}</div>
+      <iframe class="newsletter-frame" sandbox="allow-popups" srcdoc="${escapeHtml(latest.html)}"></iframe>
+    </article>`;
+
+  const olderHtml = older.length
+    ? older
+        .map(
+          (n) => `
+        <a class="newsletter-link-row" href="${escapeHtml(gmailLink(n.id))}" target="_blank" rel="noopener noreferrer">
+          <span class="newsletter-link-subject">${escapeHtml(n.subject)}</span>
+          <span class="newsletter-link-meta">${escapeHtml(n.sender)} · ${escapeHtml(formatNewsletterDate(n.receivedAt))}</span>
+        </a>`
+        )
+        .join("\n")
+    : "";
+
+  return `${latestHtml}${olderHtml}`;
 }
 
 export interface DonnaPageData {
@@ -200,16 +212,18 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       </div>
     </div>
 
-    ${
-      context
-        ? `<section class="section">
-      <h1 class="section-title">News</h1>
-      ${renderStoriesSection(context)}
+    <div class="home-tabs">
+      <button type="button" class="home-tab-btn home-tab-btn-active" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
+      <button type="button" class="home-tab-btn" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
+    </div>
+
+    <section class="section home-tab-panel" id="news-panel">
+      ${context ? renderStoriesSection(context) : `<p class="empty">No brief has been generated yet today.</p>`}
     </section>
 
-    ${renderNewslettersSection(newsletters)}`
-        : `<section class="section"><p class="empty">No brief has been generated yet today.</p></section>`
-    }`;
+    <section class="section home-tab-panel" id="newsletters-panel" style="display:none;">
+      ${renderNewslettersSection(newsletters)}
+    </section>`;
 
   return renderLayout({
     title: "Donna",
@@ -225,6 +239,13 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 }
 
 const CLIENT_SCRIPT = `
+  function switchHomeTab(btn) {
+    document.querySelectorAll(".home-tab-btn").forEach((b) => b.classList.remove("home-tab-btn-active"));
+    btn.classList.add("home-tab-btn-active");
+    document.querySelectorAll(".home-tab-panel").forEach((p) => { p.style.display = "none"; });
+    document.getElementById(btn.dataset.panel).style.display = "";
+  }
+
   let askButton = null;
 
   function removeAskButton() {

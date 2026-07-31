@@ -18,4 +18,4 @@ export async function fetchAndStoreNewsletters(
   return newsletters;
 }
 
-export { getNewslettersForDay } from "./store.js";
+export { getNewslettersForDay, getRecentNewsletters } from "./store.js";

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
 import { resolveTimezone, localDateKey } from "../src/util/time.js";
 import { getDailyContext } from "../src/chat/dailyContext.js";
-import { getNewslettersForDay } from "../src/gmail/index.js";
+import { getRecentNewsletters } from "../src/gmail/index.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getRecentUploads } from "../src/storage/uploads.js";
@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const [context, newsletters, reminders, recentUploads] = await Promise.all([
     getDailyContext(day),
-    getNewslettersForDay(day),
+    getRecentNewsletters(10).catch(() => []),
     listRemindersSafe(),
     getRecentUploads(3).catch(() => []),
   ]);
