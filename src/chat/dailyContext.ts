@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "../supabaseClient.js";
+import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 import type { NewsStory } from "../news/curate.js";
 import type { CalendarEvent } from "../calendar.js";
 
@@ -38,15 +38,17 @@ export async function storeDailyContext(input: DailyContextInput): Promise<void>
   }));
 
   const client = getSupabaseClient();
-  const { error } = await client.from("daily_context").upsert(
-    {
-      day: input.day,
-      timezone: input.timezone,
-      stories: input.stories,
-      calendar_events: storedEvents,
-      reminders: input.reminders,
-    },
-    { onConflict: "day" }
+  const { error } = await withSupabaseRetry(() =>
+    client.from("daily_context").upsert(
+      {
+        day: input.day,
+        timezone: input.timezone,
+        stories: input.stories,
+        calendar_events: storedEvents,
+        reminders: input.reminders,
+      },
+      { onConflict: "day" }
+    )
   );
 
   if (error) {
@@ -56,11 +58,13 @@ export async function storeDailyContext(input: DailyContextInput): Promise<void>
 
 export async function getDailyContext(day: string): Promise<DailyContext | null> {
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from("daily_context")
-    .select("day, timezone, stories, calendar_events, reminders")
-    .eq("day", day)
-    .maybeSingle();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("daily_context")
+      .select("day, timezone, stories, calendar_events, reminders")
+      .eq("day", day)
+      .maybeSingle()
+  );
 
   if (error) {
     throw new Error(`Supabase read error: ${error.message}`);
@@ -81,7 +85,9 @@ export async function getDailyContext(day: string): Promise<DailyContext | null>
 export async function pruneOldDailyContext(): Promise<void> {
   const client = getSupabaseClient();
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const { error } = await client.from("daily_context").delete().lt("day", cutoff);
+  const { error } = await withSupabaseRetry(() =>
+    client.from("daily_context").delete().lt("day", cutoff)
+  );
 
   if (error) {
     throw new Error(`Supabase prune error: ${error.message}`);

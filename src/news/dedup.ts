@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "../supabaseClient.js";
+import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 import type { FeedItem } from "./feeds.js";
 
 const DEDUP_WINDOW_DAYS = 7;
@@ -9,10 +9,9 @@ function cutoffISOString(): string {
 
 export async function filterUnseen(items: FeedItem[]): Promise<FeedItem[]> {
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from("seen_stories")
-    .select("url")
-    .gte("seen_at", cutoffISOString());
+  const { data, error } = await withSupabaseRetry(() =>
+    client.from("seen_stories").select("url").gte("seen_at", cutoffISOString())
+  );
 
   if (error) {
     throw new Error(`Supabase read error: ${error.message}`);
@@ -27,7 +26,9 @@ export async function markSeen(urls: string[]): Promise<void> {
 
   const client = getSupabaseClient();
   const rows = urls.map((url) => ({ url, seen_at: new Date().toISOString() }));
-  const { error } = await client.from("seen_stories").upsert(rows, { onConflict: "url" });
+  const { error } = await withSupabaseRetry(() =>
+    client.from("seen_stories").upsert(rows, { onConflict: "url" })
+  );
 
   if (error) {
     throw new Error(`Supabase write error: ${error.message}`);
@@ -36,7 +37,9 @@ export async function markSeen(urls: string[]): Promise<void> {
 
 export async function pruneOldSeen(): Promise<void> {
   const client = getSupabaseClient();
-  const { error } = await client.from("seen_stories").delete().lt("seen_at", cutoffISOString());
+  const { error } = await withSupabaseRetry(() =>
+    client.from("seen_stories").delete().lt("seen_at", cutoffISOString())
+  );
 
   if (error) {
     throw new Error(`Supabase prune error: ${error.message}`);

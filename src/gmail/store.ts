@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "../supabaseClient.js";
+import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 import type { NewsletterEmail } from "./fetch.js";
 
 export interface StoredNewsletter {
@@ -23,7 +23,9 @@ export async function storeNewsletters(day: string, newsletters: NewsletterEmail
     html: n.html,
   }));
 
-  const { error } = await client.from("newsletters").upsert(rows, { onConflict: "id" });
+  const { error } = await withSupabaseRetry(() =>
+    client.from("newsletters").upsert(rows, { onConflict: "id" })
+  );
   if (error) {
     throw new Error(`Supabase upsert error: ${error.message}`);
   }
@@ -31,11 +33,13 @@ export async function storeNewsletters(day: string, newsletters: NewsletterEmail
 
 export async function getNewslettersForDay(day: string): Promise<StoredNewsletter[]> {
   const client = getSupabaseClient();
-  const { data, error } = await client
-    .from("newsletters")
-    .select("id, day, subject, sender, received_at, html")
-    .eq("day", day)
-    .order("received_at", { ascending: false });
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("newsletters")
+      .select("id, day, subject, sender, received_at, html")
+      .eq("day", day)
+      .order("received_at", { ascending: false })
+  );
 
   if (error) {
     // The newsletters table is optional infrastructure — until it's created
