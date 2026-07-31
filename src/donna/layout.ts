@@ -1,11 +1,10 @@
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
-import { renderNav, PWA_HEAD, type Tab } from "./nav.js";
+import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
 
 export interface LayoutOptions {
   title: string;
   activeTab: Tab;
-  dateLabel?: string;
   bodyHtml: string;
   extraBodyHtml?: string;
   pageScript?: string;
@@ -118,15 +117,7 @@ const CHAT_FAB_SCRIPT = `
 `;
 
 export function renderLayout(opts: LayoutOptions): string {
-  const {
-    title,
-    activeTab,
-    dateLabel,
-    bodyHtml,
-    extraBodyHtml = "",
-    pageScript = "",
-    showChatFab = false,
-  } = opts;
+  const { title, activeTab, bodyHtml, extraBodyHtml = "", pageScript = "", showChatFab = false } = opts;
 
   return `<!doctype html>
 <html lang="en">
@@ -140,17 +131,25 @@ ${BASE_STYLES}
 </style>
 </head>
 <body>
-  <header class="masthead">
-    <div class="masthead-inner">
-      <div class="wordmark">Donna</div>
-      ${dateLabel !== undefined ? `<div class="date">${escapeHtml(dateLabel)}</div>` : ""}
-    </div>
-    <nav class="tab-bar">${renderNav(activeTab)}</nav>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-mark">D</div>
+        <div class="sidebar-logo-word">Donna</div>
+      </div>
+      <nav class="sidebar-nav">${renderSidebarNav(activeTab)}</nav>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar"></div>
+        <div class="sidebar-user-name">Nathan</div>
+      </div>
+    </aside>
 
-  <main class="content">
-    ${bodyHtml}
-  </main>
+    <main class="main-content">
+      ${bodyHtml}
+    </main>
+  </div>
+
+  <nav class="bottom-nav">${renderBottomNav(activeTab)}</nav>
 
   ${extraBodyHtml}
   ${showChatFab ? renderChatFabMarkup() : ""}
