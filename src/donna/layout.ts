@@ -95,7 +95,7 @@ const CHAT_FAB_SCRIPT = `
     thinking.scrollIntoView({ behavior: "smooth", block: "end" });
 
     try {
-      const res = await fetch("/api/donna-chat-send", {
+      const res = await fetch("/api/donna-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
