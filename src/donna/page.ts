@@ -1,6 +1,9 @@
 import type { DailyContext } from "../chat/dailyContext.js";
 import type { StoredNewsletter } from "../gmail/store.js";
+import type { ClassFolder } from "../drive/classFolders.js";
+import type { DriveFile } from "../drive/list.js";
 import { escapeHtml } from "../util/html.js";
+import { BASE_STYLES } from "./styles.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -95,6 +98,40 @@ function renderStoriesSection(context: DailyContext): string {
     .join("\n");
 }
 
+function renderFilesSection(
+  classFolders: ClassFolder[],
+  filesByClass: Record<number, DriveFile[]>,
+  driveConfigured: boolean
+): string {
+  if (classFolders.length === 0) {
+    return `<p class="empty">${
+      driveConfigured
+        ? "No classes set up yet — add one in Settings."
+        : "Not connected yet — finish Google Drive setup, then add classes in Settings."
+    }</p>`;
+  }
+
+  return classFolders
+    .map((cls) => {
+      const files = filesByClass[cls.id] ?? [];
+      const list = files.length
+        ? `<ul class="file-list">${files
+            .map(
+              (f) =>
+                `<li><a href="${escapeHtml(f.webViewLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></li>`
+            )
+            .join("")}</ul>`
+        : `<p class="empty">No files yet.</p>`;
+
+      return `
+        <div class="class-block">
+          <div class="class-title">${escapeHtml(cls.className)}</div>
+          ${list}
+        </div>`;
+    })
+    .join("\n");
+}
+
 function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
   if (newsletters.length === 0) {
     return "";
@@ -120,7 +157,16 @@ function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
     </section>`;
 }
 
-export function buildDonnaHtml(context: DailyContext | null, newsletters: StoredNewsletter[]): string {
+export interface DonnaPageData {
+  context: DailyContext | null;
+  newsletters: StoredNewsletter[];
+  classFolders: ClassFolder[];
+  filesByClass: Record<number, DriveFile[]>;
+  driveConfigured: boolean;
+}
+
+export function buildDonnaHtml(data: DonnaPageData): string {
+  const { context, newsletters, classFolders, filesByClass, driveConfigured } = data;
   const dateLabel = context ? formatFullDate(context.day, context.timezone) : "";
 
   const body = context
@@ -133,6 +179,11 @@ export function buildDonnaHtml(context: DailyContext | null, newsletters: Stored
       </section>
 
       ${renderNewslettersSection(newsletters)}
+
+      <section class="section">
+        <h1 class="section-title">Files</h1>
+        ${renderFilesSection(classFolders, filesByClass, driveConfigured)}
+      </section>
 
       <section class="section">
         <h1 class="section-title">Calendar</h1>
@@ -154,14 +205,17 @@ export function buildDonnaHtml(context: DailyContext | null, newsletters: Stored
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Donna</title>
 <style>
-${STYLES}
+${BASE_STYLES}
 </style>
 </head>
 <body>
   <header class="masthead">
     <div class="masthead-inner">
       <div class="wordmark">Donna</div>
-      <div class="date">${escapeHtml(dateLabel)}</div>
+      <div class="masthead-links">
+        <a class="nav-link" href="/donna/settings">Settings</a>
+        <div class="date">${escapeHtml(dateLabel)}</div>
+      </div>
     </div>
   </header>
 
@@ -179,181 +233,6 @@ ${CLIENT_SCRIPT}
 </body>
 </html>`;
 }
-
-const STYLES = `
-  :root {
-    color-scheme: light;
-    --ink: #1a1a1a;
-    --paper: #fdfcf9;
-    --rule: #ddd8cc;
-    --accent-ecm: #8c3a2b;
-    --accent-markets: #1f4e5f;
-    --muted: #6b6558;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-  }
-  .masthead {
-    border-bottom: 3px solid var(--ink);
-    padding: 20px 16px 14px;
-  }
-  .masthead-inner {
-    max-width: 720px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-  }
-  .wordmark {
-    font-family: Georgia, "Times New Roman", serif;
-    font-weight: 700;
-    font-size: 32px;
-    letter-spacing: 0.5px;
-  }
-  .date {
-    color: var(--muted);
-    font-size: 14px;
-  }
-  .content {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 24px 16px 80px;
-  }
-  .section { margin-bottom: 40px; }
-  .section-title {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 20px;
-    border-bottom: 1px solid var(--rule);
-    padding-bottom: 8px;
-    margin-bottom: 20px;
-  }
-  .empty { color: var(--muted); font-style: italic; }
-
-  .story {
-    border-bottom: 1px solid var(--rule);
-    padding-bottom: 24px;
-    margin-bottom: 24px;
-  }
-  .story:last-child { border-bottom: none; }
-  .story-image {
-    width: 100%;
-    max-height: 320px;
-    object-fit: cover;
-    border-radius: 4px;
-    margin-bottom: 14px;
-  }
-  .story-meta {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 8px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .category {
-    padding: 2px 8px;
-    border-radius: 3px;
-    color: #fff;
-    font-weight: 600;
-  }
-  .cat-ecm { background: var(--accent-ecm); }
-  .cat-markets { background: var(--accent-markets); }
-  .source { color: var(--muted); }
-  .story-headline {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 24px;
-    line-height: 1.25;
-    margin: 0 0 12px;
-  }
-  .story-body p {
-    margin: 0 0 12px;
-    font-size: 16px;
-  }
-  .ecm-tag {
-    background: #f2ede0;
-    border-left: 3px solid var(--accent-ecm);
-    padding: 10px 14px;
-    font-size: 14px;
-    margin: 14px 0;
-  }
-  .story-link {
-    font-size: 14px;
-    color: var(--accent-markets);
-    text-decoration: none;
-  }
-  .story-link:hover { text-decoration: underline; }
-
-  .newsletter {
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 14px;
-    margin-bottom: 16px;
-  }
-  .newsletter-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  .newsletter-subject { font-weight: 600; color: var(--ink); }
-  .newsletter-frame {
-    width: 100%;
-    height: 500px;
-    border: none;
-  }
-
-  .event {
-    display: flex;
-    gap: 16px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--rule);
-  }
-  .event:last-child { border-bottom: none; }
-  .event-time {
-    flex: 0 0 130px;
-    font-weight: 600;
-    font-size: 14px;
-  }
-  .event-title { font-size: 15px; }
-  .event-detail { font-size: 13px; color: var(--muted); }
-
-  .reminders {
-    margin: 0;
-    padding-left: 20px;
-  }
-  .reminders li { margin-bottom: 6px; }
-
-  .ask-popup {
-    position: fixed;
-    max-width: 320px;
-    background: var(--ink);
-    color: var(--paper);
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-size: 14px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-    z-index: 1000;
-  }
-  .ask-popup.hidden { display: none; }
-  .ask-button {
-    position: fixed;
-    background: var(--accent-markets);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 13px;
-    cursor: pointer;
-    z-index: 1000;
-  }
-`;
 
 const CLIENT_SCRIPT = `
   let askButton = null;

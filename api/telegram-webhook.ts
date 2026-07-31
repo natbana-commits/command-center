@@ -59,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // prompt falls through here, and the pending row (if any) is left
   // untouched — a later plain "yes" still works regardless of what other
   // questions were asked in between.
-  const settings = loadSettings();
+  const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 

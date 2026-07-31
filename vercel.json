@@ -4,6 +4,7 @@
   ],
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },
+    { "source": "/donna/settings", "destination": "/api/donna-settings" },
     { "source": "/", "destination": "/api/donna" }
   ]
 }

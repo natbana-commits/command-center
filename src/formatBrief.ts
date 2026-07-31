@@ -19,7 +19,7 @@ export interface BriefMessage {
 }
 
 export async function buildBriefMessages(): Promise<BriefMessage[]> {
-  const settings = loadSettings();
+  const settings = await loadSettings();
   const [calendarResult, feedItems] = await Promise.all([
     getTodaysEvents(settings.timezone),
     fetchFeedItems(),
@@ -47,8 +47,8 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
     events: calendarResult.events,
     reminders: settings.reminders,
   });
-  // No-ops until GMAIL_* secrets are configured — safe to call unconditionally.
-  await fetchAndStoreNewsletters(day);
+  // No-ops until GOOGLE_* secrets are configured — safe to call unconditionally.
+  await fetchAndStoreNewsletters(day, settings.newsletterQuery);
 
   return [
     ...formatStoryMessages(shown),

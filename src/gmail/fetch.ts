@@ -1,4 +1,4 @@
-import { getAccessToken } from "./auth.js";
+import { getAccessToken } from "../google/auth.js";
 import { sanitizeNewsletterHtml } from "./sanitize.js";
 
 interface GmailHeader {
