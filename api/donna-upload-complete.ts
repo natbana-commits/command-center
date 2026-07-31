@@ -34,29 +34,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Respond immediately; processing continues after the response is sent
-  // (Vercel keeps the function alive until the returned promise settles).
-  res.status(202).json({ status: "processing" });
-
+  // Vercel's Node.js functions don't guarantee execution continues after a
+  // response is sent (no background-work support here), so processing has
+  // to finish before we respond. maxDuration for this function is raised in
+  // vercel.json to give it room.
   try {
     await updateUpload(uploadId, { status: "processing" });
     const fileBytes = await downloadUpload(upload.storagePath);
 
     if (upload.kind === "lecture") {
       if (!isOpenAiConfigured()) {
-        await updateUpload(uploadId, {
-          status: "failed",
-          error: "Transcription isn't set up yet — add OPENAI_API_KEY.",
-        });
+        const error = "Transcription isn't set up yet — add OPENAI_API_KEY.";
+        await updateUpload(uploadId, { status: "failed", error });
+        res.status(200).json({ status: "failed", error });
         return;
       }
       const transcript = await transcribeAudio(fileBytes, upload.originalFilename);
       const notes = await generateNotesFromTranscript(transcript);
       await updateUpload(uploadId, { status: "done", transcript, notes });
+      res.status(200).json({ status: "done", notes });
     } else {
       const mimeType = mimeTypeFromFilename(upload.originalFilename);
       const text = await extractTextFromImage(fileBytes, mimeType);
       await updateUpload(uploadId, { status: "done", notes: text });
+      res.status(200).json({ status: "done", notes: text });
     }
   } catch (err) {
     const message =
@@ -67,5 +68,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           : String(err);
     console.error(`Upload ${uploadId} processing failed:`, err);
     await updateUpload(uploadId, { status: "failed", error: message });
+    res.status(200).json({ status: "failed", error: message });
   }
 }

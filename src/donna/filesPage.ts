@@ -59,11 +59,12 @@ export interface FilesPageData {
   classFolders: ClassFolder[];
   filesByClass: Record<number, DriveFile[]>;
   uploadsByClass: Record<number, Upload[]>;
+  generalUploads: Upload[];
   googleConfigured: boolean;
 }
 
 export function buildFilesHtml(data: FilesPageData): string {
-  const { classFolders, filesByClass, uploadsByClass, googleConfigured } = data;
+  const { classFolders, filesByClass, uploadsByClass, generalUploads, googleConfigured } = data;
 
   const classesHtml = classFolders.length
     ? classFolders
@@ -99,6 +100,15 @@ ${BASE_STYLES}
       <h1 class="section-title">Classes</h1>
       ${classesHtml}
     </section>
+
+    ${
+      generalUploads.length
+        ? `<section class="section">
+      <h1 class="section-title">General</h1>
+      ${generalUploads.map(renderUpload).join("\n")}
+    </section>`
+        : ""
+    }
 
     <section class="section">
       <h1 class="section-title">Upload a lecture recording</h1>
@@ -164,33 +174,22 @@ const CLIENT_SCRIPT = `
         return;
       }
 
-      statusEl.textContent = "Processing…";
-      fetch("/api/donna-upload-complete", {
+      statusEl.textContent = "Processing… this can take a minute.";
+      const completeRes = await fetch("/api/donna-upload-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uploadId: initData.uploadId }),
       });
+      const completeData = await completeRes.json();
 
-      pollStatus(initData.uploadId, statusEl);
-    } catch (err) {
-      statusEl.textContent = "Something went wrong.";
-    }
-  }
-
-  async function pollStatus(uploadId, statusEl) {
-    try {
-      const res = await fetch("/api/donna-upload-status?id=" + uploadId);
-      const data = await res.json();
-      if (data.status === "done") {
+      if (completeData.status === "done") {
         statusEl.textContent = "Done! Reloading…";
         setTimeout(() => location.reload(), 1000);
-      } else if (data.status === "failed") {
-        statusEl.textContent = "Failed: " + (data.error || "unknown error");
       } else {
-        setTimeout(() => pollStatus(uploadId, statusEl), 3000);
+        statusEl.textContent = "Failed: " + (completeData.error || "unknown error");
       }
     } catch (err) {
-      setTimeout(() => pollStatus(uploadId, statusEl), 5000);
+      statusEl.textContent = "Something went wrong.";
     }
   }
 `;

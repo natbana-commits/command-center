@@ -135,3 +135,19 @@ export async function getUploadsForClass(classId: number): Promise<Upload[]> {
   }
   return (data ?? []).map(rowToUpload);
 }
+
+export async function getGeneralUploads(): Promise<Upload[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("uploads")
+      .select("*")
+      .is("class_id", null)
+      .order("created_at", { ascending: false })
+  );
+
+  if (error) {
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map(rowToUpload);
+}
