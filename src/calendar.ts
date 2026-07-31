@@ -5,6 +5,38 @@ export interface CalendarEvent {
   start: Date;
 }
 
+// Computes midnight-to-midnight in America/New_York as absolute UTC instants,
+// correctly handling DST — the server's own clock runs in UTC, which drifts
+// from the Eastern calendar date for several hours each evening.
+function easternDayBounds(now: Date): { start: Date; end: Date } {
+  const dateParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(now)
+    .reduce<Record<string, string>>((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+
+  const offsetName = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    timeZoneName: "shortOffset",
+  })
+    .formatToParts(now)
+    .find((part) => part.type === "timeZoneName")!.value; // e.g. "GMT-4"
+
+  const offsetHours = parseInt(offsetName.replace("GMT", ""), 10);
+  const sign = offsetHours >= 0 ? "+" : "-";
+  const offset = `${sign}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
+
+  const start = new Date(`${dateParts.year}-${dateParts.month}-${dateParts.day}T00:00:00${offset}`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
 export async function getTodaysEvents(): Promise<CalendarEvent[]> {
   const url = process.env.GOOGLE_CALENDAR_ICS_URL;
   if (!url) {
@@ -12,13 +44,7 @@ export async function getTodaysEvents(): Promise<CalendarEvent[]> {
   }
 
   const data = await ical.async.fromURL(url);
-
-  // Servers run in UTC and this job only ever fires at 7am ET (11:00 UTC),
-  // which is already past UTC midnight on the same calendar date — so plain
-  // UTC day boundaries line up with "today" in Eastern for this schedule.
-  const now = new Date();
-  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  const { start: startOfDay, end: endOfDay } = easternDayBounds(new Date());
 
   const events: CalendarEvent[] = [];
 
