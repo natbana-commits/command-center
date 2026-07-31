@@ -164,7 +164,7 @@ export function buildFilesHtml(data: FilesPageData): string {
           <div class="hint" id="lecture-status"></div>
         </div>
 
-        <hr style="border: none; border-top: 1px solid var(--rule); margin: 24px 0;" />
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;" />
 
         <h1 class="section-title">Scan a photo or document</h1>
         <div class="hint">Select a class to associate the scan with, then choose your file.</div>

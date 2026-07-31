@@ -13,7 +13,7 @@ function renderClassRows(classFolders: ClassFolder[]): string {
       (cls) => `
         <div class="class-row">
           <span>${escapeHtml(cls.className)}</span>
-          <form method="POST" action="/api/donna-settings-save">
+          <form method="POST" action="/api/donna-settings">
             <input type="hidden" name="action" value="delete-class" />
             <input type="hidden" name="id" value="${cls.id}" />
             <button class="btn btn-danger" type="submit">Remove</button>
@@ -30,12 +30,15 @@ export function buildSettingsHtml(
   error?: string
 ): string {
   const body = `
+    <div class="section">
+      <h1 class="page-title">Settings</h1>
+    </div>
     ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
-    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--accent-ecm);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
+    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
 
-    <section class="section">
+    <section class="section card">
       <h1 class="section-title">Brief settings</h1>
-      <form class="settings-form" method="POST" action="/api/donna-settings-save">
+      <form class="settings-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="save-settings" />
 
         <div class="field">
@@ -52,14 +55,14 @@ export function buildSettingsHtml(
 
         <button class="btn" type="submit">Save</button>
       </form>
-      <p class="hint">Reminders now live in Google Tasks — ask Donna (Telegram or Chat) to add or check them off.</p>
+      <p class="hint">Reminders now live in Google Tasks — check the Reminders page, or ask Donna to add or check them off.</p>
     </section>
 
-    <section class="section">
+    <section class="section card" style="margin-top: 16px;">
       <h1 class="section-title">Classes</h1>
       ${renderClassRows(classFolders)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings-save">
+      <form class="add-class-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="add-class" />
         <input type="text" name="className" placeholder="Class name, e.g. ECO 301" required />
         <input type="text" name="driveFolderLink" placeholder="Paste Drive folder link" required />

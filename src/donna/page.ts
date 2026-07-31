@@ -4,6 +4,7 @@ import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { iconBell, iconCalendar, iconFolder } from "./icons.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -25,6 +26,15 @@ function formatFullDate(day: string, timezone: string): string {
   });
 }
 
+function greetingWord(timezone: string): string {
+  const hour = Number(
+    new Date().toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", hour12: false })
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const diffMinutes = Math.round(diffMs / 60000);
@@ -36,29 +46,20 @@ function formatRelativeTime(iso: string): string {
   return rtf.format(-diffDays, "day");
 }
 
-function renderCalendarSection(context: DailyContext): string {
-  if (context.calendarEvents.length === 0) {
+function renderCalendarCard(context: DailyContext | null): string {
+  if (!context || context.calendarEvents.length === 0) {
     return `<p class="empty">Nothing on the calendar today.</p>`;
   }
-
   return context.calendarEvents
+    .slice(0, 4)
     .map((e) => {
       const timeLabel = e.end
         ? `${formatEventTime(e.start, context.timezone)} – ${formatEventTime(e.end, context.timezone)}`
         : formatEventTime(e.start, context.timezone);
-
-      const details = [
-        e.location ? `<div class="event-detail">${escapeHtml(e.location)}</div>` : "",
-        e.description ? `<div class="event-detail">${escapeHtml(e.description)}</div>` : "",
-      ].join("");
-
       return `
-        <div class="event">
-          <div class="event-time">${escapeHtml(timeLabel)}</div>
-          <div class="event-body">
-            <div class="event-title">${escapeHtml(e.summary)}</div>
-            ${details}
-          </div>
+        <div class="agenda-event-row">
+          <div class="agenda-event-time">${escapeHtml(timeLabel)}</div>
+          <div class="agenda-event-title">${escapeHtml(e.summary)}</div>
         </div>`;
     })
     .join("\n");
@@ -69,68 +70,72 @@ function uploadLabel(u: Upload): string {
   return `${kindLabel}: ${u.originalFilename}`;
 }
 
-function renderRecentActivitySection(uploads: Upload[]): string {
+function renderRecentActivityCard(uploads: Upload[]): string {
   if (uploads.length === 0) {
     return `<p class="empty">No recent activity.</p>`;
   }
-
   return uploads
+    .slice(0, 4)
     .map(
       (u) => `
-        <div class="recent-item">
-          <div>${escapeHtml(uploadLabel(u))}</div>
-          <div class="recent-item-time">${escapeHtml(formatRelativeTime(u.createdAt))}</div>
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(uploadLabel(u))}</div>
+          <div class="agenda-event-time">${escapeHtml(formatRelativeTime(u.createdAt))}</div>
         </div>`
     )
     .join("\n");
 }
 
-function renderRemindersSection(reminders: Reminder[], googleConfigured: boolean): string {
+function renderRemindersCard(reminders: Reminder[], googleConfigured: boolean): string {
   if (!googleConfigured) {
     return `<p class="empty">Not connected yet — finish Google setup to use reminders.</p>`;
   }
   if (reminders.length === 0) {
     return `<p class="empty">No reminders.</p>`;
   }
-  return `<ul class="reminders">${reminders
-    .map((r) => `<li>${escapeHtml(r.title)}</li>`)
-    .join("")}</ul>`;
+  return reminders
+    .slice(0, 4)
+    .map((r) => `<div class="agenda-event-row"><div class="agenda-event-title">${escapeHtml(r.title)}</div></div>`)
+    .join("\n");
+}
+
+function renderNewsRow(story: DailyContext["stories"][number]): string {
+  const paragraphs = story.summary.split("\n\n").map((p) => p.trim()).filter(Boolean);
+  const firstLine = paragraphs[0] ?? "";
+
+  const thumb = story.imageUrl
+    ? `<img class="news-thumb" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" />`
+    : `<div class="news-thumb"></div>`;
+
+  const expandedParagraphs = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
+  const expandedImage = story.imageUrl
+    ? `<img class="news-image" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" />`
+    : "";
+
+  return `
+    <details class="news-row selectable">
+      <summary>
+        ${thumb}
+        <div class="news-row-main">
+          <div class="news-row-meta"><span>${escapeHtml(story.category)}</span><span>·</span><span>${escapeHtml(story.source)}</span></div>
+          <h2 class="news-row-headline">${escapeHtml(story.headline)}</h2>
+          <p class="news-row-summary">${escapeHtml(firstLine)}</p>
+        </div>
+      </summary>
+      <div class="news-expanded">
+        ${expandedImage}
+        ${expandedParagraphs}
+        <div class="news-callout">${escapeHtml(story.ecmTag)}</div>
+        <a class="news-link" href="${escapeHtml(story.url)}" target="_blank" rel="noopener noreferrer">Read the source →</a>
+      </div>
+    </details>`;
 }
 
 function renderStoriesSection(context: DailyContext): string {
   if (context.stories.length === 0) {
     return `<p class="empty">No stories curated today.</p>`;
   }
-
-  return context.stories
-    .map((story) => {
-      const summaryParagraphs = story.summary
-        .split("\n\n")
-        .map((p) => `<p>${escapeHtml(p)}</p>`)
-        .join("");
-
-      const image = story.imageUrl
-        ? `<img class="story-image" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" />`
-        : "";
-
-      const categoryClass = story.category === "Markets" ? "cat-markets" : "cat-ecm";
-
-      return `
-        <article class="story">
-          ${image}
-          <div class="story-body selectable">
-            <div class="story-meta">
-              <span class="category ${categoryClass}">${escapeHtml(story.category)}</span>
-              <span class="source">${escapeHtml(story.source)}</span>
-            </div>
-            <h2 class="story-headline">${escapeHtml(story.headline)}</h2>
-            ${summaryParagraphs}
-            <div class="ecm-tag">${escapeHtml(story.ecmTag)}</div>
-            <a class="story-link" href="${escapeHtml(story.url)}" target="_blank" rel="noopener noreferrer">Read the source →</a>
-          </div>
-        </article>`;
-    })
-    .join("\n");
+  return context.stories.map(renderNewsRow).join("\n");
 }
 
 function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
@@ -168,45 +173,47 @@ export interface DonnaPageData {
 
 export function buildDonnaHtml(data: DonnaPageData): string {
   const { context, newsletters, reminders, recentUploads, googleConfigured } = data;
-  const dateLabel = context ? formatFullDate(context.day, context.timezone) : "";
+  const timezone = context?.timezone ?? "America/New_York";
+  const dateLabel = context ? formatFullDate(context.day, timezone) : "";
 
-  const body = context
-    ? `
-      <section class="section">
-        <h1 class="section-title">News</h1>
-        <div class="stories">
-          ${renderStoriesSection(context)}
-        </div>
-      </section>
+  const body = `
+    <div class="section">
+      <h1 class="page-title">${greetingWord(timezone)}, Nathan.</h1>
+      ${dateLabel ? `<p class="page-sub">${escapeHtml(dateLabel)}</p>` : ""}
+    </div>
 
-      ${renderNewslettersSection(newsletters)}
+    <div class="card-row">
+      <div class="card">
+        <div class="card-icon">${iconFolder}</div>
+        <div class="card-title">Recent Activity</div>
+        ${renderRecentActivityCard(recentUploads)}
+      </div>
+      <div class="card">
+        <div class="card-icon">${iconCalendar}</div>
+        <div class="card-title">Upcoming</div>
+        ${renderCalendarCard(context)}
+      </div>
+      <div class="card">
+        <div class="card-icon">${iconBell}</div>
+        <div class="card-title">Reminders</div>
+        ${renderRemindersCard(reminders, googleConfigured)}
+      </div>
+    </div>
 
-      <section class="section">
-        <h1 class="section-title">Upcoming &amp; Recent</h1>
-        <div class="brief-columns">
-          <div class="brief-col">
-            <h2>Upcoming</h2>
-            <div class="events">
-              ${renderCalendarSection(context)}
-            </div>
-          </div>
-          <div class="brief-col">
-            <h2>Recent Activity</h2>
-            ${renderRecentActivitySection(recentUploads)}
-          </div>
-        </div>
-      </section>
+    ${
+      context
+        ? `<section class="section">
+      <h1 class="section-title">News</h1>
+      ${renderStoriesSection(context)}
+    </section>
 
-      <section class="section">
-        <h1 class="section-title">Reminders</h1>
-        ${renderRemindersSection(reminders, googleConfigured)}
-      </section>`
-    : `<section class="section"><p class="empty">No brief has been generated yet today.</p></section>`;
+    ${renderNewslettersSection(newsletters)}`
+        : `<section class="section"><p class="empty">No brief has been generated yet today.</p></section>`
+    }`;
 
   return renderLayout({
     title: "Donna",
-    activeTab: "brief",
-    dateLabel,
+    activeTab: "home",
     bodyHtml: body,
     extraBodyHtml: `
   <div id="ask-popup" class="ask-popup hidden">
@@ -266,7 +273,7 @@ const CLIENT_SCRIPT = `
     body.textContent = "Thinking…";
 
     try {
-      const res = await fetch("/api/donna-ask", {
+      const res = await fetch("/api/donna", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
