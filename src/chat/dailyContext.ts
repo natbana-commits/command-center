@@ -2,6 +2,8 @@ import { getSupabaseClient } from "../supabaseClient.js";
 import type { NewsStory } from "../news/curate.js";
 import type { CalendarEvent } from "../calendar.js";
 
+const RETENTION_DAYS = 30;
+
 export interface StoredCalendarEvent {
   summary: string;
   start: string;
@@ -74,4 +76,14 @@ export async function getDailyContext(day: string): Promise<DailyContext | null>
     calendarEvents: data.calendar_events,
     reminders: data.reminders,
   };
+}
+
+export async function pruneOldDailyContext(): Promise<void> {
+  const client = getSupabaseClient();
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { error } = await client.from("daily_context").delete().lt("day", cutoff);
+
+  if (error) {
+    throw new Error(`Supabase prune error: ${error.message}`);
+  }
 }

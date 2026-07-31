@@ -6,6 +6,11 @@ export interface FeedItem {
   snippet: string;
   source: string;
   publishedAt: Date;
+  imageUrl?: string;
+}
+
+interface MediaContentField {
+  $?: { url?: string; medium?: string };
 }
 
 const FEEDS = [
@@ -17,7 +22,11 @@ const FEEDS = [
   { url: "https://seekingalpha.com/market_currents.xml", source: "Seeking Alpha" },
 ];
 
-const parser = new Parser();
+const parser: Parser<unknown, { mediaContent?: MediaContentField }> = new Parser({
+  customFields: {
+    item: [["media:content", "mediaContent"]],
+  },
+});
 
 export async function fetchFeedItems(): Promise<FeedItem[]> {
   const results = await Promise.allSettled(
@@ -31,6 +40,7 @@ export async function fetchFeedItems(): Promise<FeedItem[]> {
           snippet: (item.contentSnippet ?? item.content ?? "").trim(),
           source: feed.source,
           publishedAt: item.isoDate ? new Date(item.isoDate) : new Date(),
+          imageUrl: item.mediaContent?.$?.url,
         }));
     })
   );

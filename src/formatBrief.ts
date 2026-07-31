@@ -6,8 +6,10 @@ import { curateStories } from "./news/curate.js";
 import { formatStoryMessages, formatMorePrompt } from "./news/format.js";
 import { filterUnseen, markSeen, pruneOldSeen } from "./news/dedup.js";
 import { storePendingStories } from "./news/pending.js";
-import { storeDailyContext } from "./chat/dailyContext.js";
+import { storeDailyContext, pruneOldDailyContext } from "./chat/dailyContext.js";
+import { pruneOldChatMessages } from "./chat/history.js";
 import { localDateKey } from "./util/time.js";
+import { fetchAndStoreNewsletters } from "./gmail/index.js";
 
 const HEADLINE_COUNT = 4;
 
@@ -23,26 +25,35 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
     fetchFeedItems(),
   ]);
   const unseenItems = await filterUnseen(feedItems);
-  const stories = await curateStories(unseenItems);
+  const curated = await curateStories(unseenItems);
+  // Attach the image from the original feed item rather than trusting the
+  // model to pass it through unchanged.
+  const imageByUrl = new Map(unseenItems.map((item) => [item.link, item.imageUrl]));
+  const stories = curated.map((story) => ({ ...story, imageUrl: imageByUrl.get(story.url) }));
   await markSeen(stories.map((s) => s.url));
   await pruneOldSeen();
+  await pruneOldChatMessages();
+  await pruneOldDailyContext();
 
   const sorted = [...stories].sort((a, b) => b.relevance - a.relevance);
   const shown = sorted.slice(0, HEADLINE_COUNT);
   const held = sorted.slice(HEADLINE_COUNT);
+  const day = localDateKey(new Date(), calendarResult.timezone);
   await storePendingStories(held);
   await storeDailyContext({
-    day: localDateKey(new Date(), calendarResult.timezone),
+    day,
     timezone: calendarResult.timezone,
     stories,
     events: calendarResult.events,
     reminders: settings.reminders,
   });
+  // No-ops until GMAIL_* secrets are configured — safe to call unconditionally.
+  await fetchAndStoreNewsletters(day);
 
   return [
     ...formatStoryMessages(shown),
     {
-      text: "Morning — brief's ready. Once Donna's built, newsletters and extra stories will live there too.",
+      text: "Morning — brief's ready. Full summaries, images, and newsletters: https://command-center-navy-pi.vercel.app/donna",
     },
     {
       text: [

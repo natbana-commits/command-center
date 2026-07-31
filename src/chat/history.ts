@@ -1,5 +1,7 @@
 import { getSupabaseClient } from "../supabaseClient.js";
 
+const RETENTION_DAYS = 30;
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -31,5 +33,15 @@ export async function appendChatMessage(
 
   if (error) {
     throw new Error(`Supabase insert error: ${error.message}`);
+  }
+}
+
+export async function pruneOldChatMessages(): Promise<void> {
+  const client = getSupabaseClient();
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { error } = await client.from("chat_messages").delete().lt("day", cutoff);
+
+  if (error) {
+    throw new Error(`Supabase prune error: ${error.message}`);
   }
 }

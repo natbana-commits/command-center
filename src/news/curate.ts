@@ -9,6 +9,7 @@ export interface NewsStory {
   source: string;
   url: string;
   relevance: number;
+  imageUrl?: string;
 }
 
 const SYSTEM_PROMPT = `You are a senior ECM analyst at a bulge bracket investment bank preparing a morning briefing for a finance-recruiting-focused Princeton econ student. You will be given a list of real headlines and snippets pulled directly from WSJ, FT, Bloomberg, MarketWatch, CNBC, and Seeking Alpha RSS feeds today. Select and expand on the most relevant ones — never invent a story or URL that isn't in the provided list.

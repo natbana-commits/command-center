@@ -37,3 +37,17 @@ create table if not exists chat_messages (
 );
 
 create index if not exists chat_messages_day_idx on chat_messages (day, created_at);
+
+-- Newsletter emails pulled from Gmail (inactive until Gmail OAuth is set up
+-- — see .env.example for the required GMAIL_* secrets).
+create table if not exists newsletters (
+  id text primary key,
+  day date not null,
+  subject text not null,
+  sender text not null,
+  received_at timestamptz not null,
+  html text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists newsletters_day_idx on newsletters (day);
