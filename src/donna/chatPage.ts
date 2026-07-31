@@ -1,7 +1,6 @@
 import type { ChatMessage } from "../chat/history.js";
 import { escapeHtml } from "../util/html.js";
-import { BASE_STYLES } from "./styles.js";
-import { renderNav, PWA_HEAD } from "./nav.js";
+import { renderLayout } from "./layout.js";
 
 function renderMessage(m: ChatMessage): string {
   const cls = m.role === "user" ? "chat-bubble-user" : "chat-bubble-assistant";
@@ -13,38 +12,20 @@ export function buildChatHtml(history: ChatMessage[]): string {
     ? history.map(renderMessage).join("\n")
     : `<p class="empty">Ask Donna anything — today's news, calendar, reminders, class files, or general questions.</p>`;
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Donna Chat</title>
-${PWA_HEAD}
-<style>
-${BASE_STYLES}
-</style>
-</head>
-<body>
-  <header class="masthead">
-    <div class="masthead-inner">
-      <div class="wordmark">Donna</div>
-    </div>
-    <nav class="tab-bar">${renderNav("chat")}</nav>
-  </header>
-
-  <main class="content">
+  const body = `
     <div class="chat-log" id="chat-log">${historyHtml}</div>
     <div class="chat-input-row">
       <input type="text" id="chat-input" placeholder="Ask Donna anything…" autocomplete="off" />
       <button class="btn" id="chat-send">Send</button>
-    </div>
-  </main>
+    </div>`;
 
-  <script>
-${CLIENT_SCRIPT}
-  </script>
-</body>
-</html>`;
+  return renderLayout({
+    title: "Donna Chat",
+    activeTab: "chat",
+    bodyHtml: body,
+    pageScript: CLIENT_SCRIPT,
+    showChatFab: false,
+  });
 }
 
 const CLIENT_SCRIPT = `

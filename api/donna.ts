@@ -5,6 +5,7 @@ import { getDailyContext } from "../src/chat/dailyContext.js";
 import { getNewslettersForDay } from "../src/gmail/index.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
+import { getRecentUploads } from "../src/storage/uploads.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
@@ -12,16 +13,18 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 
-  const [context, newsletters, reminders] = await Promise.all([
+  const [context, newsletters, reminders, recentUploads] = await Promise.all([
     getDailyContext(day),
     getNewslettersForDay(day),
     listRemindersSafe(),
+    getRecentUploads(3).catch(() => []),
   ]);
 
   const html = buildDonnaHtml({
     context,
     newsletters,
     reminders,
+    recentUploads,
     googleConfigured: isGoogleConfigured(),
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");

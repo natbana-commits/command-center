@@ -1,9 +1,9 @@
 import type { DailyContext } from "../chat/dailyContext.js";
 import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
+import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
-import { BASE_STYLES } from "./styles.js";
-import { renderNav, PWA_HEAD } from "./nav.js";
+import { renderLayout } from "./layout.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -23,6 +23,17 @@ function formatFullDate(day: string, timezone: string): string {
     month: "long",
     day: "numeric",
   });
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  if (Math.abs(diffMinutes) < 60) return rtf.format(-diffMinutes, "minute");
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) return rtf.format(-diffHours, "hour");
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(-diffDays, "day");
 }
 
 function renderCalendarSection(context: DailyContext): string {
@@ -50,6 +61,27 @@ function renderCalendarSection(context: DailyContext): string {
           </div>
         </div>`;
     })
+    .join("\n");
+}
+
+function uploadLabel(u: Upload): string {
+  const kindLabel = u.kind === "lecture" ? "Transcript" : "Scan";
+  return `${kindLabel}: ${u.originalFilename}`;
+}
+
+function renderRecentActivitySection(uploads: Upload[]): string {
+  if (uploads.length === 0) {
+    return `<p class="empty">No recent activity.</p>`;
+  }
+
+  return uploads
+    .map(
+      (u) => `
+        <div class="recent-item">
+          <div>${escapeHtml(uploadLabel(u))}</div>
+          <div class="recent-item-time">${escapeHtml(formatRelativeTime(u.createdAt))}</div>
+        </div>`
+    )
     .join("\n");
 }
 
@@ -130,11 +162,12 @@ export interface DonnaPageData {
   context: DailyContext | null;
   newsletters: StoredNewsletter[];
   reminders: Reminder[];
+  recentUploads: Upload[];
   googleConfigured: boolean;
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, reminders, googleConfigured } = data;
+  const { context, newsletters, reminders, recentUploads, googleConfigured } = data;
   const dateLabel = context ? formatFullDate(context.day, context.timezone) : "";
 
   const body = context
@@ -149,9 +182,18 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       ${renderNewslettersSection(newsletters)}
 
       <section class="section">
-        <h1 class="section-title">Calendar</h1>
-        <div class="events">
-          ${renderCalendarSection(context)}
+        <h1 class="section-title">Upcoming &amp; Recent</h1>
+        <div class="brief-columns">
+          <div class="brief-col">
+            <h2>Upcoming</h2>
+            <div class="events">
+              ${renderCalendarSection(context)}
+            </div>
+          </div>
+          <div class="brief-col">
+            <h2>Recent Activity</h2>
+            ${renderRecentActivitySection(recentUploads)}
+          </div>
         </div>
       </section>
 
@@ -161,39 +203,18 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       </section>`
     : `<section class="section"><p class="empty">No brief has been generated yet today.</p></section>`;
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Donna</title>
-${PWA_HEAD}
-<style>
-${BASE_STYLES}
-</style>
-</head>
-<body>
-  <header class="masthead">
-    <div class="masthead-inner">
-      <div class="wordmark">Donna</div>
-      <div class="date">${escapeHtml(dateLabel)}</div>
-    </div>
-    <nav class="tab-bar">${renderNav("brief")}</nav>
-  </header>
-
-  <main class="content">
-    ${body}
-  </main>
-
+  return renderLayout({
+    title: "Donna",
+    activeTab: "brief",
+    dateLabel,
+    bodyHtml: body,
+    extraBodyHtml: `
   <div id="ask-popup" class="ask-popup hidden">
     <div class="ask-popup-body" id="ask-popup-body"></div>
-  </div>
-
-  <script>
-${CLIENT_SCRIPT}
-  </script>
-</body>
-</html>`;
+  </div>`,
+    pageScript: CLIENT_SCRIPT,
+    showChatFab: true,
+  });
 }
 
 const CLIENT_SCRIPT = `

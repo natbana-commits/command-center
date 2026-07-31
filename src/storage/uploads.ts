@@ -15,6 +15,7 @@ export interface Upload {
   transcript: string | null;
   notes: string | null;
   error: string | null;
+  createdAt: string;
 }
 
 function rowToUpload(row: {
@@ -27,6 +28,7 @@ function rowToUpload(row: {
   transcript: string | null;
   notes: string | null;
   error: string | null;
+  created_at: string;
 }): Upload {
   return {
     id: row.id,
@@ -38,6 +40,7 @@ function rowToUpload(row: {
     transcript: row.transcript,
     notes: row.notes,
     error: row.error,
+    createdAt: row.created_at,
   };
 }
 
@@ -144,6 +147,22 @@ export async function getGeneralUploads(): Promise<Upload[]> {
       .select("*")
       .is("class_id", null)
       .order("created_at", { ascending: false })
+  );
+
+  if (error) {
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map(rowToUpload);
+}
+
+export async function getRecentUploads(limit: number): Promise<Upload[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("uploads")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit)
   );
 
   if (error) {

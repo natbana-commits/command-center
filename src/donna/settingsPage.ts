@@ -1,8 +1,7 @@
 import type { Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import { escapeHtml } from "../util/html.js";
-import { BASE_STYLES } from "./styles.js";
-import { renderNav, PWA_HEAD } from "./nav.js";
+import { renderLayout } from "./layout.js";
 
 function renderClassRows(classFolders: ClassFolder[]): string {
   if (classFolders.length === 0) {
@@ -30,26 +29,7 @@ export function buildSettingsHtml(
   saved: boolean,
   error?: string
 ): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Donna Settings</title>
-${PWA_HEAD}
-<style>
-${BASE_STYLES}
-</style>
-</head>
-<body>
-  <header class="masthead">
-    <div class="masthead-inner">
-      <div class="wordmark">Donna</div>
-    </div>
-    <nav class="tab-bar">${renderNav("settings")}</nav>
-  </header>
-
-  <main class="content">
+  const body = `
     ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
     ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--accent-ecm);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
 
@@ -60,13 +40,13 @@ ${BASE_STYLES}
 
         <div class="field">
           <label for="timezone">Timezone</label>
-          <input type="text" id="timezone" name="timezone" value="${escapeHtml(settings.timezone)}" />
+          <input class="input-mono" type="text" id="timezone" name="timezone" value="${escapeHtml(settings.timezone)}" />
           <div class="hint">An IANA timezone name, e.g. America/New_York</div>
         </div>
 
         <div class="field">
           <label for="newsletterQuery">Newsletter search query</label>
-          <input type="text" id="newsletterQuery" name="newsletterQuery" value="${escapeHtml(settings.newsletterQuery)}" />
+          <input class="input-mono" type="text" id="newsletterQuery" name="newsletterQuery" value="${escapeHtml(settings.newsletterQuery)}" />
           <div class="hint">Gmail search syntax, e.g. newer_than:2d label:newsletters</div>
         </div>
 
@@ -86,8 +66,12 @@ ${BASE_STYLES}
         <button class="btn" type="submit">Add</button>
       </form>
       <div class="hint">Paste a Drive folder's share link — Donna extracts the folder ID automatically.</div>
-    </section>
-  </main>
-</body>
-</html>`;
+    </section>`;
+
+  return renderLayout({
+    title: "Donna Settings",
+    activeTab: "settings",
+    bodyHtml: body,
+    showChatFab: true,
+  });
 }
