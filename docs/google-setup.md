@@ -45,8 +45,15 @@ That's the one thing only you can test.
 
 1. Go to https://console.cloud.google.com/apis/credentials
 2. **Create Credentials → OAuth client ID**
-3. Application type: **Desktop app**
-4. Save the **Client ID** and **Client Secret** shown — these become
+3. Application type: **Web application** — not Desktop app. Desktop-app
+   clients can't have a custom redirect URI, which the OAuth Playground
+   step below needs; using one produces `Error 400: redirect_uri_mismatch`.
+   A Web application client works fine for the refresh-token grant this
+   project actually uses at runtime, so there's no downside to using it
+   permanently (not just for this one-time step).
+4. Under **Authorized redirect URIs**, add exactly:
+   `https://developers.google.com/oauthplayground`
+5. Save the **Client ID** and **Client Secret** shown — these become
    `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
 ## 4. Get a refresh token (this is the Princeton consent step)
@@ -56,14 +63,19 @@ Easiest path is Google's OAuth Playground:
 1. Go to https://developers.google.com/oauthplayground
 2. Click the gear icon (top right) → check **"Use your own OAuth
    credentials"** → paste in your Client ID and Client Secret from step 3.
-3. In the left panel, find and select all **three** scopes:
+3. In the left panel, select all **three** scopes in one pass before
+   authorizing — doing them one at a time produces three separate
+   authorizations instead of one refresh token covering all three:
    `https://www.googleapis.com/auth/gmail.readonly`,
    `https://www.googleapis.com/auth/drive.readonly`, and
    `https://www.googleapis.com/auth/tasks` (or paste them into the
    "Input your own scopes" box, space-separated).
-4. Click **Authorize APIs** — sign in with your **Princeton** account here.
-   This is the step that will show `Error 403: admin_policy_enforced` if
-   Princeton's admin blocks it.
+4. Click **Authorize APIs** — sign in with your **Princeton** account here
+   (use "Use another account" if your personal account is already signed
+   in — authorizing with the wrong account produces `Error 403:
+   access_denied` since only Princeton's address is a test user). This is
+   also the step that will show `Error 403: admin_policy_enforced` if
+   Princeton's admin blocks third-party OAuth apps outright.
 5. If it succeeds, click **Exchange authorization code for tokens** — the
    **Refresh token** shown becomes `GOOGLE_REFRESH_TOKEN`. One token grants
    all three scopes since you requested them together.
