@@ -44,6 +44,27 @@ export const BASE_STYLES = `
     font-size: 14px;
   }
   .nav-link:hover { text-decoration: underline; }
+
+  .tab-bar {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 0 16px;
+  }
+  .tab-link {
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+  }
+  .tab-link:hover { color: var(--ink); }
+  .tab-link-active {
+    color: var(--ink);
+    font-weight: 600;
+    border-bottom-color: var(--accent-markets);
+  }
   .content {
     max-width: 720px;
     margin: 0 auto;
@@ -232,4 +253,76 @@ export const BASE_STYLES = `
   }
   .add-class-form { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .add-class-form input { flex: 1 1 160px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 4px; font-size: 14px; }
+
+  .upload-form {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 14px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .upload-form select,
+  .upload-form input[type="file"] {
+    padding: 6px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .upload-item {
+    border-bottom: 1px solid var(--rule);
+    padding: 10px 0;
+  }
+  .upload-item:last-child { border-bottom: none; }
+  .upload-status {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .upload-notes {
+    white-space: pre-wrap;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+
+  .chat-log {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+    min-height: 200px;
+  }
+  .chat-bubble {
+    padding: 10px 14px;
+    border-radius: 10px;
+    max-width: 85%;
+    font-size: 14px;
+    white-space: pre-wrap;
+  }
+  .chat-bubble-user {
+    background: var(--accent-markets);
+    color: #fff;
+    align-self: flex-end;
+  }
+  .chat-bubble-assistant {
+    background: #f2ede0;
+    color: var(--ink);
+    align-self: flex-start;
+  }
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+    position: sticky;
+    bottom: 0;
+    background: var(--paper);
+    padding: 12px 0;
+  }
+  .chat-input-row input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-size: 14px;
+  }
 `;

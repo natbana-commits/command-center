@@ -2,6 +2,7 @@ import type { Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
+import { renderNav, PWA_HEAD } from "./nav.js";
 
 function renderClassRows(classFolders: ClassFolder[]): string {
   if (classFolders.length === 0) {
@@ -29,14 +30,13 @@ export function buildSettingsHtml(
   saved: boolean,
   error?: string
 ): string {
-  const remindersText = settings.reminders.join("\n");
-
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Donna Settings</title>
+${PWA_HEAD}
 <style>
 ${BASE_STYLES}
 </style>
@@ -45,10 +45,8 @@ ${BASE_STYLES}
   <header class="masthead">
     <div class="masthead-inner">
       <div class="wordmark">Donna</div>
-      <div class="masthead-links">
-        <a class="nav-link" href="/donna">Back to brief</a>
-      </div>
     </div>
+    <nav class="tab-bar">${renderNav("settings")}</nav>
   </header>
 
   <main class="content">
@@ -67,11 +65,6 @@ ${BASE_STYLES}
         </div>
 
         <div class="field">
-          <label for="reminders">Reminders (one per line)</label>
-          <textarea id="reminders" name="reminders">${escapeHtml(remindersText)}</textarea>
-        </div>
-
-        <div class="field">
           <label for="newsletterQuery">Newsletter search query</label>
           <input type="text" id="newsletterQuery" name="newsletterQuery" value="${escapeHtml(settings.newsletterQuery)}" />
           <div class="hint">Gmail search syntax, e.g. newer_than:2d label:newsletters</div>
@@ -79,6 +72,7 @@ ${BASE_STYLES}
 
         <button class="btn" type="submit">Save</button>
       </form>
+      <p class="hint">Reminders now live in Google Tasks — ask Donna (Telegram or Chat) to add or check them off.</p>
     </section>
 
     <section class="section">

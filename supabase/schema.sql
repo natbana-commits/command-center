@@ -14,17 +14,21 @@ create table if not exists pending_stories (
   created_at timestamptz not null default now()
 );
 
--- Full snapshot of a day's brief (all 8 stories, calendar, reminders) so the
--- chat webhook can answer questions hours later without re-running the
+-- Full snapshot of a day's brief (all 8 stories, calendar) so the chat
+-- webhook can answer questions hours later without re-running the
 -- RSS/curation pipeline. Keyed by day so it naturally resets daily.
+-- Reminders live in Google Tasks now (fetched live, not snapshotted here).
 create table if not exists daily_context (
   day date primary key,
   timezone text not null,
   stories jsonb not null,
   calendar_events jsonb not null,
-  reminders jsonb not null,
   created_at timestamptz not null default now()
 );
+
+-- Migration: drop the no-longer-used reminders column from an existing
+-- table (safe no-op if you're running this fresh, or already dropped it).
+alter table daily_context drop column if exists reminders;
 
 -- Same-day conversational memory for the chat webhook. Scoped by day so
 -- "today's history" is a simple equality filter.
@@ -54,19 +58,23 @@ create index if not exists newsletters_day_idx on newsletters (day);
 
 -- Single-row settings, replacing the old config/settings.json — editable
 -- from the Donna settings page since a deployed function can't durably
--- write to a file in its own bundle.
+-- write to a file in its own bundle. Reminders live in Google Tasks now,
+-- not here.
 create table if not exists app_settings (
   id int primary key,
   timezone text not null default 'America/New_York',
-  reminders jsonb not null default '[]'::jsonb,
   newsletter_query text not null default 'newer_than:2d label:newsletters',
   updated_at timestamptz not null default now(),
   constraint app_settings_singleton check (id = 1)
 );
 
-insert into app_settings (id, timezone, reminders, newsletter_query)
-values (1, 'America/New_York', '[]'::jsonb, 'newer_than:2d label:newsletters')
+insert into app_settings (id, timezone, newsletter_query)
+values (1, 'America/New_York', 'newer_than:2d label:newsletters')
 on conflict (id) do nothing;
+
+-- Migration: drop the no-longer-used reminders column from an existing
+-- table (safe no-op if you're running this fresh, or already dropped it).
+alter table app_settings drop column if exists reminders;
 
 -- Maps a class name to a Google Drive folder, for the customizable file hub.
 -- Populated from the Donna settings page whenever Nathan starts organizing
@@ -77,3 +85,29 @@ create table if not exists class_folders (
   drive_folder_id text not null,
   created_at timestamptz not null default now()
 );
+
+-- Private bucket for lecture recordings and scanned photos/documents.
+-- Uploads go directly from the browser to Storage via a service-role-minted
+-- signed URL (bypasses Vercel's request body size limits), so no public
+-- bucket policy or RLS is needed — the signed URL itself is the permission.
+insert into storage.buckets (id, name, public)
+values ('donna-uploads', 'donna-uploads', false)
+on conflict (id) do nothing;
+
+-- Tracks uploaded lecture recordings/photos and their processed results
+-- (transcript + Claude-generated notes for audio, extracted text for
+-- photos). Optionally tied to a class.
+create table if not exists uploads (
+  id bigint generated always as identity primary key,
+  storage_path text not null,
+  kind text not null check (kind in ('lecture', 'photo')),
+  class_id bigint references class_folders (id) on delete set null,
+  original_filename text not null,
+  status text not null default 'pending' check (status in ('pending', 'processing', 'done', 'failed')),
+  transcript text,
+  notes text,
+  error text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists uploads_class_id_idx on uploads (class_id);

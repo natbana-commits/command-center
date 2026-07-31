@@ -17,7 +17,6 @@ export interface DailyContextInput {
   timezone: string;
   stories: NewsStory[];
   events: CalendarEvent[];
-  reminders: string[];
 }
 
 export interface DailyContext {
@@ -25,7 +24,6 @@ export interface DailyContext {
   timezone: string;
   stories: NewsStory[];
   calendarEvents: StoredCalendarEvent[];
-  reminders: string[];
 }
 
 export async function storeDailyContext(input: DailyContextInput): Promise<void> {
@@ -45,7 +43,6 @@ export async function storeDailyContext(input: DailyContextInput): Promise<void>
         timezone: input.timezone,
         stories: input.stories,
         calendar_events: storedEvents,
-        reminders: input.reminders,
       },
       { onConflict: "day" }
     )
@@ -61,7 +58,7 @@ export async function getDailyContext(day: string): Promise<DailyContext | null>
   const { data, error } = await withSupabaseRetry(() =>
     client
       .from("daily_context")
-      .select("day, timezone, stories, calendar_events, reminders")
+      .select("day, timezone, stories, calendar_events")
       .eq("day", day)
       .maybeSingle()
   );
@@ -78,7 +75,6 @@ export async function getDailyContext(day: string): Promise<DailyContext | null>
     timezone: data.timezone,
     stories: data.stories,
     calendarEvents: data.calendar_events,
-    reminders: data.reminders,
   };
 }
 

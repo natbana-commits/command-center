@@ -6,6 +6,7 @@ export interface NewsStory {
   summary: string;
   ecmTag: string;
   teaser: string;
+  blurb: string;
   source: string;
   url: string;
   relevance: number;
@@ -33,7 +34,7 @@ RELEVANCE SCORING (be strict — most stories should be 6-8, not 9-10):
 For each selected story, the "url" field MUST exactly match a url from the provided list — never alter or guess it.
 
 Each object MUST follow this exact schema:
-{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"First paragraph with key facts and context.\\n\\nSecond paragraph on implications and market backdrop, informed by your own knowledge of the company/sector beyond the snippet.","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8}
+{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"First paragraph with key facts and context.\\n\\nSecond paragraph on implications and market backdrop, informed by your own knowledge of the company/sector beyond the snippet.","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","blurb":"one short, casual, FACTUAL sentence (under 15 words) naming the actual company/deal — a plain-English one-liner of what happened, not vague like the teaser, and not a press-release headline restatement","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8}
 
 CRITICAL: Return ONLY the JSON array. No text before [. No text after ].`;
 
@@ -60,7 +61,7 @@ export async function curateStories(items: FeedItem[]): Promise<NewsStory[]> {
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 8000,
+      max_tokens: 10000,
       system: SYSTEM_PROMPT,
       messages: [
         {

@@ -1,9 +1,9 @@
 import type { DailyContext } from "../chat/dailyContext.js";
 import type { StoredNewsletter } from "../gmail/store.js";
-import type { ClassFolder } from "../drive/classFolders.js";
-import type { DriveFile } from "../drive/list.js";
+import type { Reminder } from "../google/tasks.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
+import { renderNav, PWA_HEAD } from "./nav.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -53,12 +53,15 @@ function renderCalendarSection(context: DailyContext): string {
     .join("\n");
 }
 
-function renderRemindersSection(context: DailyContext): string {
-  if (context.reminders.length === 0) {
+function renderRemindersSection(reminders: Reminder[], googleConfigured: boolean): string {
+  if (!googleConfigured) {
+    return `<p class="empty">Not connected yet — finish Google setup to use reminders.</p>`;
+  }
+  if (reminders.length === 0) {
     return `<p class="empty">No reminders.</p>`;
   }
-  return `<ul class="reminders">${context.reminders
-    .map((r) => `<li>${escapeHtml(r)}</li>`)
+  return `<ul class="reminders">${reminders
+    .map((r) => `<li>${escapeHtml(r.title)}</li>`)
     .join("")}</ul>`;
 }
 
@@ -98,40 +101,6 @@ function renderStoriesSection(context: DailyContext): string {
     .join("\n");
 }
 
-function renderFilesSection(
-  classFolders: ClassFolder[],
-  filesByClass: Record<number, DriveFile[]>,
-  driveConfigured: boolean
-): string {
-  if (classFolders.length === 0) {
-    return `<p class="empty">${
-      driveConfigured
-        ? "No classes set up yet — add one in Settings."
-        : "Not connected yet — finish Google Drive setup, then add classes in Settings."
-    }</p>`;
-  }
-
-  return classFolders
-    .map((cls) => {
-      const files = filesByClass[cls.id] ?? [];
-      const list = files.length
-        ? `<ul class="file-list">${files
-            .map(
-              (f) =>
-                `<li><a href="${escapeHtml(f.webViewLink)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></li>`
-            )
-            .join("")}</ul>`
-        : `<p class="empty">No files yet.</p>`;
-
-      return `
-        <div class="class-block">
-          <div class="class-title">${escapeHtml(cls.className)}</div>
-          ${list}
-        </div>`;
-    })
-    .join("\n");
-}
-
 function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
   if (newsletters.length === 0) {
     return "";
@@ -160,13 +129,12 @@ function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
 export interface DonnaPageData {
   context: DailyContext | null;
   newsletters: StoredNewsletter[];
-  classFolders: ClassFolder[];
-  filesByClass: Record<number, DriveFile[]>;
-  driveConfigured: boolean;
+  reminders: Reminder[];
+  googleConfigured: boolean;
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, classFolders, filesByClass, driveConfigured } = data;
+  const { context, newsletters, reminders, googleConfigured } = data;
   const dateLabel = context ? formatFullDate(context.day, context.timezone) : "";
 
   const body = context
@@ -181,11 +149,6 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       ${renderNewslettersSection(newsletters)}
 
       <section class="section">
-        <h1 class="section-title">Files</h1>
-        ${renderFilesSection(classFolders, filesByClass, driveConfigured)}
-      </section>
-
-      <section class="section">
         <h1 class="section-title">Calendar</h1>
         <div class="events">
           ${renderCalendarSection(context)}
@@ -194,7 +157,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 
       <section class="section">
         <h1 class="section-title">Reminders</h1>
-        ${renderRemindersSection(context)}
+        ${renderRemindersSection(reminders, googleConfigured)}
       </section>`
     : `<section class="section"><p class="empty">No brief has been generated yet today.</p></section>`;
 
@@ -204,6 +167,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Donna</title>
+${PWA_HEAD}
 <style>
 ${BASE_STYLES}
 </style>
@@ -212,11 +176,9 @@ ${BASE_STYLES}
   <header class="masthead">
     <div class="masthead-inner">
       <div class="wordmark">Donna</div>
-      <div class="masthead-links">
-        <a class="nav-link" href="/donna/settings">Settings</a>
-        <div class="date">${escapeHtml(dateLabel)}</div>
-      </div>
+      <div class="date">${escapeHtml(dateLabel)}</div>
     </div>
+    <nav class="tab-bar">${renderNav("brief")}</nav>
   </header>
 
   <main class="content">

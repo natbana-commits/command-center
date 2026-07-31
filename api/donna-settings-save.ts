@@ -14,14 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (action === "save-settings") {
-      const reminders = (body.reminders ?? "")
-        .split("\n")
-        .map((r) => r.trim())
-        .filter((r) => r.length > 0);
-
       await saveSettings({
         timezone: body.timezone?.trim(),
-        reminders,
         newsletterQuery: body.newsletterQuery?.trim(),
       });
 

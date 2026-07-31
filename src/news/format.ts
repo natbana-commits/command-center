@@ -1,7 +1,7 @@
 import type { NewsStory } from "./curate.js";
 
 export function formatStoryMessages(stories: NewsStory[]): { text: string }[] {
-  return stories.map((story) => ({ text: story.url }));
+  return stories.map((story) => ({ text: `${story.blurb}\n${story.url}` }));
 }
 
 export function formatMorePrompt(held: NewsStory[]): { text: string } {

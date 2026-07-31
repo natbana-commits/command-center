@@ -4,21 +4,19 @@ import { isGoogleConfigured } from "../google/auth.js";
 import { getClassFolders } from "../drive/classFolders.js";
 import { listFilesInFolder } from "../drive/list.js";
 import { getFileContent } from "../drive/content.js";
+import { listReminders, addReminder, completeReminder, type Reminder } from "../google/tasks.js";
+import { searchEmails } from "../gmail/search.js";
 
 const PERSONA_PROMPT = `You are Donna — the assistant embedded in Nathan's personal morning-brief Telegram bot (the same Donna this project's dashboard will eventually be named after: sharp, unflappable, always three steps ahead — not perky, not robotic). He can reply in this chat any time, not just right after the morning brief.
 
 You have today's calendar, reminders, and curated news stories below — use them. You may also draw freely on your own general knowledge of markets, finance, and current events when a question goes beyond what's explicitly listed; you are not limited to only the provided text.
 
-You cannot take real-world actions — no email, no browsing, no code execution, and you can never write or modify anything. Nothing gets executed or sent because of what you say here. The one exception is a read-only tool, get_class_files: it pulls the contents of a specific class's Drive folder (once Nathan has set one up in Settings). Use it whenever he wants help studying, doing homework, or writing something for a specific class, then work directly with that material. If asked to do something outside answering questions or reading class files, say plainly that you can't, then answer whatever part you can.
+You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
 
 Keep replies short and text-message-appropriate — a few sentences, not an essay — unless asked for more detail.`;
 
-function formatContextBlock(context: DailyContext | null): string {
-  if (!context) {
-    return "No brief has been generated yet today.";
-  }
-
-  const calendarText = context.calendarEvents.length
+function formatContextBlock(context: DailyContext | null, reminders: Reminder[]): string {
+  const calendarText = context?.calendarEvents.length
     ? context.calendarEvents
         .map((e) => {
           const time = new Date(e.start).toLocaleTimeString("en-US", {
@@ -32,13 +30,13 @@ function formatContextBlock(context: DailyContext | null): string {
           return parts.join(" — ");
         })
         .join("\n")
-    : "Nothing on the calendar today.";
+    : "Nothing on the calendar today (or no brief generated yet).";
 
-  const remindersText = context.reminders.length
-    ? context.reminders.map((r) => `- ${r}`).join("\n")
+  const remindersText = reminders.length
+    ? reminders.map((r) => `- ${r.title}`).join("\n")
     : "No reminders.";
 
-  const storiesText = context.stories.length
+  const storiesText = context?.stories.length
     ? context.stories
         .map(
           (s, i) =>
@@ -102,6 +100,45 @@ const TOOLS = [
       required: ["class_name"],
     },
   },
+  {
+    name: "add_reminder",
+    description: "Create a new reminder in Nathan's Google Tasks. Use this whenever he asks to be reminded of something or to add something to his list.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short reminder text" },
+        notes: { type: "string", description: "Optional extra detail" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "complete_reminder",
+    description: "Mark an existing reminder as done, matching by title text (fuzzy/partial match is fine). Use whenever Nathan says he's done something or asks to check it off.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Text to match against existing reminder titles" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "search_email",
+    description:
+      "Search Nathan's whole Gmail inbox (not just newsletters) using Gmail search syntax, returning subject/sender/date/snippet for matching emails. Use whenever he asks about an email or wants to find something in his inbox.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Gmail search query, e.g. 'from:registrar subject:enrollment' or just keywords like 'ECO 301 syllabus'",
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 const MAX_FILES_PER_CLASS = 10;
@@ -139,10 +176,62 @@ async function executeGetClassFiles(className: string): Promise<string> {
   return contents.join("\n\n");
 }
 
+async function executeAddReminder(title: string, notes?: string): Promise<string> {
+  if (!isGoogleConfigured()) {
+    return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
+  }
+  if (!title) {
+    return "Need a title to add a reminder.";
+  }
+  await addReminder(title, notes);
+  return `Added: "${title}"`;
+}
+
+async function executeCompleteReminder(titleMatch: string): Promise<string> {
+  if (!isGoogleConfigured()) {
+    return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
+  }
+  const reminders = await listReminders();
+  const match = reminders.find((r) => r.title.toLowerCase().includes(titleMatch.toLowerCase()));
+  if (!match) {
+    return `Couldn't find a reminder matching "${titleMatch}".`;
+  }
+  await completeReminder(match.id);
+  return `Marked done: "${match.title}"`;
+}
+
+async function executeSearchEmail(query: string): Promise<string> {
+  if (!isGoogleConfigured()) {
+    return "Gmail isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
+  }
+  if (!query) {
+    return "Need a search query to look through email.";
+  }
+  const results = await searchEmails(query);
+  if (results.length === 0) {
+    return `No emails found matching "${query}".`;
+  }
+  return results
+    .map((r, i) => `${i + 1}. [${r.date}] ${r.subject} (from ${r.sender})\n${r.snippet}`)
+    .join("\n\n");
+}
+
 async function executeToolCall(name: string, input: unknown): Promise<string> {
   if (name === "get_class_files") {
     const className = (input as { class_name?: string } | undefined)?.class_name ?? "";
     return executeGetClassFiles(className);
+  }
+  if (name === "add_reminder") {
+    const parsed = input as { title?: string; notes?: string } | undefined;
+    return executeAddReminder(parsed?.title ?? "", parsed?.notes);
+  }
+  if (name === "complete_reminder") {
+    const parsed = input as { title?: string } | undefined;
+    return executeCompleteReminder(parsed?.title ?? "");
+  }
+  if (name === "search_email") {
+    const parsed = input as { query?: string } | undefined;
+    return executeSearchEmail(parsed?.query ?? "");
   }
   return `Unknown tool: ${name}`;
 }
@@ -157,7 +246,8 @@ export async function generateReply(
     throw new Error("Missing ANTHROPIC_API_KEY in environment");
   }
 
-  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context)}`;
+  const reminders = isGoogleConfigured() ? await listReminders().catch(() => []) : [];
+  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context, reminders)}`;
   const messages: ApiMessage[] = coalesce([...history, { role: "user", content: userMessage }]);
 
   const MAX_TOOL_ITERATIONS = 3;

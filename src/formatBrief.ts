@@ -10,6 +10,8 @@ import { storeDailyContext, pruneOldDailyContext } from "./chat/dailyContext.js"
 import { pruneOldChatMessages } from "./chat/history.js";
 import { localDateKey } from "./util/time.js";
 import { fetchAndStoreNewsletters } from "./gmail/index.js";
+import { listRemindersSafe } from "./google/tasks.js";
+import { isGoogleConfigured } from "./google/auth.js";
 
 const HEADLINE_COUNT = 4;
 
@@ -45,10 +47,10 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
     timezone: calendarResult.timezone,
     stories,
     events: calendarResult.events,
-    reminders: settings.reminders,
   });
   // No-ops until GOOGLE_* secrets are configured — safe to call unconditionally.
   await fetchAndStoreNewsletters(day, settings.newsletterQuery);
+  const reminders = await listRemindersSafe();
 
   return [
     ...formatStoryMessages(shown),
@@ -61,7 +63,7 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
         formatEvents(calendarResult),
         "",
         "<b>Reminders</b>",
-        formatReminders(settings),
+        formatReminders(reminders, isGoogleConfigured()),
       ].join("\n"),
       parseMode: "HTML",
     },
