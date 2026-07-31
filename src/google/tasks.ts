@@ -76,14 +76,20 @@ export async function listRemindersSafe(): Promise<Reminder[]> {
   }
 }
 
-export async function addReminder(title: string, notes?: string): Promise<void> {
+export async function addReminder(
+  title: string,
+  notes?: string,
+  dueIso?: string
+): Promise<{ id: string }> {
   const accessToken = await getAccessToken();
   const listId = await getOrCreateReminderListId(accessToken);
 
-  await apiFetch(`/lists/${listId}/tasks`, accessToken, {
+  const response = await apiFetch(`/lists/${listId}/tasks`, accessToken, {
     method: "POST",
-    body: JSON.stringify({ title, notes }),
+    body: JSON.stringify({ title, notes, due: dueIso }),
   });
+  const created = (await response.json()) as { id: string };
+  return { id: created.id };
 }
 
 export async function completeReminder(taskId: string): Promise<void> {

@@ -6,16 +6,39 @@ import { listFilesInFolder } from "../drive/list.js";
 import { getFileContent } from "../drive/content.js";
 import { listReminders, addReminder, completeReminder, type Reminder } from "../google/tasks.js";
 import { searchEmails } from "../gmail/search.js";
+import { getEventsInRange } from "../calendar.js";
+import { findOpenSlot } from "../scheduling/findSlot.js";
+import { createCalendarEvent } from "../google/calendar.js";
+import { scheduleNotification } from "../reminders/notifications.js";
 
 const PERSONA_PROMPT = `You are Donna — the assistant embedded in Nathan's personal morning-brief Telegram bot (the same Donna this project's dashboard will eventually be named after: sharp, unflappable, always three steps ahead — not perky, not robotic). He can reply in this chat any time, not just right after the morning brief.
 
 You have today's calendar, reminders, and curated news stories below — use them. You may also draw freely on your own general knowledge of markets, finance, and current events when a question goes beyond what's explicitly listed; you are not limited to only the provided text.
 
-You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
+You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), and schedule_reminder (schedules an actual timed text, not just a checklist entry). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
+
+For schedule_reminder specifically: only call it once you know exactly when Nathan wants to be nudged. A deadline is not automatically a nudge time — "homework due Wednesday 11:59pm" tells you nothing about when he wants to be reminded about it. When that's ambiguous, ask him first (e.g. "want a nudge tomorrow morning, or at a specific time?") and call the tool once he answers, rather than guessing. Resolve whatever time he gives you (relative or absolute) into an exact ISO 8601 datetime using the current date/time given below.
 
 Keep replies short and text-message-appropriate — a few sentences, not an essay — unless asked for more detail.`;
 
-function formatContextBlock(context: DailyContext | null, reminders: Reminder[]): string {
+function formatNow(timezone: string): string {
+  const now = new Date();
+  const dateLabel = now.toLocaleDateString("en-US", {
+    timeZone: timezone,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const timeLabel = now.toLocaleTimeString("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${dateLabel}, ${timeLabel} (${timezone})`;
+}
+
+function formatContextBlock(context: DailyContext | null, reminders: Reminder[], timezone: string): string {
   const calendarText = context?.calendarEvents.length
     ? context.calendarEvents
         .map((e) => {
@@ -46,6 +69,7 @@ function formatContextBlock(context: DailyContext | null, reminders: Reminder[])
     : "No stories curated today.";
 
   return [
+    `Right now: ${formatNow(timezone)}`,
     `Today's calendar:\n${calendarText}`,
     `Today's reminders:\n${remindersText}`,
     `Today's curated news stories:\n${storiesText}`,
@@ -139,6 +163,46 @@ const TOOLS = [
       required: ["query"],
     },
   },
+  {
+    name: "find_and_schedule_time",
+    description:
+      "Find a free slot on Nathan's calendar within the next N days for an activity of a given duration, and book it directly as a calendar event — no separate confirmation step, same as add_reminder. Use whenever he wants to fit something into his schedule, e.g. 'I want to watch a film for 20 minutes in the next two days.'",
+    input_schema: {
+      type: "object",
+      properties: {
+        activity_title: {
+          type: "string",
+          description: "Short title for the calendar event, e.g. 'Watch film'",
+        },
+        duration_minutes: {
+          type: "number",
+          description: "How long the activity needs, in minutes",
+        },
+        within_days: {
+          type: "number",
+          description: "How many days from now to search for a free slot",
+        },
+      },
+      required: ["activity_title", "duration_minutes", "within_days"],
+    },
+  },
+  {
+    name: "schedule_reminder",
+    description:
+      "Schedule a reminder that actually texts Nathan at a specific time (not just a silent checklist entry). Use whenever he gives a clear time for when he wants to be reminded. If he only gives a deadline without saying when he wants to be nudged about it, ask him first instead of guessing, then call this once he answers.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short reminder text" },
+        notify_at_iso: {
+          type: "string",
+          description:
+            "The exact absolute date and time to send the reminder, as an ISO 8601 datetime with timezone offset, resolved from the current date/time given in the system prompt and whatever Nathan said",
+        },
+      },
+      required: ["title", "notify_at_iso"],
+    },
+  },
 ];
 
 const MAX_FILES_PER_CLASS = 10;
@@ -216,7 +280,80 @@ async function executeSearchEmail(query: string): Promise<string> {
     .join("\n\n");
 }
 
-async function executeToolCall(name: string, input: unknown): Promise<string> {
+async function executeFindAndScheduleTime(
+  activityTitle: string,
+  durationMinutes: number,
+  withinDays: number,
+  timezone: string
+): Promise<string> {
+  if (!isGoogleConfigured()) {
+    return "Calendar isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
+  }
+  if (!activityTitle || !durationMinutes || !withinDays) {
+    return "Need an activity title, a duration in minutes, and how many days to search within.";
+  }
+
+  const now = new Date();
+  const rangeEnd = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
+
+  let events;
+  try {
+    const result = await getEventsInRange(timezone, now, rangeEnd);
+    events = result.events;
+  } catch (err) {
+    return `Couldn't read the calendar to find a slot: ${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  const slot = findOpenSlot(events, durationMinutes, now, rangeEnd, timezone);
+  if (!slot) {
+    return `No open ${durationMinutes}-minute slot found in the next ${withinDays} day(s) between 8am and 10pm. Want me to widen the window?`;
+  }
+
+  try {
+    await createCalendarEvent({
+      summary: activityTitle,
+      startIso: slot.start.toISOString(),
+      endIso: slot.end.toISOString(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Found a free slot but couldn't book it — calendar write access probably isn't set up yet (needs the calendar.events scope re-authorized, see docs/google-setup.md). Error: ${message}`;
+  }
+
+  const startLabel = slot.start.toLocaleString("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const endLabel = slot.end.toLocaleString("en-US", {
+    timeZone: timezone,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `Booked "${activityTitle}" for ${startLabel}–${endLabel}.`;
+}
+
+async function executeScheduleReminder(title: string, notifyAtIso: string): Promise<string> {
+  if (!isGoogleConfigured()) {
+    return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
+  }
+  if (!title || !notifyAtIso) {
+    return "Need both a title and a specific time to schedule a reminder.";
+  }
+  const parsed = new Date(notifyAtIso);
+  if (Number.isNaN(parsed.getTime())) {
+    return `Couldn't parse "${notifyAtIso}" as a valid date/time.`;
+  }
+
+  const task = await addReminder(title, undefined, notifyAtIso);
+  await scheduleNotification(task.id, parsed.toISOString(), title);
+  return `Scheduled: "${title}" — I'll text you then.`;
+}
+
+async function executeToolCall(name: string, input: unknown, timezone: string): Promise<string> {
   if (name === "get_class_files") {
     const className = (input as { class_name?: string } | undefined)?.class_name ?? "";
     return executeGetClassFiles(className);
@@ -233,13 +370,29 @@ async function executeToolCall(name: string, input: unknown): Promise<string> {
     const parsed = input as { query?: string } | undefined;
     return executeSearchEmail(parsed?.query ?? "");
   }
+  if (name === "find_and_schedule_time") {
+    const parsed = input as
+      | { activity_title?: string; duration_minutes?: number; within_days?: number }
+      | undefined;
+    return executeFindAndScheduleTime(
+      parsed?.activity_title ?? "",
+      parsed?.duration_minutes ?? 0,
+      parsed?.within_days ?? 0,
+      timezone
+    );
+  }
+  if (name === "schedule_reminder") {
+    const parsed = input as { title?: string; notify_at_iso?: string } | undefined;
+    return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "");
+  }
   return `Unknown tool: ${name}`;
 }
 
 export async function generateReply(
   context: DailyContext | null,
   history: ChatMessage[],
-  userMessage: string
+  userMessage: string,
+  timezone: string
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -247,7 +400,7 @@ export async function generateReply(
   }
 
   const reminders = isGoogleConfigured() ? await listReminders().catch(() => []) : [];
-  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context, reminders)}`;
+  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context, reminders, timezone)}`;
   const messages: ApiMessage[] = coalesce([...history, { role: "user", content: userMessage }]);
 
   const MAX_TOOL_ITERATIONS = 3;
@@ -292,7 +445,7 @@ export async function generateReply(
       toolUseBlocks.map(async (block) => ({
         type: "tool_result",
         tool_use_id: block.id!,
-        content: await executeToolCall(block.name!, block.input),
+        content: await executeToolCall(block.name!, block.input, timezone),
       }))
     );
     messages.push({ role: "user", content: toolResults });

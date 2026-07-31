@@ -111,3 +111,20 @@ create table if not exists uploads (
 );
 
 create index if not exists uploads_class_id_idx on uploads (class_id);
+
+-- Timed reminder nudges: a Google Task carries the reminder itself (so it
+-- shows in Nathan's actual Tasks app), and this table tracks exactly when
+-- to actually text him about it and whether that's already happened — the
+-- Tasks API's own due field is date-only in every Google client, so this
+-- is the only place the precise time lives. Checked every few minutes by
+-- api/reminder-check.ts via a GitHub Actions poller (see docs/google-setup.md).
+create table if not exists reminder_notifications (
+  id bigint generated always as identity primary key,
+  google_task_id text not null,
+  notify_at timestamptz not null,
+  message text not null,
+  sent boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists reminder_notifications_pending_idx on reminder_notifications (sent, notify_at);

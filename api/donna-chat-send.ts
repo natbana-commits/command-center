@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const [context, history] = await Promise.all([getDailyContext(day), getChatHistory(day)]);
-    const reply = await generateReply(context, history, text);
+    const reply = await generateReply(context, history, text, timezone);
 
     await appendChatMessage(day, "user", text);
     await appendChatMessage(day, "assistant", reply);

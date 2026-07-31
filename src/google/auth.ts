@@ -1,8 +1,9 @@
-// Personal-use OAuth, shared across Gmail, Drive, and Tasks: a refresh token
-// generated once (manually, via the Google OAuth consent flow, requesting
-// gmail.readonly, drive.readonly, and tasks scopes on one client) is
-// exchanged here for a short-lived access token on every run. No interactive
-// browser step at runtime.
+// Personal-use OAuth, shared across Gmail, Drive, Tasks, and Calendar: a
+// refresh token generated once (manually, via the Google OAuth consent
+// flow, requesting gmail.readonly, drive.readonly, tasks, and
+// calendar.events scopes on one client) is exchanged here for a
+// short-lived access token on every run. No interactive browser step at
+// runtime.
 export async function getAccessToken(): Promise<string> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;

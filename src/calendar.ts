@@ -20,21 +20,26 @@ export interface CalendarResult {
   timezone: string;
 }
 
-export async function getTodaysEvents(configuredTimezone: string): Promise<CalendarResult> {
+async function fetchIcsData() {
   const url = process.env.GOOGLE_CALENDAR_ICS_URL;
   if (!url) {
     throw new Error("Missing GOOGLE_CALENDAR_ICS_URL in environment");
   }
+  return ical.async.fromURL(url);
+}
 
-  const data = await ical.async.fromURL(url);
-
-  // "auto" follows the calendar's own configured timezone (Google includes
-  // this in every feed as WR-TIMEZONE); anything else is a manual override.
+// "auto" follows the calendar's own configured timezone (Google includes
+// this in every feed as WR-TIMEZONE); anything else is a manual override.
+function resolveTimezone(data: Awaited<ReturnType<typeof fetchIcsData>>, configuredTimezone: string): string {
   const feedTimezone = (data.vcalendar as Record<string, string> | undefined)?.["WR-TIMEZONE"];
-  const timezone = configuredTimezone === "auto" ? feedTimezone ?? "America/New_York" : configuredTimezone;
+  return configuredTimezone === "auto" ? feedTimezone ?? "America/New_York" : configuredTimezone;
+}
 
-  const { start: startOfDay, end: endOfDay } = dayBounds(new Date(), timezone);
-
+function extractEventsInRange(
+  data: Awaited<ReturnType<typeof fetchIcsData>>,
+  rangeStart: Date,
+  rangeEnd: Date
+): CalendarEvent[] {
   const events: CalendarEvent[] = [];
 
   for (const key in data) {
@@ -47,7 +52,7 @@ export async function getTodaysEvents(configuredTimezone: string): Promise<Calen
     const description = paramText(event.description);
 
     if (event.rrule) {
-      for (const occurrence of event.rrule.between(startOfDay, endOfDay, true)) {
+      for (const occurrence of event.rrule.between(rangeStart, rangeEnd, true)) {
         events.push({
           summary: paramText(event.summary) ?? "",
           start: occurrence,
@@ -56,7 +61,7 @@ export async function getTodaysEvents(configuredTimezone: string): Promise<Calen
           description,
         });
       }
-    } else if (event.start >= startOfDay && event.start < endOfDay) {
+    } else if (event.start >= rangeStart && event.start < rangeEnd) {
       events.push({
         summary: paramText(event.summary) ?? "",
         start: event.start,
@@ -68,6 +73,25 @@ export async function getTodaysEvents(configuredTimezone: string): Promise<Calen
   }
 
   events.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return events;
+}
+
+export async function getEventsInRange(
+  configuredTimezone: string,
+  rangeStart: Date,
+  rangeEnd: Date
+): Promise<CalendarResult> {
+  const data = await fetchIcsData();
+  const timezone = resolveTimezone(data, configuredTimezone);
+  const events = extractEventsInRange(data, rangeStart, rangeEnd);
+  return { events, timezone };
+}
+
+export async function getTodaysEvents(configuredTimezone: string): Promise<CalendarResult> {
+  const data = await fetchIcsData();
+  const timezone = resolveTimezone(data, configuredTimezone);
+  const { start, end } = dayBounds(new Date(), timezone);
+  const events = extractEventsInRange(data, start, end);
   return { events, timezone };
 }
 
