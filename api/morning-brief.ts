@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sendTelegramMessage } from "../src/telegram.js";
-import { formatBrief } from "../src/formatBrief.js";
+import { buildBriefMessages } from "../src/formatBrief.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization;
@@ -9,6 +9,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  await sendTelegramMessage(await formatBrief());
+  const messages = await buildBriefMessages();
+  for (const message of messages) {
+    await sendTelegramMessage(message.text, message.parseMode);
+  }
   res.status(200).send("Message sent");
 }

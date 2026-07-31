@@ -1,4 +1,4 @@
-export async function sendTelegramMessage(text: string): Promise<void> {
+export async function sendTelegramMessage(text: string, parseMode?: "HTML"): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -9,7 +9,11 @@ export async function sendTelegramMessage(text: string): Promise<void> {
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      ...(parseMode ? { parse_mode: parseMode } : {}),
+    }),
   });
 
   if (!res.ok) {

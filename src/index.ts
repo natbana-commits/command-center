@@ -1,9 +1,12 @@
 import "dotenv/config";
 import { sendTelegramMessage } from "./telegram.js";
-import { formatBrief } from "./formatBrief.js";
+import { buildBriefMessages } from "./formatBrief.js";
 
 async function main() {
-  await sendTelegramMessage(await formatBrief());
+  const messages = await buildBriefMessages();
+  for (const message of messages) {
+    await sendTelegramMessage(message.text, message.parseMode);
+  }
   console.log("Message sent.");
 }
 
