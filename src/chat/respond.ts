@@ -19,6 +19,8 @@ You cannot take real-world actions — no browsing, no code execution, and you c
 
 For schedule_reminder specifically: only call it once you know exactly when Nathan wants to be nudged. A deadline is not automatically a nudge time — "homework due Wednesday 11:59pm" tells you nothing about when he wants to be reminded about it. When that's ambiguous, ask him first (e.g. "want a nudge tomorrow morning, or at a specific time?") and call the tool once he answers, rather than guessing. Resolve whatever time he gives you (relative or absolute) into an exact ISO 8601 datetime using the current date/time given below.
 
+If a tool failed earlier in this conversation (e.g. "not set up yet"), don't assume that's still true — the setup can change mid-conversation. Actually call the tool again rather than repeating the old failure from memory.
+
 Keep replies short and text-message-appropriate — a few sentences, not an essay — unless asked for more detail.`;
 
 function formatNow(timezone: string): string {
