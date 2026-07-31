@@ -349,7 +349,19 @@ async function executeScheduleReminder(title: string, notifyAtIso: string): Prom
   }
 
   const task = await addReminder(title, undefined, notifyAtIso);
-  await scheduleNotification(task.id, parsed.toISOString(), title);
+
+  try {
+    await scheduleNotification(task.id, parsed.toISOString(), title);
+  } catch (err) {
+    // The Task itself was already created — leaving it would be a silent
+    // reminder that looks scheduled but can never actually fire, since
+    // nothing tracks its notify time without this row. Undo it rather
+    // than leave that half-done state behind.
+    await completeReminder(task.id).catch(() => {});
+    const message = err instanceof Error ? err.message : String(err);
+    return `Couldn't schedule the timed text (the reminder-delivery setup likely isn't finished yet) — nothing was added. Error: ${message}`;
+  }
+
   return `Scheduled: "${title}" — I'll text you then.`;
 }
 
