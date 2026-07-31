@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "send-test": "tsx src/index.ts"
+    "send-test": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

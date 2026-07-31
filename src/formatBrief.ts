@@ -4,13 +4,13 @@ import { getTodaysEvents, formatEvents } from "./calendar.js";
 
 export async function formatBrief(): Promise<string> {
   const settings = loadSettings();
-  const events = await getTodaysEvents();
+  const calendarResult = await getTodaysEvents(settings.timezone);
 
   return [
     "Good morning — here's your Command Center brief:",
     "",
     "Today's Calendar:",
-    formatEvents(events),
+    formatEvents(calendarResult),
     "",
     "Reminders:",
     formatReminders(settings),
