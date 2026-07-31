@@ -9,6 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  await sendTelegramMessage(formatBrief());
+  await sendTelegramMessage(await formatBrief());
   res.status(200).send("Message sent");
 }

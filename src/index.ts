@@ -3,7 +3,7 @@ import { sendTelegramMessage } from "./telegram.js";
 import { formatBrief } from "./formatBrief.js";
 
 async function main() {
-  await sendTelegramMessage(formatBrief());
+  await sendTelegramMessage(await formatBrief());
   console.log("Message sent.");
 }
 
