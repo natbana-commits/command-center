@@ -9,7 +9,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const due = await getDueNotifications();
+  let due;
+  try {
+    due = await getDueNotifications();
+  } catch (err) {
+    console.error("Failed to read due notifications:", err);
+    res.status(500).json({ error: "Failed to read due notifications" });
+    return;
+  }
+
   let sent = 0;
 
   for (const notification of due) {
