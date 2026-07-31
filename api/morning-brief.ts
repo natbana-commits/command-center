@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sendTelegramMessage } from "../src/telegram.js";
+import { formatBrief } from "../src/formatBrief.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authHeader = req.headers.authorization;
@@ -8,6 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  await sendTelegramMessage("Command Center: scheduled morning brief — cron is working.");
+  await sendTelegramMessage(formatBrief());
   res.status(200).send("Message sent");
 }

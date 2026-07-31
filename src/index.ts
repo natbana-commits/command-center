@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { sendTelegramMessage } from "./telegram.js";
+import { formatBrief } from "./formatBrief.js";
 
 async function main() {
-  await sendTelegramMessage("Command Center test message — if you're seeing this, the pipeline works.");
+  await sendTelegramMessage(formatBrief());
   console.log("Message sent.");
 }
 
