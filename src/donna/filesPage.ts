@@ -1,6 +1,7 @@
 import type { NavVisibility } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { DriveFile } from "../drive/list.js";
+import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
@@ -120,6 +121,53 @@ function renderLibraryTable(rows: LibraryRow[]): string {
     </table>`;
 }
 
+// Shows only classes that actually have an upcoming (dated) deadline —
+// unlike the Reminders page's grouped view, an all-empty section here
+// would just be noise on a page whose primary content is the file
+// library. Uses the reminder's own (date-only) `due` field rather than
+// the real-time reminder_notifications value, since a rough date is all
+// a glance-view of "what's due" needs.
+function renderDeadlinesSection(
+  classFolders: ClassFolder[],
+  reminders: Reminder[],
+  classLinks: Map<string, number>
+): string {
+  const groups = classFolders
+    .map((c) => ({
+      className: c.className,
+      items: reminders
+        .filter((r) => classLinks.get(r.id) === c.id && r.due)
+        .sort((a, b) => (a.due! < b.due! ? -1 : 1)),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  if (groups.length === 0) return "";
+
+  const groupsHtml = groups
+    .map(
+      (g) => `
+      <div class="reminder-group">
+        <div class="reminder-group-label">${escapeHtml(g.className)}</div>
+        ${g.items
+          .map(
+            (r) => `
+          <div class="agenda-event-row">
+            <div class="agenda-event-title">${escapeHtml(r.title)}</div>
+            <div class="agenda-event-time">${escapeHtml(formatDate(r.due!))}</div>
+          </div>`
+          )
+          .join("\n")}
+      </div>`
+    )
+    .join("\n");
+
+  return `
+    <div class="card" style="margin-bottom: var(--sp-3);">
+      <h1 class="section-title">Upcoming Deadlines</h1>
+      ${groupsHtml}
+    </div>`;
+}
+
 function renderClassOptions(classFolders: ClassFolder[]): string {
   const options = classFolders
     .map((c) => `<option value="${c.id}">${escapeHtml(c.className)}</option>`)
@@ -134,10 +182,21 @@ export interface FilesPageData {
   generalUploads: Upload[];
   googleConfigured: boolean;
   navVisibility: NavVisibility;
+  reminders: Reminder[];
+  classLinks: Map<string, number>;
 }
 
 export function buildFilesHtml(data: FilesPageData): string {
-  const { classFolders, filesByClass, uploadsByClass, generalUploads, googleConfigured, navVisibility } = data;
+  const {
+    classFolders,
+    filesByClass,
+    uploadsByClass,
+    generalUploads,
+    googleConfigured,
+    navVisibility,
+    reminders,
+    classLinks,
+  } = data;
 
   const rows = buildLibraryRows(classFolders, filesByClass, uploadsByClass, generalUploads);
   const libraryHtml =
@@ -152,6 +211,7 @@ export function buildFilesHtml(data: FilesPageData): string {
   const body = `
     <div class="file-library-layout">
       <div class="file-library">
+        ${renderDeadlinesSection(classFolders, reminders, classLinks)}
         <h1 class="section-title">File Library</h1>
         ${libraryHtml}
       </div>

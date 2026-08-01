@@ -149,3 +149,17 @@ create table if not exists reminder_notifications (
 );
 
 create index if not exists reminder_notifications_pending_idx on reminder_notifications (sent, notify_at);
+
+-- Links a Google Task (a reminder) to a class, for the coursework-
+-- deadlines feature — Google Tasks has no custom-field support, so this
+-- side table is the only place that association can live, same reasoning
+-- as reminder_notifications above.
+create table if not exists reminder_class_links (
+  id bigint generated always as identity primary key,
+  google_task_id text not null,
+  class_id bigint not null references class_folders (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists reminder_class_links_class_id_idx on reminder_class_links (class_id);
+create unique index if not exists reminder_class_links_task_id_idx on reminder_class_links (google_task_id);

@@ -427,9 +427,30 @@ export const BASE_STYLES = `
   .reminder-add-row2 input[type="time"] { flex: 0 0 auto; }
   .btn-small { padding: 6px 10px; font-size: 12px; }
   .reminder-add-form textarea { min-height: 60px; }
+  .reminder-add-form select,
+  .reminder-edit-form select {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+    align-self: flex-start;
+  }
 
   .reminder-edit-form { display: flex; flex-direction: column; gap: var(--sp-2); }
   .reminder-edit-actions { display: flex; gap: 8px; }
+
+  .reminder-group { margin-bottom: var(--sp-3); }
+  .reminder-group:last-child { margin-bottom: 0; }
+  .reminder-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
 
   /* --- files --- */
   .file-library-layout { display: flex; gap: var(--sp-3); align-items: flex-start; }
