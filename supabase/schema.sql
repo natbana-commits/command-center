@@ -116,6 +116,17 @@ create table if not exists watchlist_entries (
   created_at timestamptz not null default now()
 );
 
+-- Recruiting contacts (networking/coffee-chat tracker) — same shape as
+-- class_folders/watchlist_entries.
+create table if not exists contacts (
+  id bigint generated always as identity primary key,
+  name text not null,
+  firm text,
+  notes text,
+  last_contacted_at date,
+  created_at timestamptz not null default now()
+);
+
 -- Private bucket for lecture recordings and scanned photos/documents.
 -- Uploads go directly from the browser to Storage via a service-role-minted
 -- signed URL (bypasses Vercel's request body size limits), so no public

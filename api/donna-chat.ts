@@ -6,6 +6,15 @@ import { getChatHistory, appendChatMessage } from "../src/chat/history.js";
 import { generateReply } from "../src/chat/respond.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "GET") {
+    const settings = await loadSettings();
+    const timezone = resolveTimezone(settings.timezone);
+    const day = localDateKey(new Date(), timezone);
+    const messages = await getChatHistory(day);
+    res.status(200).json({ messages });
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

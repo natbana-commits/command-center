@@ -1,5 +1,5 @@
 import type { NavVisibility } from "../config.js";
-import { iconHome, iconFolder, iconCalendar, iconBell, iconSettings } from "./icons.js";
+import { iconHome, iconFolder, iconCalendar, iconBell, iconSettings, iconUser } from "./icons.js";
 
 export const PWA_HEAD = `
 <link rel="icon" href="/icon-192.png" type="image/png" />
@@ -10,13 +10,14 @@ export const PWA_HEAD = `
 <meta name="apple-mobile-web-app-title" content="Donna" />
 `;
 
-export type Tab = "home" | "files" | "calendar" | "reminders" | "settings";
+export type Tab = "home" | "files" | "calendar" | "reminders" | "contacts" | "settings";
 
 const TABS: { tab: Tab; label: string; href: string; icon: string }[] = [
   { tab: "home", label: "Home", href: "/donna", icon: iconHome },
   { tab: "files", label: "Files", href: "/donna/files", icon: iconFolder },
   { tab: "calendar", label: "Calendar", href: "/donna/calendar", icon: iconCalendar },
   { tab: "reminders", label: "Reminders", href: "/donna/reminders", icon: iconBell },
+  { tab: "contacts", label: "Contacts", href: "/donna/contacts", icon: iconUser },
   { tab: "settings", label: "Settings", href: "/donna/settings", icon: iconSettings },
 ];
 

@@ -3,7 +3,7 @@ import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
 
-const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true };
+const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true, contacts: true };
 
 export interface LayoutOptions {
   title: string;
@@ -55,7 +55,7 @@ const CHAT_FAB_SCRIPT = `
   async function loadHistory() {
     body.innerHTML = "";
     try {
-      const res = await fetch("/api/donna-chat-history");
+      const res = await fetch("/api/donna-chat");
       const data = await res.json();
       const messages = data.messages || [];
       if (messages.length === 0) {

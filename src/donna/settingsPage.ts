@@ -133,6 +133,10 @@ export function buildSettingsHtml(
             <input type="checkbox" name="nav-reminders" ${settings.dashboardConfig.navVisibility.reminders ? "checked" : ""} />
             Reminders
           </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="nav-contacts" ${settings.dashboardConfig.navVisibility.contacts ? "checked" : ""} />
+            Contacts
+          </label>
           <div class="hint">Home and Settings always stay in the sidebar. Hiding a page here doesn't lock the URL — it just won't show in nav.</div>
         </div>
 

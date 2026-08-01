@@ -10,6 +10,7 @@
     { "source": "/donna/files", "destination": "/api/donna-files" },
     { "source": "/donna/calendar", "destination": "/api/donna-calendar" },
     { "source": "/donna/reminders", "destination": "/api/donna-reminders" },
+    { "source": "/donna/contacts", "destination": "/api/donna-contacts" },
     { "source": "/donna/settings", "destination": "/api/donna-settings" },
     { "source": "/", "destination": "/api/donna" }
   ]
