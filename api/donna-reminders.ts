@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
-import { resolveTimezone, localDateTimeToIso } from "../src/util/time.js";
+import { resolveTimezone, localDateTimeToIso, formatTimeLabel, withTimeSuffix } from "../src/util/time.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import {
@@ -39,7 +39,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (title) {
           const hasTime = Boolean(body.dueTime);
           const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : undefined;
-          const created = await addReminder(title, body.notes?.trim() || undefined, dueIso);
+          // Google Tasks' due field never shows a time in Google Tasks or
+          // Calendar, so bake the real time into the title itself — the
+          // only way it's visible there.
+          const googleTitle = withTimeSuffix(title, hasTime && dueIso ? formatTimeLabel(dueIso, timezone) : null);
+          const created = await addReminder(googleTitle, body.notes?.trim() || undefined, dueIso);
           if (hasTime && dueIso) {
             await scheduleNotification(created.id, dueIso, title);
           }
@@ -59,7 +63,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (id && title) {
           const hasTime = Boolean(body.dueTime);
           const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : undefined;
-          await updateReminder(id, { title, notes: body.notes?.trim() || "", dueIso });
+          const googleTitle = withTimeSuffix(title, hasTime && dueIso ? formatTimeLabel(dueIso, timezone) : null);
+          await updateReminder(id, { title: googleTitle, notes: body.notes?.trim() || "", dueIso });
 
           // Always clear any previously-scheduled push first — either
           // replacing it with a fresh time below, or removing it outright

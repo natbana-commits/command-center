@@ -3,7 +3,7 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import { escapeHtml } from "../util/html.js";
-import { toLocalDateTimeParts } from "../util/time.js";
+import { toLocalDateTimeParts, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 
 // Google's Tasks API silently discards the time-of-day on `due` (always
@@ -63,7 +63,7 @@ function renderReminderRow(
         <input type="checkbox" onchange="this.form.requestSubmit()" aria-label="Mark done" />
       </form>
       <div class="reminder-body">
-        <span class="reminder-title">${escapeHtml(r.title)}</span>
+        <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
         ${dueBadge}
       </div>
       <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
@@ -120,7 +120,7 @@ function renderEditForm(
 
       <div class="field">
         <label for="edit-title">Title</label>
-        <input type="text" id="edit-title" name="title" value="${escapeHtml(r.title)}" required />
+        <input type="text" id="edit-title" name="title" value="${escapeHtml(withTimeSuffix(r.title, null))}" required />
       </div>
 
       <div class="reminder-add-row2">

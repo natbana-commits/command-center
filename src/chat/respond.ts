@@ -11,6 +11,7 @@ import { getEventsInRange } from "../calendar.js";
 import { findOpenSlot } from "../scheduling/findSlot.js";
 import { createCalendarEvent } from "../google/calendar.js";
 import { scheduleNotification } from "../reminders/notifications.js";
+import { withTimeSuffix, formatTimeLabel } from "../util/time.js";
 
 const PERSONA_PROMPT = `You are Donna — the assistant embedded in Nathan's personal morning-brief Telegram bot (the same Donna this project's dashboard will eventually be named after: sharp, unflappable, always three steps ahead — not perky, not robotic). He can reply in this chat any time, not just right after the morning brief.
 
@@ -364,7 +365,7 @@ async function executeFindAndScheduleTime(
   return `Booked "${activityTitle}" for ${startLabel}–${endLabel}.`;
 }
 
-async function executeScheduleReminder(title: string, notifyAtIso: string): Promise<string> {
+async function executeScheduleReminder(title: string, notifyAtIso: string, timezone: string): Promise<string> {
   if (!isGoogleConfigured()) {
     return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
   }
@@ -376,7 +377,11 @@ async function executeScheduleReminder(title: string, notifyAtIso: string): Prom
     return `Couldn't parse "${notifyAtIso}" as a valid date/time.`;
   }
 
-  const task = await addReminder(title, undefined, notifyAtIso);
+  // Google Tasks' due field never shows a time in Google Tasks or
+  // Calendar no matter what's sent — baking the real time into the title
+  // is the only way it's visible there.
+  const googleTitle = withTimeSuffix(title, formatTimeLabel(notifyAtIso, timezone));
+  const task = await addReminder(googleTitle, undefined, notifyAtIso);
 
   try {
     await scheduleNotification(task.id, parsed.toISOString(), title);
@@ -427,7 +432,7 @@ async function executeToolCall(name: string, input: unknown, timezone: string): 
   }
   if (name === "schedule_reminder") {
     const parsed = input as { title?: string; notify_at_iso?: string } | undefined;
-    return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "");
+    return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "", timezone);
   }
   return `Unknown tool: ${name}`;
 }

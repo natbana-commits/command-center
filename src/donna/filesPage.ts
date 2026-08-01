@@ -4,6 +4,7 @@ import type { DriveFile } from "../drive/list.js";
 import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
+import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 
 interface LibraryRow {
@@ -152,7 +153,7 @@ function renderDeadlinesSection(
           .map(
             (r) => `
           <div class="agenda-event-row">
-            <div class="agenda-event-title">${escapeHtml(r.title)}</div>
+            <div class="agenda-event-title">${escapeHtml(withTimeSuffix(r.title, null))}</div>
             <div class="agenda-event-time">${escapeHtml(formatDate(r.due!))}</div>
           </div>`
           )

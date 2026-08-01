@@ -78,3 +78,22 @@ export function toLocalDateTimeParts(iso: string, timeZone: string): { date: str
 export function resolveTimezone(configured: string): string {
   return configured === "auto" ? "America/New_York" : configured;
 }
+
+export function formatTimeLabel(iso: string, timeZone: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" });
+}
+
+const TIME_SUFFIX_RE = / \(\d{1,2}:\d{2}\s?(AM|PM)\)$/i;
+
+// Google Tasks' `due` field is date-only (see the comment on
+// reminder_notifications in supabase/schema.sql) — it never shows a time
+// in Google Tasks or Calendar no matter what's sent. Baking the real time
+// into the title itself is the only way it's visible in Google's own
+// apps. Strips any previous suffix first so re-editing a reminder can't
+// pile up "(2pm) (3pm) (2pm)" — idempotent regardless of how many times
+// it's edited, and passing `timeLabel: null` cleanly removes it if the
+// time is cleared.
+export function withTimeSuffix(title: string, timeLabel: string | null): string {
+  const bare = title.replace(TIME_SUFFIX_RE, "").trim();
+  return timeLabel ? `${bare} (${timeLabel})` : bare;
+}
