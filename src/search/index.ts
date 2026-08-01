@@ -9,9 +9,15 @@ export interface SearchResult {
 
 // Newsletter bodies are raw HTML — crude tag-stripping is enough for a
 // short preview snippet fed back into chat, not meant to be a clean
-// plain-text extraction.
+// plain-text extraction. <style>/<script> blocks are stripped along with
+// their contents first — these emails routinely lead with a large inline
+// <style> block, and a plain tag-strip alone would leave that raw CSS as
+// the first "text" in the document, burying the real content past any
+// reasonable snippet length.
 function stripHtml(html: string): string {
   return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
