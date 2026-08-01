@@ -1,4 +1,5 @@
 export interface S1Summary {
+  ticker: string | null;
   businessSummary: string;
   financialsSummary: string;
   dealTermsSummary: string;
@@ -10,7 +11,7 @@ const SYSTEM_PROMPT = `You are a research analyst summarizing excerpts from a co
 YOUR OUTPUT MUST BE A RAW JSON OBJECT ONLY. No preamble, no explanation, no markdown fences. Start your response with { and end with }.
 
 Return exactly this schema:
-{"businessSummary":"2-3 plain-English sentences on what the company actually does","financialsSummary":"2-3 sentences on revenue, growth rate, and profitability/losses if stated in the excerpts, otherwise say the excerpts didn't include financial statements","dealTermsSummary":"1-2 sentences on exchange, ticker (if assigned), underwriters, and price range/proceeds if stated — note if only an estimated range is given rather than final terms","riskHighlights":["3-5 short bullet strings — the most notable/unusual risk factors mentioned, not generic boilerplate"]}
+{"ticker":"the stock ticker symbol if stated anywhere in the excerpts (e.g. a cover page or 'trades under the symbol X' mention), as a bare string like \\"ABCD\\", or null if none is stated","businessSummary":"2-3 plain-English sentences on what the company actually does","financialsSummary":"2-3 sentences on revenue, growth rate, and profitability/losses if stated in the excerpts, otherwise say the excerpts didn't include financial statements","dealTermsSummary":"1-2 sentences on exchange, ticker (if assigned), underwriters, and price range/proceeds if stated — note if only an estimated range is given rather than final terms","riskHighlights":["3-5 short bullet strings — the most notable/unusual risk factors mentioned, not generic boilerplate"]}
 
 CRITICAL: Return ONLY the JSON object. No text before {. No text after }.`;
 

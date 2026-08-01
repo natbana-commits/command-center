@@ -23,7 +23,15 @@ export async function summarizeCompanyOnDemand(
   const { text, sourceUrl } = await fetchS1Text(cik, accessionNo);
   const digest = buildDigest(text);
   const summary = await summarizeS1(digest, companyName);
-  return saveIpoFiling({ accessionNo, cik, companyName, filedDate, sourceUrl, summary });
+  return saveIpoFiling({
+    accessionNo,
+    cik,
+    companyName,
+    filedDate,
+    sourceUrl,
+    ticker: summary.ticker ?? undefined,
+    summary,
+  });
 }
 
 export async function checkAndSummarizeNewIpos(): Promise<IpoFiling[]> {
