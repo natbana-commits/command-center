@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.redirect(303, "/donna/reminders");
     } catch (err) {
       console.error("Reminder action failed:", err);
-      res.status(500).send(`DEBUG: ${err instanceof Error ? err.message : String(err)}`);
+      res.redirect(303, "/donna/reminders?error=1");
     }
     return;
   }
