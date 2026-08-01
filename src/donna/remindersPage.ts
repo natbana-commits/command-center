@@ -1,30 +1,42 @@
 import type { Reminder } from "../google/tasks.js";
+import type { ReminderNotification } from "../reminders/notifications.js";
 import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 
+// Google's Tasks API silently discards the time-of-day on `due` (always
+// stores/returns midnight UTC) — the reminder_notifications row is the only
+// place a real due *time* exists, when one was set. Falls back to Google's
+// (date-only) due field when no notification is pending for this task.
+function effectiveDue(r: Reminder, notification: ReminderNotification | undefined): string | undefined {
+  return notification?.notifyAt ?? r.due;
+}
+
+function hasTime(dueIso: string, timezone: string): boolean {
+  return toLocalDateTimeParts(dueIso, timezone).time !== "00:00";
+}
+
 function formatDue(dueIso: string, timezone: string): string {
-  const { time } = toLocalDateTimeParts(dueIso, timezone);
   const date = new Date(dueIso);
   const datePart = date.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" });
-  // A due value we ourselves stored at exactly midnight means no specific
-  // time was set (see localDateTimeToIso's "00:00" default) — show just
-  // the date rather than an artificial "12:00 AM".
-  return time === "00:00" ? datePart : `${datePart}, ${formatTime(dueIso, timezone)}`;
+  if (!hasTime(dueIso, timezone)) return datePart;
+  const timePart = date.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
+  return `${datePart}, ${timePart}`;
 }
 
-function formatTime(iso: string, timezone: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
-}
-
-function renderReminderRow(r: Reminder, timezone: string): string {
-  const dueDate = r.due ? new Date(r.due) : null;
+function renderReminderRow(
+  r: Reminder,
+  timezone: string,
+  notifications: Map<string, ReminderNotification>
+): string {
+  const due = effectiveDue(r, notifications.get(r.id));
+  const dueDate = due ? new Date(due) : null;
   const overdue = dueDate ? dueDate.getTime() < Date.now() : false;
   const isToday = dueDate ? new Date().toDateString() === dueDate.toDateString() : false;
 
   const rowClass = overdue ? "reminder-row-overdue" : isToday ? "reminder-row-today" : "";
-  const dueBadge = r.due
-    ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(r.due, timezone))}</span>`
+  const dueBadge = due
+    ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
     : "";
 
   return `
@@ -48,6 +60,8 @@ export interface RemindersPageData {
   timezone: string;
   error?: string;
   editing?: Reminder | null;
+  editingNotification?: ReminderNotification | null;
+  notifications: Map<string, ReminderNotification>;
 }
 
 function renderAddForm(): string {
@@ -61,13 +75,20 @@ function renderAddForm(): string {
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(0)">Today</button>
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(1)">Tomorrow</button>
       </div>
+      <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
       <textarea name="notes" placeholder="Notes (optional)"></textarea>
       <button class="btn" type="submit">Add</button>
     </form>`;
 }
 
-function renderEditForm(r: Reminder, timezone: string): string {
-  const { date, time } = r.due ? toLocalDateTimeParts(r.due, timezone) : { date: "", time: "" };
+function renderEditForm(
+  r: Reminder,
+  timezone: string,
+  notification: ReminderNotification | null | undefined
+): string {
+  const due = effectiveDue(r, notification ?? undefined);
+  const parts = due ? toLocalDateTimeParts(due, timezone) : { date: "", time: "" };
+  const timeValue = due && hasTime(due, timezone) ? parts.time : "";
 
   return `
     <form method="POST" action="/donna/reminders" class="reminder-edit-form">
@@ -80,9 +101,10 @@ function renderEditForm(r: Reminder, timezone: string): string {
       </div>
 
       <div class="reminder-add-row2">
-        <input type="date" name="dueDate" value="${escapeHtml(date)}" />
-        <input type="time" name="dueTime" value="${escapeHtml(time === "00:00" ? "" : time)}" />
+        <input type="date" name="dueDate" value="${escapeHtml(parts.date)}" />
+        <input type="time" name="dueTime" value="${escapeHtml(timeValue)}" />
       </div>
+      <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
 
       <div class="field">
         <label for="edit-notes">Notes</label>
@@ -102,7 +124,7 @@ function renderEditForm(r: Reminder, timezone: string): string {
 }
 
 export function buildRemindersHtml(data: RemindersPageData): string {
-  const { reminders, googleConfigured, timezone, error, editing } = data;
+  const { reminders, googleConfigured, timezone, error, editing, editingNotification, notifications } = data;
 
   let body: string;
 
@@ -112,14 +134,14 @@ export function buildRemindersHtml(data: RemindersPageData): string {
         <h1 class="page-title">Edit reminder</h1>
       </div>
       <div class="card">
-        ${renderEditForm(editing, timezone)}
+        ${renderEditForm(editing, timezone, editingNotification)}
       </div>`;
   } else {
     const listHtml = !googleConfigured
       ? `<p class="empty">Not connected yet — finish Google setup in Settings to use reminders.</p>`
       : reminders.length === 0
         ? `<p class="empty">No reminders. Nice.</p>`
-        : reminders.map((r) => renderReminderRow(r, timezone)).join("\n");
+        : reminders.map((r) => renderReminderRow(r, timezone, notifications)).join("\n");
 
     body = `
       <div class="section">
