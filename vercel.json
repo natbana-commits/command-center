@@ -1,6 +1,6 @@
 {
   "crons": [
-    { "path": "/api/morning-brief", "schedule": "0 8 * * 1-5" }
+    { "path": "/api/morning-brief", "schedule": "0 8 * * *" }
   ],
   "functions": {
     "api/donna-upload.ts": { "maxDuration": 60 },
