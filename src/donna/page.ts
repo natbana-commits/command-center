@@ -165,13 +165,18 @@ function formatSenderName(sender: string): string {
 }
 
 function renderNewsletterRow(n: StoredNewsletter): string {
+  // The srcdoc document is served correctly as UTF-8 end-to-end (checked
+  // on the wire), but some browsers don't reliably default a sandboxed
+  // srcdoc document's own encoding to UTF-8 — an explicit meta tag removes
+  // any ambiguity rather than relying on that inherited default.
+  const srcdocContent = `<meta charset="utf-8">${n.html}`;
   return `
     <details class="newsletter">
       <summary>
         <div class="newsletter-subject">${escapeHtml(n.subject)}</div>
         <div class="newsletter-sender">${escapeHtml(formatSenderName(n.sender))} · ${escapeHtml(formatNewsletterDate(n.receivedAt))}</div>
       </summary>
-      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(n.html)}" loading="lazy"></iframe>
+      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(srcdocContent)}" loading="lazy"></iframe>
     </details>`;
 }
 
