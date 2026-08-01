@@ -5,6 +5,7 @@ import { renderLayout } from "./layout.js";
 export interface CalendarDayGroup {
   dateLabel: string;
   events: CalendarEvent[];
+  isToday: boolean;
 }
 
 export interface CalendarPageData {
@@ -41,8 +42,8 @@ function renderDayGroup(day: CalendarDayGroup, timezone: string): string {
     : `<p class="empty">Nothing scheduled.</p>`;
 
   return `
-    <div class="agenda-day-group">
-      <div class="agenda-day-header">${escapeHtml(day.dateLabel)}</div>
+    <div class="agenda-day-group${day.isToday ? " agenda-day-group-today" : ""}">
+      <div class="agenda-day-header${day.isToday ? " agenda-day-header-today" : ""}">${escapeHtml(day.dateLabel)}${day.isToday ? `<span class="agenda-today-badge">Today</span>` : ""}</div>
       ${eventsHtml}
     </div>`;
 }

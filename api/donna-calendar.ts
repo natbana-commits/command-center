@@ -39,7 +39,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       month: "long",
       day: "numeric",
     });
-    return { dateLabel, events: dayEvents };
+    return { dateLabel, events: dayEvents, isToday: i === 0 };
   });
 
   const html = buildCalendarHtml({ days, timezone, configured });

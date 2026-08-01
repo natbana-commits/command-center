@@ -338,7 +338,12 @@ export const BASE_STYLES = `
   .newsletter-link-meta { font-size: 12px; color: var(--text-muted); }
 
   /* --- agenda (calendar page) --- */
-  .agenda-day-group { margin-bottom: var(--sp-3); }
+  .agenda-day-group {
+    margin-bottom: var(--sp-3);
+    border-left: 3px solid var(--border);
+    padding-left: var(--sp-2);
+  }
+  .agenda-day-group-today { border-left-color: var(--accent); }
   .agenda-day-header {
     font-weight: 600;
     font-size: 13px;
@@ -348,6 +353,19 @@ export const BASE_STYLES = `
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border);
     margin-bottom: 8px;
+  }
+  .agenda-day-header-today { color: var(--accent); }
+  .agenda-today-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 8px;
+    text-transform: none;
   }
   .agenda-event-row { display: flex; gap: var(--sp-2); padding: 8px 0; }
   .agenda-event-time { flex: 0 0 90px; font-weight: 500; font-size: 13px; color: var(--text-secondary); }
@@ -359,14 +377,40 @@ export const BASE_STYLES = `
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 10px 8px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    border-left: 3px solid var(--taupe);
+    background: var(--card);
   }
-  .reminder-row:last-child { border-bottom: none; }
-  .reminder-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
-  .reminder-title { flex: 1; font-size: 14px; }
-  .reminder-add-form { display: flex; gap: 8px; margin-top: var(--sp-2); }
-  .reminder-add-form input { flex: 1; }
+  .reminder-row-overdue { border-left-color: var(--danger); }
+  .reminder-row-today { border-left-color: var(--accent); }
+  .reminder-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex: 0 0 auto; }
+  .reminder-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .reminder-title { font-size: 14px; }
+  .reminder-due {
+    display: inline-block;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    background: rgba(184, 107, 69, 0.1);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .reminder-due-overdue { color: var(--danger); background: rgba(184, 68, 46, 0.1); }
+  .reminder-edit-link { font-size: 12px; color: var(--text-muted); text-decoration: none; flex: 0 0 auto; }
+  .reminder-edit-link:hover { color: var(--accent); }
+
+  .reminder-add-form { display: flex; flex-direction: column; gap: 10px; margin-top: var(--sp-2); }
+  .reminder-add-row2 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .reminder-add-row2 input[type="date"],
+  .reminder-add-row2 input[type="time"] { flex: 0 0 auto; }
+  .btn-small { padding: 6px 10px; font-size: 12px; }
+  .reminder-add-form textarea { min-height: 60px; }
+
+  .reminder-edit-form { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .reminder-edit-actions { display: flex; gap: 8px; }
 
   /* --- files --- */
   .file-library-layout { display: flex; gap: var(--sp-3); align-items: flex-start; }

@@ -7,6 +7,7 @@ export interface Reminder {
   id: string;
   title: string;
   notes?: string;
+  due?: string;
 }
 
 async function apiFetch(path: string, accessToken: string, init?: RequestInit): Promise<Response> {
@@ -57,10 +58,27 @@ export async function listReminders(): Promise<Reminder[]> {
     accessToken
   );
   const data = (await response.json()) as {
-    items?: { id: string; title: string; notes?: string }[];
+    items?: { id: string; title: string; notes?: string; due?: string }[];
   };
 
-  return (data.items ?? []).map((t) => ({ id: t.id, title: t.title, notes: t.notes }));
+  return (data.items ?? []).map((t) => ({ id: t.id, title: t.title, notes: t.notes, due: t.due }));
+}
+
+export async function getReminder(taskId: string): Promise<Reminder | null> {
+  const accessToken = await getAccessToken();
+  const listId = await getOrCreateReminderListId(accessToken);
+
+  const response = await fetch(`${BASE_URL}/lists/${listId}/tasks/${taskId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Google Tasks API error ${response.status}: ${body}`);
+  }
+
+  const t = (await response.json()) as { id: string; title: string; notes?: string; due?: string };
+  return { id: t.id, title: t.title, notes: t.notes, due: t.due };
 }
 
 // Safe to call unconditionally: returns [] (no throw) until Google is
@@ -100,4 +118,32 @@ export async function completeReminder(taskId: string): Promise<void> {
     method: "PATCH",
     body: JSON.stringify({ status: "completed" }),
   });
+}
+
+export async function updateReminder(
+  taskId: string,
+  fields: { title?: string; notes?: string; dueIso?: string | null }
+): Promise<void> {
+  const accessToken = await getAccessToken();
+  const listId = await getOrCreateReminderListId(accessToken);
+
+  const body: Record<string, unknown> = {};
+  if (fields.title !== undefined) body.title = fields.title;
+  if (fields.notes !== undefined) body.notes = fields.notes;
+  // Google Tasks has no documented way to clear `due` via null in a PATCH
+  // body (it's simply omitted if absent) — callers that want to clear a
+  // due date should be aware this only ever sets/replaces it, never clears.
+  if (fields.dueIso) body.due = fields.dueIso;
+
+  await apiFetch(`/lists/${listId}/tasks/${taskId}`, accessToken, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteReminder(taskId: string): Promise<void> {
+  const accessToken = await getAccessToken();
+  const listId = await getOrCreateReminderListId(accessToken);
+
+  await apiFetch(`/lists/${listId}/tasks/${taskId}`, accessToken, { method: "DELETE" });
 }

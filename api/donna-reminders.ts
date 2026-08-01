@@ -1,9 +1,21 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { loadSettings } from "../src/config.js";
+import { resolveTimezone, localDateTimeToIso } from "../src/util/time.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
-import { listRemindersSafe, addReminder, completeReminder } from "../src/google/tasks.js";
+import {
+  listRemindersSafe,
+  addReminder,
+  completeReminder,
+  updateReminder,
+  deleteReminder,
+  getReminder,
+} from "../src/google/tasks.js";
 import { buildRemindersHtml } from "../src/donna/remindersPage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const settings = await loadSettings();
+  const timezone = resolveTimezone(settings.timezone);
+
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
     const action = body.action;
@@ -12,12 +24,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "add") {
         const title = body.title?.trim();
         if (title) {
-          await addReminder(title);
+          const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : undefined;
+          await addReminder(title, body.notes?.trim() || undefined, dueIso);
         }
       } else if (action === "complete") {
         const id = body.id;
         if (id) {
           await completeReminder(id);
+        }
+      } else if (action === "update") {
+        const id = body.id;
+        const title = body.title?.trim();
+        if (id && title) {
+          const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : undefined;
+          await updateReminder(id, { title, notes: body.notes?.trim() || "", dueIso });
+        }
+      } else if (action === "delete") {
+        const id = body.id;
+        if (id) {
+          await deleteReminder(id);
         }
       }
       res.redirect(303, "/donna/reminders");
@@ -29,10 +54,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const googleConfigured = isGoogleConfigured();
-  const reminders = await listRemindersSafe();
   const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
 
-  const html = buildRemindersHtml({ reminders, googleConfigured, error });
+  const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
+  const editing = editId && googleConfigured ? await getReminder(editId).catch(() => null) : null;
+
+  const reminders = editing ? [] : await listRemindersSafe();
+
+  const html = buildRemindersHtml({ reminders, googleConfigured, timezone, error, editing });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }
