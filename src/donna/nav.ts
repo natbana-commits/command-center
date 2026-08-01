@@ -1,6 +1,7 @@
 import { iconHome, iconFolder, iconCalendar, iconBell, iconSettings } from "./icons.js";
 
 export const PWA_HEAD = `
+<link rel="icon" href="/icon-192.png" type="image/png" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <meta name="theme-color" content="#faf8f5" />

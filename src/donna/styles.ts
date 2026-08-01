@@ -248,13 +248,31 @@ export const BASE_STYLES = `
     list-style: none;
   }
   .news-row summary::-webkit-details-marker { display: none; }
-  .news-thumb {
+  .news-thumb-wrap {
+    position: relative;
     width: 64px;
     height: 64px;
     border-radius: 8px;
-    object-fit: cover;
+    overflow: hidden;
     flex: 0 0 auto;
     background: var(--sidebar-bg);
+  }
+  .news-thumb-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .news-thumb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .news-row-main { flex: 1; min-width: 0; }
   .news-row-meta {
@@ -328,21 +346,15 @@ export const BASE_STYLES = `
     padding: var(--sp-2);
     margin-bottom: var(--sp-2);
   }
-  .newsletter-subject { font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
-  .newsletter-sender { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
-  .newsletter-frame { width: 100%; height: 500px; border: none; }
-
-  .newsletter-link-row {
-    display: flex;
-    flex-direction: column;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-    text-decoration: none;
+  .newsletter summary {
+    cursor: pointer;
+    list-style: none;
   }
-  .newsletter-link-row:last-child { border-bottom: none; }
-  .newsletter-link-subject { font-size: 13px; font-weight: 500; color: var(--ink); }
-  .newsletter-link-row:hover .newsletter-link-subject { color: var(--accent); }
-  .newsletter-link-meta { font-size: 12px; color: var(--text-muted); }
+  .newsletter summary::-webkit-details-marker { display: none; }
+  .newsletter[open] summary { margin-bottom: var(--sp-2); }
+  .newsletter-subject { font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
+  .newsletter-sender { font-size: 12px; color: var(--text-muted); }
+  .newsletter-frame { width: 100%; height: 500px; border: none; }
 
   /* --- agenda (calendar page) --- */
   .agenda-day-group {

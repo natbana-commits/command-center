@@ -60,34 +60,3 @@ export async function getNewslettersForDay(day: string): Promise<StoredNewslette
     html: row.html,
   }));
 }
-
-// Unlike getNewslettersForDay (scoped to one calendar day, used for the
-// once-daily fetch/store job), this reads across all stored days — the
-// Home page shows the single most recent newsletter in full plus a handful
-// of older ones as compact links, regardless of which day each landed on.
-export async function getRecentNewsletters(limit: number): Promise<StoredNewsletter[]> {
-  const client = getSupabaseClient();
-  const { data, error } = await withSupabaseRetry(() =>
-    client
-      .from("newsletters")
-      .select("id, day, subject, sender, received_at, html")
-      .order("received_at", { ascending: false })
-      .limit(limit)
-  );
-
-  if (error) {
-    if (error.code === "PGRST205") {
-      return [];
-    }
-    throw new Error(`Supabase read error: ${error.message}`);
-  }
-
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    day: row.day,
-    subject: row.subject,
-    sender: row.sender,
-    receivedAt: row.received_at,
-    html: row.html,
-  }));
-}

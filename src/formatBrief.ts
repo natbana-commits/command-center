@@ -28,10 +28,15 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   ]);
   const unseenItems = await filterUnseen(feedItems);
   const curated = await curateStories(unseenItems);
-  // Attach the image from the original feed item rather than trusting the
-  // model to pass it through unchanged.
+  // Attach the image and original publish date from the feed item rather
+  // than trusting the model to pass them through unchanged.
   const imageByUrl = new Map(unseenItems.map((item) => [item.link, item.imageUrl]));
-  const stories = curated.map((story) => ({ ...story, imageUrl: imageByUrl.get(story.url) }));
+  const publishedAtByUrl = new Map(unseenItems.map((item) => [item.link, item.publishedAt.toISOString()]));
+  const stories = curated.map((story) => ({
+    ...story,
+    imageUrl: imageByUrl.get(story.url),
+    publishedAt: publishedAtByUrl.get(story.url),
+  }));
   await markSeen(stories.map((s) => s.url));
   await pruneOldSeen();
   await pruneOldChatMessages();

@@ -5,6 +5,7 @@ import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { iconBell, iconCalendar, iconFolder } from "./icons.js";
+import { renderSourceBadge } from "./sourceBadge.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -99,17 +100,30 @@ function renderRemindersCard(reminders: Reminder[], googleConfigured: boolean): 
     .join("\n");
 }
 
-function renderNewsRow(story: DailyContext["stories"][number]): string {
+// Older cached daily_context rows were stored before publishedAt existed —
+// fall back to the brief's own day so the meta row never renders blank.
+function formatStoryDate(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
+  const iso = story.publishedAt ?? `${fallbackDay}T12:00:00`;
+  return new Date(iso).toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" });
+}
+
+function renderNewsRow(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
   const paragraphs = story.summary.split("\n\n").map((p) => p.trim()).filter(Boolean);
   const firstLine = paragraphs[0] ?? "";
 
+  // The fallback badge sits behind the img; if the image 404s or the host
+  // blocks hotlinking (common with WSJ/FT), onerror hides the broken img
+  // and the badge shows through instead of a blank box.
   const thumb = story.imageUrl
-    ? `<img class="news-thumb" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" />`
-    : `<div class="news-thumb"></div>`;
+    ? `<div class="news-thumb-wrap">
+        ${renderSourceBadge(story.source, "news-thumb-fallback")}
+        <img class="news-thumb" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" />
+      </div>`
+    : `<div class="news-thumb-wrap">${renderSourceBadge(story.source, "news-thumb-fallback")}</div>`;
 
   const expandedParagraphs = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
   const expandedImage = story.imageUrl
-    ? `<img class="news-image" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" />`
+    ? `<img class="news-image" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" />`
     : "";
 
   return `
@@ -117,7 +131,7 @@ function renderNewsRow(story: DailyContext["stories"][number]): string {
       <summary>
         ${thumb}
         <div class="news-row-main">
-          <div class="news-row-meta"><span>${escapeHtml(story.category)}</span><span>·</span><span>${escapeHtml(story.source)}</span></div>
+          <div class="news-row-meta"><span>${escapeHtml(story.source)}</span><span>·</span><span>${escapeHtml(formatStoryDate(story, fallbackDay, timezone))}</span></div>
           <h2 class="news-row-headline">${escapeHtml(story.headline)}</h2>
           <p class="news-row-summary">${escapeHtml(firstLine)}</p>
         </div>
@@ -135,44 +149,37 @@ function renderStoriesSection(context: DailyContext): string {
   if (context.stories.length === 0) {
     return `<p class="empty">No stories curated today.</p>`;
   }
-  return context.stories.map(renderNewsRow).join("\n");
+  return context.stories.map((story) => renderNewsRow(story, context.day, context.timezone)).join("\n");
 }
 
 function formatNewsletterDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function gmailLink(messageId: string): string {
-  return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
+// Strips the "<email@domain>" portion off a raw From header value like
+// `Brew Markets <brewmarkets@morningbrew.com>`, leaving just the display
+// name. Falls back to the raw value unchanged if there's no angle bracket.
+function formatSenderName(sender: string): string {
+  const angleIndex = sender.indexOf("<");
+  return angleIndex === -1 ? sender : sender.slice(0, angleIndex).trim();
+}
+
+function renderNewsletterRow(n: StoredNewsletter): string {
+  return `
+    <details class="newsletter">
+      <summary>
+        <div class="newsletter-subject">${escapeHtml(n.subject)}</div>
+        <div class="newsletter-sender">${escapeHtml(formatSenderName(n.sender))} · ${escapeHtml(formatNewsletterDate(n.receivedAt))}</div>
+      </summary>
+      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(n.html)}" loading="lazy"></iframe>
+    </details>`;
 }
 
 function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
   if (newsletters.length === 0) {
-    return `<p class="empty">No newsletters yet.</p>`;
+    return `<p class="empty">No newsletters today yet.</p>`;
   }
-
-  const [latest, ...older] = newsletters;
-
-  const latestHtml = `
-    <article class="newsletter">
-      <div class="newsletter-subject">${escapeHtml(latest.subject)}</div>
-      <div class="newsletter-sender">${escapeHtml(latest.sender)} · ${escapeHtml(formatNewsletterDate(latest.receivedAt))}</div>
-      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(latest.html)}"></iframe>
-    </article>`;
-
-  const olderHtml = older.length
-    ? older
-        .map(
-          (n) => `
-        <a class="newsletter-link-row" href="${escapeHtml(gmailLink(n.id))}" target="_blank" rel="noopener noreferrer">
-          <span class="newsletter-link-subject">${escapeHtml(n.subject)}</span>
-          <span class="newsletter-link-meta">${escapeHtml(n.sender)} · ${escapeHtml(formatNewsletterDate(n.receivedAt))}</span>
-        </a>`
-        )
-        .join("\n")
-    : "";
-
-  return `${latestHtml}${olderHtml}`;
+  return newsletters.map(renderNewsletterRow).join("\n");
 }
 
 export interface DonnaPageData {
