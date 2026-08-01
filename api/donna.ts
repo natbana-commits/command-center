@@ -21,6 +21,7 @@ import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
 import { buildInfoHtml } from "../src/donna/infoPage.js";
 import { isAuthenticated, requireAuth, setSessionCookie, clearSessionCookie, verifyPassword } from "../src/auth/session.js";
+import { isLoginLocked, recordFailedLogin, clearFailedLogins } from "../src/auth/loginAttempts.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const page = req.query.page;
@@ -30,11 +31,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // and /donna/logout rewrites, both pointed at this same function.
   if (page === "login") {
     if (req.method === "POST") {
+      // Bookkeeping failures fail open (never lock Nathan out over a
+      // Supabase hiccup) — see loginAttempts.ts.
+      const locked = await isLoginLocked(req).catch(() => false);
+      if (locked) {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.status(429).send(buildLoginHtml("Too many attempts — try again in a few minutes."));
+        return;
+      }
+
       const password = ((req.body ?? {}).password ?? "").toString();
       if (verifyPassword(password)) {
+        await clearFailedLogins(req).catch(() => {});
         setSessionCookie(req, res);
         res.redirect(303, "/donna");
       } else {
+        await recordFailedLogin(req).catch(() => {});
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.status(401).send(buildLoginHtml("Incorrect password."));
       }

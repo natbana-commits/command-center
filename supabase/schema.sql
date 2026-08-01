@@ -357,3 +357,14 @@ create table if not exists reminder_group_links (
 );
 create unique index if not exists reminder_group_links_task_id_idx on reminder_group_links (google_task_id);
 create index if not exists reminder_group_links_group_id_idx on reminder_group_links (group_id);
+
+-- Rate-limits /donna/login: a rolling window of recent failed attempts
+-- per IP (src/auth/loginAttempts.ts). Old rows are pruned daily
+-- alongside everything else in formatBrief.ts, so this never grows
+-- unbounded even under a sustained attack.
+create table if not exists login_attempts (
+  id bigint generated always as identity primary key,
+  ip_address text not null,
+  attempted_at timestamptz not null default now()
+);
+create index if not exists login_attempts_ip_idx on login_attempts (ip_address, attempted_at desc);

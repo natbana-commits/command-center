@@ -14,6 +14,7 @@ import { fetchAndStoreNewsletters, pruneOldNewsletters } from "./gmail/index.js"
 import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
 import { pruneOldReminderNotifications } from "./reminders/notifications.js";
+import { pruneOldLoginAttempts } from "./auth/loginAttempts.js";
 import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
 import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
 
@@ -54,6 +55,7 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldDailyContext();
   await pruneOldNewsletters();
   await pruneOldReminderNotifications();
+  await pruneOldLoginAttempts();
 
   const headlineCount = settings.briefConfig.headlineCount;
   // Watchlist matches sort first regardless of relevance, so they land in
