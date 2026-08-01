@@ -6,6 +6,7 @@ import { listFilesInFolder } from "../drive/list.js";
 import { getFileContent } from "../drive/content.js";
 import { listReminders, addReminder, completeReminder, type Reminder } from "../google/tasks.js";
 import { searchEmails } from "../gmail/search.js";
+import { searchContent } from "../search/index.js";
 import { getEventsInRange } from "../calendar.js";
 import { findOpenSlot } from "../scheduling/findSlot.js";
 import { createCalendarEvent } from "../google/calendar.js";
@@ -15,7 +16,7 @@ const PERSONA_PROMPT = `You are Donna — the assistant embedded in Nathan's per
 
 You have today's calendar, reminders, and curated news stories below — use them. You may also draw freely on your own general knowledge of markets, finance, and current events when a question goes beyond what's explicitly listed; you are not limited to only the provided text.
 
-You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), and schedule_reminder (schedules an actual timed text, not just a checklist entry). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
+You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), search_content (searches stored newsletter bodies and lecture/photo upload transcripts by keyword — use this when he's trying to recall something from a specific past newsletter or lecture, as opposed to email generally or a specific class's Drive files), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), and schedule_reminder (schedules an actual timed text, not just a checklist entry). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
 
 For schedule_reminder specifically: only call it once you know exactly when Nathan wants to be nudged. A deadline is not automatically a nudge time — "homework due Wednesday 11:59pm" tells you nothing about when he wants to be reminded about it. When that's ambiguous, ask him first (e.g. "want a nudge tomorrow morning, or at a specific time?") and call the tool once he answers, rather than guessing. Resolve whatever time he gives you (relative or absolute) into an exact ISO 8601 datetime using the current date/time given below.
 
@@ -166,6 +167,18 @@ const TOOLS = [
     },
   },
   {
+    name: "search_content",
+    description:
+      "Search stored newsletter bodies and lecture/photo upload transcripts by keyword — not Drive class files (use get_class_files for those) and not general email (use search_email for that). Use when Nathan is trying to recall something from a specific past newsletter or a lecture/scan he uploaded.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keywords to search for, e.g. 'convertible bond' or 'aggregate demand'" },
+      },
+      required: ["query"],
+    },
+  },
+  {
     name: "find_and_schedule_time",
     description:
       "Find a free slot on Nathan's calendar within the next N days for an activity of a given duration, and book it directly as a calendar event — no separate confirmation step, same as add_reminder. Use whenever he wants to fit something into his schedule, e.g. 'I want to watch a film for 20 minutes in the next two days.'",
@@ -282,6 +295,19 @@ async function executeSearchEmail(query: string): Promise<string> {
     .join("\n\n");
 }
 
+async function executeSearchContent(query: string): Promise<string> {
+  if (!query) {
+    return "Need a search query.";
+  }
+  const results = await searchContent(query);
+  if (results.length === 0) {
+    return `No newsletters or uploads found matching "${query}".`;
+  }
+  return results
+    .map((r, i) => `${i + 1}. [${r.kind}, ${r.date}] ${r.title}\n${r.snippet}`)
+    .join("\n\n");
+}
+
 async function executeFindAndScheduleTime(
   activityTitle: string,
   durationMinutes: number,
@@ -383,6 +409,10 @@ async function executeToolCall(name: string, input: unknown, timezone: string): 
   if (name === "search_email") {
     const parsed = input as { query?: string } | undefined;
     return executeSearchEmail(parsed?.query ?? "");
+  }
+  if (name === "search_content") {
+    const parsed = input as { query?: string } | undefined;
+    return executeSearchContent(parsed?.query ?? "");
   }
   if (name === "find_and_schedule_time") {
     const parsed = input as
