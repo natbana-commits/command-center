@@ -183,6 +183,7 @@ export interface FilesPageData {
   generalUploads: Upload[];
   googleConfigured: boolean;
   navVisibility: NavVisibility;
+  navOrder: string[];
   reminders: Reminder[];
   classLinks: Map<string, number>;
 }
@@ -195,6 +196,7 @@ export function buildFilesHtml(data: FilesPageData): string {
     generalUploads,
     googleConfigured,
     navVisibility,
+    navOrder,
     reminders,
     classLinks,
   } = data;
@@ -247,6 +249,7 @@ export function buildFilesHtml(data: FilesPageData): string {
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility,
+    navOrder,
   });
 }
 

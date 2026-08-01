@@ -1,4 +1,4 @@
-import type { HomeWidgetId, Settings } from "../config.js";
+import type { HomeWidgetId, NavVisibility, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
 import { escapeHtml } from "../util/html.js";
@@ -8,6 +8,8 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   "recent-activity": "Recent Activity",
   upcoming: "Upcoming",
   reminders: "Reminders",
+  contacts: "Contacts",
+  files: "Files",
 };
 
 function renderClassRows(classFolders: ClassFolder[]): string {
@@ -48,6 +50,31 @@ function renderWatchlistRows(entries: WatchlistEntry[]): string {
         </div>`
     )
     .join("\n");
+}
+
+const NAV_TAB_LABELS: Record<string, string> = {
+  files: "Files",
+  calendar: "Calendar",
+  reminders: "Reminders",
+  contacts: "Contacts",
+  info: "Info",
+};
+
+// Same reorderable-row pattern as renderWidgetRow, on distinct action
+// names (move-nav-up/down vs move-up/down) so the single dashboard form
+// can tell a nav-reorder click apart from a widget-reorder click.
+function renderNavRow(tab: string, visible: boolean, index: number, total: number): string {
+  return `
+    <div class="widget-row">
+      <label class="widget-row-label">
+        <input type="checkbox" name="nav-${tab}" ${visible ? "checked" : ""} />
+        ${escapeHtml(NAV_TAB_LABELS[tab] ?? tab)}
+      </label>
+      <div class="widget-row-controls">
+        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-nav-up:${tab}" aria-label="Move up">↑</button>` : ""}
+        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-nav-down:${tab}" aria-label="Move down">↓</button>` : ""}
+      </div>
+    </div>`;
 }
 
 function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: number, total: number): string {
@@ -121,27 +148,17 @@ export function buildSettingsHtml(
 
         <div class="field">
           <label>Sidebar pages</label>
-          <label class="widget-row-label">
-            <input type="checkbox" name="nav-files" ${settings.dashboardConfig.navVisibility.files ? "checked" : ""} />
-            Files
-          </label>
-          <label class="widget-row-label">
-            <input type="checkbox" name="nav-calendar" ${settings.dashboardConfig.navVisibility.calendar ? "checked" : ""} />
-            Calendar
-          </label>
-          <label class="widget-row-label">
-            <input type="checkbox" name="nav-reminders" ${settings.dashboardConfig.navVisibility.reminders ? "checked" : ""} />
-            Reminders
-          </label>
-          <label class="widget-row-label">
-            <input type="checkbox" name="nav-contacts" ${settings.dashboardConfig.navVisibility.contacts ? "checked" : ""} />
-            Contacts
-          </label>
-          <label class="widget-row-label">
-            <input type="checkbox" name="nav-info" ${settings.dashboardConfig.navVisibility.info ? "checked" : ""} />
-            Info
-          </label>
-          <div class="hint">Home and Settings always stay in the sidebar. Hiding a page here doesn't lock the URL — it just won't show in nav.</div>
+          ${settings.dashboardConfig.navOrder
+            .map((tab, i) =>
+              renderNavRow(
+                tab,
+                settings.dashboardConfig.navVisibility[tab as keyof NavVisibility],
+                i,
+                settings.dashboardConfig.navOrder.length
+              )
+            )
+            .join("\n")}
+          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or use the arrows to reorder — order also decides which pages show directly on the mobile bottom bar vs. under "More".</div>
         </div>
 
         <button class="btn" type="submit" name="action" value="save-dashboard-settings">Save</button>
@@ -208,5 +225,6 @@ export function buildSettingsHtml(
     bodyHtml: body,
     showChatFab: true,
     navVisibility: settings.dashboardConfig.navVisibility,
+    navOrder: settings.dashboardConfig.navOrder,
   });
 }

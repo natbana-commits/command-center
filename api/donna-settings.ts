@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { HomeWidgetId } from "../src/config.js";
+import type { HomeWidgetId, NavVisibility } from "../src/config.js";
 import { loadSettings, saveSettings } from "../src/config.js";
 import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
 import { parseDriveFolderId } from "../src/drive/list.js";
@@ -65,35 +65,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // A single "Dashboard" form covers both saving and reordering — each
       // submit button carries its own `action` value ("save-dashboard-
-      // settings", or "move-up:<widgetId>"/"move-down:<widgetId>" from the
-      // per-row arrow buttons) so one form can do both without any JS.
-      // Whichever button is clicked, the checkbox/select state currently
-      // shown on the page comes along with it, so a reorder click also
-      // saves any visibility/tab changes made in the same view.
-      const [actionType, widgetId] = action?.split(":") ?? [];
-      if (actionType === "save-dashboard-settings" || actionType === "move-up" || actionType === "move-down") {
+      // settings", or "move-up:<widgetId>"/"move-down:<widgetId>" for
+      // widgets, "move-nav-up:<tab>"/"move-nav-down:<tab>" for nav order)
+      // so one form can do all three without any JS. Whichever button is
+      // clicked, the checkbox/select state currently shown on the page
+      // comes along with it, so a reorder click also saves any
+      // visibility/tab changes made in the same view.
+      const [actionType, targetId] = action?.split(":") ?? [];
+      const isWidgetReorder = actionType === "move-up" || actionType === "move-down";
+      const isNavReorder = actionType === "move-nav-up" || actionType === "move-nav-down";
+      if (actionType === "save-dashboard-settings" || isWidgetReorder || isNavReorder) {
         const current = await loadSettings();
-        const order = current.dashboardConfig.homeWidgets.map((w) => w.id);
+        const widgetOrder = current.dashboardConfig.homeWidgets.map((w) => w.id);
+        const navOrder = [...current.dashboardConfig.navOrder];
 
-        if (widgetId) {
-          const idx = order.indexOf(widgetId as HomeWidgetId);
+        if (isWidgetReorder) {
+          const idx = widgetOrder.indexOf(targetId as HomeWidgetId);
           const swapWith = actionType === "move-up" ? idx - 1 : idx + 1;
-          if (idx !== -1 && swapWith >= 0 && swapWith < order.length) {
-            [order[idx], order[swapWith]] = [order[swapWith], order[idx]];
+          if (idx !== -1 && swapWith >= 0 && swapWith < widgetOrder.length) {
+            [widgetOrder[idx], widgetOrder[swapWith]] = [widgetOrder[swapWith], widgetOrder[idx]];
           }
         }
 
+        if (isNavReorder) {
+          const idx = navOrder.indexOf(targetId);
+          const swapWith = actionType === "move-nav-up" ? idx - 1 : idx + 1;
+          if (idx !== -1 && swapWith >= 0 && swapWith < navOrder.length) {
+            [navOrder[idx], navOrder[swapWith]] = [navOrder[swapWith], navOrder[idx]];
+          }
+        }
+
+        const navVisibility = Object.fromEntries(
+          navOrder.map((tab) => [tab, body[`nav-${tab}`] === "on"])
+        ) as unknown as NavVisibility;
+
         await saveSettings({
           dashboardConfig: {
-            homeWidgets: order.map((id) => ({ id, visible: body[`widget-${id}`] === "on" })),
+            homeWidgets: widgetOrder.map((id) => ({ id, visible: body[`widget-${id}`] === "on" })),
             defaultHomeTab: body.defaultHomeTab === "newsletters" ? "newsletters" : "news",
-            navVisibility: {
-              files: body["nav-files"] === "on",
-              calendar: body["nav-calendar"] === "on",
-              reminders: body["nav-reminders"] === "on",
-              contacts: body["nav-contacts"] === "on",
-              info: body["nav-info"] === "on",
-            },
+            navVisibility,
+            navOrder,
           },
         });
         res.redirect(303, "/donna/settings?saved=1");

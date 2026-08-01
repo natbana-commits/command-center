@@ -128,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     classFolders,
     classLinks,
     navVisibility: settings.dashboardConfig.navVisibility,
+    navOrder: settings.dashboardConfig.navOrder,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

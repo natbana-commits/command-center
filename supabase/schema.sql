@@ -124,7 +124,32 @@ create table if not exists contacts (
   firm text,
   notes text,
   last_contacted_at date,
+  bio text,
+  relationship_tag text,
   created_at timestamptz not null default now()
+);
+
+-- Per-interaction log for a contact (call/email/coffee chat/etc, with its
+-- own date and notes) — last_contacted_at on the parent row is bumped
+-- forward (never back) whenever a newer interaction is logged, so "time
+-- since contact" stays accurate without needing a join on every read.
+create table if not exists contact_interactions (
+  id bigint generated always as identity primary key,
+  contact_id bigint not null references contacts(id) on delete cascade,
+  interaction_type text not null,
+  notes text,
+  occurred_at date not null default current_date,
+  created_at timestamptz not null default now()
+);
+create index if not exists contact_interactions_contact_id_idx on contact_interactions(contact_id);
+
+-- Generic short-TTL cache for slow live external-API reads (Google
+-- Calendar/Tasks/Drive) that would otherwise be re-fetched on every page
+-- load. Not used for anything the app itself needs strong consistency on.
+create table if not exists api_cache (
+  cache_key text primary key,
+  payload jsonb not null,
+  expires_at timestamptz not null
 );
 
 -- Private bucket for lecture recordings and scanned photos/documents.

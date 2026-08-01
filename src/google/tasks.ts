@@ -1,4 +1,7 @@
 import { getAccessToken, isGoogleConfigured } from "./auth.js";
+import { getOrFetch, invalidateCache } from "../util/cache.js";
+
+const TASKS_CACHE_KEY = "tasks:list";
 
 const LIST_TITLE = "Donna Reminders";
 const BASE_URL = "https://tasks.googleapis.com/tasks/v1";
@@ -50,18 +53,20 @@ async function getOrCreateReminderListId(accessToken: string): Promise<string> {
 }
 
 export async function listReminders(): Promise<Reminder[]> {
-  const accessToken = await getAccessToken();
-  const listId = await getOrCreateReminderListId(accessToken);
+  return getOrFetch(TASKS_CACHE_KEY, 60, async () => {
+    const accessToken = await getAccessToken();
+    const listId = await getOrCreateReminderListId(accessToken);
 
-  const response = await apiFetch(
-    `/lists/${listId}/tasks?showCompleted=false&showHidden=false`,
-    accessToken
-  );
-  const data = (await response.json()) as {
-    items?: { id: string; title: string; notes?: string; due?: string }[];
-  };
+    const response = await apiFetch(
+      `/lists/${listId}/tasks?showCompleted=false&showHidden=false`,
+      accessToken
+    );
+    const data = (await response.json()) as {
+      items?: { id: string; title: string; notes?: string; due?: string }[];
+    };
 
-  return (data.items ?? []).map((t) => ({ id: t.id, title: t.title, notes: t.notes, due: t.due }));
+    return (data.items ?? []).map((t) => ({ id: t.id, title: t.title, notes: t.notes, due: t.due }));
+  });
 }
 
 export async function getReminder(taskId: string): Promise<Reminder | null> {
@@ -107,6 +112,7 @@ export async function addReminder(
     body: JSON.stringify({ title, notes, due: dueIso }),
   });
   const created = (await response.json()) as { id: string };
+  await invalidateCache(TASKS_CACHE_KEY);
   return { id: created.id };
 }
 
@@ -118,6 +124,7 @@ export async function completeReminder(taskId: string): Promise<void> {
     method: "PATCH",
     body: JSON.stringify({ status: "completed" }),
   });
+  await invalidateCache(TASKS_CACHE_KEY);
 }
 
 export async function updateReminder(
@@ -139,6 +146,7 @@ export async function updateReminder(
     method: "PATCH",
     body: JSON.stringify(body),
   });
+  await invalidateCache(TASKS_CACHE_KEY);
 }
 
 export async function deleteReminder(taskId: string): Promise<void> {
@@ -146,4 +154,5 @@ export async function deleteReminder(taskId: string): Promise<void> {
   const listId = await getOrCreateReminderListId(accessToken);
 
   await apiFetch(`/lists/${listId}/tasks/${taskId}`, accessToken, { method: "DELETE" });
+  await invalidateCache(TASKS_CACHE_KEY);
 }

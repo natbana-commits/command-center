@@ -79,6 +79,17 @@ export function resolveTimezone(configured: string): string {
   return configured === "auto" ? "America/New_York" : configured;
 }
 
+export function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  if (Math.abs(diffMinutes) < 60) return rtf.format(-diffMinutes, "minute");
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) return rtf.format(-diffHours, "hour");
+  const diffDays = Math.round(diffHours / 24);
+  return rtf.format(-diffDays, "day");
+}
+
 export function formatTimeLabel(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" });
 }

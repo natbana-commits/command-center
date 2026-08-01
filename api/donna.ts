@@ -6,6 +6,9 @@ import { getNewslettersForDay } from "../src/gmail/index.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getRecentUploads } from "../src/storage/uploads.js";
+import { getContacts } from "../src/contacts/store.js";
+import { getClassFolders } from "../src/drive/classFolders.js";
+import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 
@@ -31,12 +34,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 
-  const [context, newsletters, reminders, recentUploads] = await Promise.all([
+  const [context, newsletters, reminders, recentUploads, contacts, classFolders] = await Promise.all([
     getDailyContext(day),
     getNewslettersForDay(day).catch(() => []),
     listRemindersSafe(),
     getRecentUploads(3).catch(() => []),
+    getContacts().catch(() => []),
+    getClassFolders().catch(() => []),
   ]);
+  const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
 
   const html = buildDonnaHtml({
     context,
@@ -45,6 +51,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     recentUploads,
     googleConfigured: isGoogleConfigured(),
     dashboardConfig: settings.dashboardConfig,
+    contacts,
+    classFolders,
+    classLinks,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

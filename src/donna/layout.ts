@@ -4,6 +4,7 @@ import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
 
 const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true, contacts: true, info: true };
+const DEFAULT_NAV_ORDER = ["files", "calendar", "reminders", "contacts", "info"];
 
 export interface LayoutOptions {
   title: string;
@@ -13,6 +14,7 @@ export interface LayoutOptions {
   pageScript?: string;
   showChatFab?: boolean;
   navVisibility?: NavVisibility;
+  navOrder?: string[];
 }
 
 function renderChatFabMarkup(): string {
@@ -31,6 +33,52 @@ function renderChatFabMarkup(): string {
   </div>
   <button class="chat-fab" id="chat-fab" aria-label="Open chat">&#x1F4AC;</button>`;
 }
+
+// Every page navigation here is a full server-rendered reload, so there's
+// no client-side router to hook a spinner into — this just gives instant
+// visual feedback the instant a nav click/form submit registers, which is
+// most of what "feels laggy" actually is when the real load is slow.
+const PROGRESS_BAR_SCRIPT = `
+(function () {
+  const bar = document.getElementById("nav-progress-bar");
+  if (!bar) return;
+
+  function start() {
+    bar.classList.add("active");
+  }
+
+  document.addEventListener("click", (e) => {
+    const link = e.target && e.target.closest && e.target.closest('a[href^="/donna"]');
+    if (!link || link.target === "_blank") return;
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    start();
+  });
+
+  document.addEventListener("submit", (e) => {
+    if (e.target && e.target.tagName === "FORM") start();
+  });
+})();
+`;
+
+const NAV_SHEET_SCRIPT = `
+(function () {
+  const btn = document.getElementById("bottom-nav-more-btn");
+  const sheet = document.getElementById("bottom-nav-sheet");
+  if (!btn || !sheet) return;
+
+  function close() {
+    sheet.classList.remove("open");
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    sheet.classList.toggle("open");
+  });
+  document.addEventListener("click", (e) => {
+    if (sheet.classList.contains("open") && !sheet.contains(e.target) && e.target !== btn) close();
+  });
+})();
+`;
 
 const CHAT_FAB_SCRIPT = `
 (function () {
@@ -129,6 +177,7 @@ export function renderLayout(opts: LayoutOptions): string {
     pageScript = "",
     showChatFab = false,
     navVisibility = ALL_NAV_VISIBLE,
+    navOrder = DEFAULT_NAV_ORDER,
   } = opts;
 
   return `<!doctype html>
@@ -143,13 +192,14 @@ ${BASE_STYLES}
 </style>
 </head>
 <body>
+  <div class="nav-progress-bar" id="nav-progress-bar"></div>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-logo">
         <div class="sidebar-logo-mark">D</div>
         <div class="sidebar-logo-word">Donna</div>
       </div>
-      <nav class="sidebar-nav">${renderSidebarNav(activeTab, navVisibility)}</nav>
+      <nav class="sidebar-nav">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
@@ -161,12 +211,14 @@ ${BASE_STYLES}
     </main>
   </div>
 
-  <nav class="bottom-nav">${renderBottomNav(activeTab, navVisibility)}</nav>
+  <nav class="bottom-nav">${renderBottomNav(activeTab, navVisibility, navOrder)}</nav>
 
   ${extraBodyHtml}
   ${showChatFab ? renderChatFabMarkup() : ""}
 
   <script>
+${PROGRESS_BAR_SCRIPT}
+${NAV_SHEET_SCRIPT}
 ${pageScript}
 ${showChatFab ? CHAT_FAB_SCRIPT : ""}
   </script>

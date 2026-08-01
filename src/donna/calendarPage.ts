@@ -14,6 +14,7 @@ export interface CalendarPageData {
   timezone: string;
   configured: boolean;
   navVisibility: NavVisibility;
+  navOrder: string[];
 }
 
 function formatEventTime(iso: string | Date, timezone: string): string {
@@ -51,7 +52,7 @@ function renderDayGroup(day: CalendarDayGroup, timezone: string): string {
 }
 
 export function buildCalendarHtml(data: CalendarPageData): string {
-  const { days, timezone, configured, navVisibility } = data;
+  const { days, timezone, configured, navVisibility, navOrder } = data;
 
   const body = `
     <div class="section">
@@ -70,5 +71,6 @@ export function buildCalendarHtml(data: CalendarPageData): string {
     bodyHtml: body,
     showChatFab: true,
     navVisibility,
+    navOrder,
   });
 }

@@ -35,7 +35,7 @@ const SECTIONS: InfoSection[] = [
   {
     title: "Contacts",
     description:
-      "A lightweight recruiting/networking tracker — name, firm, notes, last contact date. Each contact has a one-click \"+ Reminder\" button that creates a follow-up reminder for you.",
+      "A recruiting/networking tracker — name, firm, bio, a relationship tag (Recruiter, Alum, Mentor, etc.), and a running log of interactions (call, email, coffee chat…) each with its own date and notes. \"Time since last contact\" updates automatically from whichever was most recent. Each contact also has a one-click \"+ Reminder\" button for a follow-up.",
   },
   {
     title: "Chat assistant",
@@ -57,7 +57,7 @@ function renderSection(section: InfoSection): string {
     </div>`;
 }
 
-export function buildInfoHtml(navVisibility: NavVisibility): string {
+export function buildInfoHtml(navVisibility: NavVisibility, navOrder: string[]): string {
   const body = `
     <div class="section">
       <h1 class="page-title">Info</h1>
@@ -71,5 +71,6 @@ export function buildInfoHtml(navVisibility: NavVisibility): string {
     bodyHtml: body,
     showChatFab: true,
     navVisibility,
+    navOrder,
   });
 }

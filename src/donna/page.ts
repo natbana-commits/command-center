@@ -1,11 +1,14 @@
 import type { DailyContext } from "../chat/dailyContext.js";
 import type { DashboardConfig, HomeWidgetId } from "../config.js";
+import type { Contact } from "../contacts/store.js";
+import type { ClassFolder } from "../drive/classFolders.js";
 import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
+import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { iconBell, iconCalendar, iconFolder } from "./icons.js";
+import { iconBell, iconCalendar, iconFolder, iconUser } from "./icons.js";
 import { renderSourceBadge } from "./sourceBadge.js";
 
 function formatEventTime(iso: string, timezone: string): string {
@@ -35,17 +38,6 @@ function greetingWord(timezone: string): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const diffMinutes = Math.round(diffMs / 60000);
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-  if (Math.abs(diffMinutes) < 60) return rtf.format(-diffMinutes, "minute");
-  const diffHours = Math.round(diffMinutes / 60);
-  if (Math.abs(diffHours) < 24) return rtf.format(-diffHours, "hour");
-  const diffDays = Math.round(diffHours / 24);
-  return rtf.format(-diffDays, "day");
 }
 
 function renderCalendarCard(context: DailyContext | null): string {
@@ -98,6 +90,51 @@ function renderRemindersCard(reminders: Reminder[], googleConfigured: boolean): 
   return reminders
     .slice(0, 4)
     .map((r) => `<div class="agenda-event-row"><div class="agenda-event-title">${escapeHtml(r.title)}</div></div>`)
+    .join("\n");
+}
+
+function renderContactsCard(contacts: Contact[]): string {
+  if (contacts.length === 0) {
+    return `<p class="empty">No contacts tracked yet.</p>`;
+  }
+  const staleCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const staleCount = contacts.filter(
+    (c) => !c.lastContactedAt || new Date(`${c.lastContactedAt}T12:00:00`).getTime() < staleCutoff
+  ).length;
+  const plural = contacts.length === 1 ? "" : "s";
+  const summary =
+    staleCount > 0
+      ? `${contacts.length} contact${plural} tracked, ${staleCount} not contacted in 30+ days`
+      : `${contacts.length} contact${plural} tracked, all caught up`;
+  return `<p class="hint" style="margin:0;">${escapeHtml(summary)}</p>`;
+}
+
+function renderFilesCard(
+  classFolders: ClassFolder[],
+  reminders: Reminder[],
+  classLinks: Map<string, number>
+): string {
+  const classNameById = new Map(classFolders.map((c) => [c.id, c.className]));
+  const deadlines = reminders
+    .filter((r) => r.due && classNameById.has(classLinks.get(r.id) ?? -1))
+    .sort((a, b) => (a.due! < b.due! ? -1 : 1))
+    .slice(0, 3);
+
+  if (deadlines.length === 0) {
+    return `<p class="empty">No upcoming deadlines.</p>`;
+  }
+
+  return deadlines
+    .map((r) => {
+      const className = classNameById.get(classLinks.get(r.id)!) ?? "";
+      const dateLabel = new Date(r.due!).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const title = className ? `${className}: ${withTimeSuffix(r.title, null)}` : withTimeSuffix(r.title, null);
+      return `
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(title)}</div>
+          <div class="agenda-event-time">${escapeHtml(dateLabel)}</div>
+        </div>`;
+    })
     .join("\n");
 }
 
@@ -198,19 +235,21 @@ export interface DonnaPageData {
   recentUploads: Upload[];
   googleConfigured: boolean;
   dashboardConfig: DashboardConfig;
+  contacts: Contact[];
+  classFolders: ClassFolder[];
+  classLinks: Map<string, number>;
 }
 
-function renderCardRow(
-  dashboardConfig: DashboardConfig,
-  context: DailyContext | null,
-  reminders: Reminder[],
-  recentUploads: Upload[],
-  googleConfigured: boolean
-): string {
+function renderCardRow(data: DonnaPageData): string {
+  const { dashboardConfig, context, reminders, recentUploads, googleConfigured, contacts, classFolders, classLinks } =
+    data;
+
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
     "recent-activity": { icon: iconFolder, title: "Recent Activity", content: renderRecentActivityCard(recentUploads) },
     upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(context) },
     reminders: { icon: iconBell, title: "Reminders", content: renderRemindersCard(reminders, googleConfigured) },
+    contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
+    files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
   };
 
   return dashboardConfig.homeWidgets
@@ -228,7 +267,7 @@ function renderCardRow(
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, reminders, recentUploads, googleConfigured, dashboardConfig } = data;
+  const { context, newsletters, dashboardConfig } = data;
   const timezone = context?.timezone ?? "America/New_York";
   const dateLabel = context ? formatFullDate(context.day, timezone) : "";
   const newsDefault = dashboardConfig.defaultHomeTab !== "newsletters";
@@ -240,7 +279,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     </div>
 
     <div class="card-row">
-      ${renderCardRow(dashboardConfig, context, reminders, recentUploads, googleConfigured)}
+      ${renderCardRow(data)}
     </div>
 
     <div class="home-tabs">
@@ -267,6 +306,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility: dashboardConfig.navVisibility,
+    navOrder: dashboardConfig.navOrder,
   });
 }
 

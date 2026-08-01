@@ -1,6 +1,7 @@
 import ical, { type VEvent } from "node-ical";
 import { escapeHtml } from "./util/html.js";
 import { dayBounds } from "./util/time.js";
+import { getOrFetch } from "./util/cache.js";
 
 function paramText(value: VEvent["summary"] | undefined): string | undefined {
   if (value === undefined) return undefined;
@@ -20,12 +21,26 @@ export interface CalendarResult {
   timezone: string;
 }
 
-async function fetchIcsData() {
+async function fetchIcsText(): Promise<string> {
   const url = process.env.GOOGLE_CALENDAR_ICS_URL;
   if (!url) {
     throw new Error("Missing GOOGLE_CALENDAR_ICS_URL in environment");
   }
-  return ical.async.fromURL(url);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch calendar ICS feed: ${response.status}`);
+  }
+  return response.text();
+}
+
+// Caches the raw ICS text (a plain string — safe to round-trip through
+// jsonb) rather than the parsed CalendarResponse, since parsed VEVENTs
+// carry rrule class instances that don't survive JSON serialization.
+// Re-parsing cached text is cheap CPU work; the network fetch is the
+// actual latency this is caching.
+async function fetchIcsData() {
+  const text = await getOrFetch("calendar:ics", 120, fetchIcsText);
+  return ical.parseICS(text);
 }
 
 // "auto" follows the calendar's own configured timezone (Google includes

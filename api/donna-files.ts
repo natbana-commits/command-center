@@ -44,6 +44,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     generalUploads,
     googleConfigured,
     navVisibility: settings.dashboardConfig.navVisibility,
+    navOrder: settings.dashboardConfig.navOrder,
     reminders,
     classLinks,
   });

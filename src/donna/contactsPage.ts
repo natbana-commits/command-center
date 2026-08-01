@@ -1,21 +1,49 @@
 import type { NavVisibility } from "../config.js";
-import type { Contact } from "../contacts/store.js";
+import type { Contact, ContactInteraction } from "../contacts/store.js";
 import { escapeHtml } from "../util/html.js";
+import { formatRelativeTime } from "../util/time.js";
 import { renderLayout } from "./layout.js";
+
+export const INTERACTION_TYPES = ["Call", "Email", "Coffee Chat", "Meeting", "Event"];
+export const RELATIONSHIP_TAGS = ["Recruiter", "Alum", "Mentor", "Peer", "Friend"];
 
 function formatDate(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+// A <select> of fixed options plus an "Other" entry that reveals a
+// free-text input — used for both the relationship tag and the
+// interaction type, so a value outside the fixed list (typed in
+// previously via "Other") still round-trips correctly: the select lands
+// on "Other" and the wrap starts open with the stored value prefilled.
+function renderTagSelect(name: string, options: string[], current: string | null, wrapId: string): string {
+  const isOther = Boolean(current) && !options.includes(current!);
+  const optionsHtml = options
+    .map((opt) => `<option value="${escapeHtml(opt)}" ${current === opt ? "selected" : ""}>${escapeHtml(opt)}</option>`)
+    .join("");
+
+  return `
+    <select name="${name}" onchange="toggleOtherInput(this, '${wrapId}')">
+      <option value="">None</option>
+      ${optionsHtml}
+      <option value="Other" ${isOther ? "selected" : ""}>Other…</option>
+    </select>
+    <div class="tag-other-wrap" id="${wrapId}" style="display:${isOther ? "" : "none"};">
+      <input type="text" name="${name}Other" placeholder="Custom" value="${escapeHtml(isOther ? current! : "")}" />
+    </div>`;
+}
+
 function renderContactRow(c: Contact): string {
-  const meta = [c.firm, c.lastContactedAt ? `Last contact: ${formatDate(c.lastContactedAt)}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  const lastContact = c.lastContactedAt ? formatRelativeTime(`${c.lastContactedAt}T12:00:00`) : "Never contacted";
+  const meta = [c.firm, lastContact].filter(Boolean).join(" · ");
 
   return `
     <div class="reminder-row">
       <div class="reminder-body">
-        <span class="reminder-title">${escapeHtml(c.name)}</span>
+        <div class="interaction-meta">
+          <span class="reminder-title">${escapeHtml(c.name)}</span>
+          ${c.relationshipTag ? `<span class="tag-chip">${escapeHtml(c.relationshipTag)}</span>` : ""}
+        </div>
         ${meta ? `<span class="hint" style="margin:0;">${escapeHtml(meta)}</span>` : ""}
       </div>
       <form method="POST" action="/donna/contacts" style="display:contents;">
@@ -42,7 +70,50 @@ function renderAddForm(): string {
     </form>`;
 }
 
-function renderEditForm(c: Contact): string {
+function renderInteractionRow(i: ContactInteraction, contactId: number): string {
+  return `
+    <div class="interaction-row">
+      <div class="interaction-body">
+        <div class="interaction-meta">
+          <span class="tag-chip">${escapeHtml(i.interactionType)}</span>
+          <span class="interaction-date">${escapeHtml(formatDate(i.occurredAt))}</span>
+        </div>
+        ${i.notes ? `<div class="interaction-notes">${escapeHtml(i.notes)}</div>` : ""}
+      </div>
+      <form method="POST" action="/donna/contacts">
+        <input type="hidden" name="action" value="delete-interaction" />
+        <input type="hidden" name="id" value="${i.id}" />
+        <input type="hidden" name="contactId" value="${contactId}" />
+        <button class="reminder-edit-link" type="submit" style="background:none;border:none;cursor:pointer;">Delete</button>
+      </form>
+    </div>`;
+}
+
+function renderInteractionsSection(contactId: number, interactions: ContactInteraction[]): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const listHtml =
+    interactions.length === 0
+      ? `<p class="empty">No interactions logged yet.</p>`
+      : interactions.map((i) => renderInteractionRow(i, contactId)).join("\n");
+
+  return `
+    <div class="interactions-section">
+      <h1 class="section-title">Interactions</h1>
+      ${listHtml}
+      <form method="POST" action="/donna/contacts" class="interaction-add-form">
+        <input type="hidden" name="action" value="add-interaction" />
+        <input type="hidden" name="contactId" value="${contactId}" />
+        <div class="interaction-add-row">
+          ${renderTagSelect("interactionType", INTERACTION_TYPES, null, "interaction-type-other-wrap")}
+          <input type="date" name="occurredAt" value="${today}" />
+        </div>
+        <textarea name="notes" placeholder="Notes (optional)"></textarea>
+        <button class="btn btn-secondary btn-small" type="submit">Log interaction</button>
+      </form>
+    </div>`;
+}
+
+function renderEditForm(c: Contact, interactions: ContactInteraction[]): string {
   return `
     <form method="POST" action="/donna/contacts" class="reminder-edit-form">
       <input type="hidden" name="action" value="update" />
@@ -59,8 +130,18 @@ function renderEditForm(c: Contact): string {
       </div>
 
       <div class="field">
+        <label>Relationship</label>
+        ${renderTagSelect("relationshipTag", RELATIONSHIP_TAGS, c.relationshipTag, "relationship-tag-other-wrap")}
+      </div>
+
+      <div class="field">
         <label for="edit-last-contacted">Last contact</label>
         <input type="date" id="edit-last-contacted" name="lastContactedAt" value="${escapeHtml(c.lastContactedAt ?? "")}" />
+      </div>
+
+      <div class="field">
+        <label for="edit-bio">Bio / info</label>
+        <textarea id="edit-bio" name="bio">${escapeHtml(c.bio ?? "")}</textarea>
       </div>
 
       <div class="field">
@@ -77,18 +158,21 @@ function renderEditForm(c: Contact): string {
       <input type="hidden" name="action" value="delete" />
       <input type="hidden" name="id" value="${c.id}" />
       <button class="btn btn-danger" type="submit">Delete contact</button>
-    </form>`;
+    </form>
+    ${renderInteractionsSection(c.id, interactions)}`;
 }
 
 export interface ContactsPageData {
   contacts: Contact[];
   editing?: Contact | null;
+  editingInteractions?: ContactInteraction[];
   error?: string;
   navVisibility: NavVisibility;
+  navOrder: string[];
 }
 
 export function buildContactsHtml(data: ContactsPageData): string {
-  const { contacts, editing, error, navVisibility } = data;
+  const { contacts, editing, editingInteractions, error, navVisibility, navOrder } = data;
 
   let body: string;
 
@@ -98,7 +182,7 @@ export function buildContactsHtml(data: ContactsPageData): string {
         <h1 class="page-title">Edit contact</h1>
       </div>
       <div class="card">
-        ${renderEditForm(editing)}
+        ${renderEditForm(editing, editingInteractions ?? [])}
       </div>`;
   } else {
     const listHtml =
@@ -122,7 +206,16 @@ export function buildContactsHtml(data: ContactsPageData): string {
     title: "Donna Contacts",
     activeTab: "contacts",
     bodyHtml: body,
+    pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility,
+    navOrder,
   });
 }
+
+const CLIENT_SCRIPT = `
+  function toggleOtherInput(select, wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (wrap) wrap.style.display = select.value === "Other" ? "" : "none";
+  }
+`;

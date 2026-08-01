@@ -82,6 +82,7 @@ export interface RemindersPageData {
   classFolders: ClassFolder[];
   classLinks: Map<string, number>;
   navVisibility: NavVisibility;
+  navOrder: string[];
 }
 
 function renderAddForm(classFolders: ClassFolder[]): string {
@@ -199,6 +200,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     classFolders,
     classLinks,
     navVisibility,
+    navOrder,
   } = data;
 
   let body: string;
@@ -237,6 +239,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility,
+    navOrder,
   });
 }
 
