@@ -3,7 +3,8 @@
     { "path": "/api/morning-brief", "schedule": "0 8 * * 1-5" }
   ],
   "functions": {
-    "api/donna-upload.ts": { "maxDuration": 60 }
+    "api/donna-upload.ts": { "maxDuration": 60 },
+    "api/telegram-webhook.ts": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },

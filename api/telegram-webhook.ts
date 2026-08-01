@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { sendTelegramMessage } from "../src/telegram.js";
+import { sendTelegramMessage, downloadTelegramVoice } from "../src/telegram.js";
 import { getLatestPendingStories, resolvePendingStories } from "../src/news/pending.js";
 import { getDailyContext } from "../src/chat/dailyContext.js";
 import { getChatHistory, appendChatMessage } from "../src/chat/history.js";
@@ -7,6 +7,7 @@ import { generateReply } from "../src/chat/respond.js";
 import { chunkText } from "../src/util/chunk.js";
 import { localDateKey, resolveTimezone } from "../src/util/time.js";
 import { loadSettings } from "../src/config.js";
+import { transcribeAudio, isOpenAiConfigured } from "../src/transcription/whisper.js";
 
 const AFFIRMATIVE = /^(y|yes|yeah|yep|yea)[.!]?$/i;
 const NEGATIVE = /^(n|no|nope|nah)[.!]?$/i;
@@ -15,6 +16,7 @@ interface TelegramUpdate {
   message?: {
     chat?: { id?: number | string };
     text?: string;
+    voice?: { file_id: string };
   };
 }
 
@@ -27,11 +29,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const update = req.body as TelegramUpdate;
   const chatId = update.message?.chat?.id;
-  const text = (update.message?.text ?? "").trim();
+  let text = (update.message?.text ?? "").trim();
+  const voice = update.message?.voice;
 
   if (String(chatId) !== process.env.TELEGRAM_CHAT_ID) {
     res.status(200).send("ignored");
     return;
+  }
+
+  // A voice note has no `.text` at all — transcribe it into `text` here so
+  // everything below (the pending yes/no check, then the conversational
+  // path) can stay oblivious to whether the message was typed or spoken.
+  if (!text && voice) {
+    if (!isOpenAiConfigured()) {
+      await sendTelegramMessage("Voice messages need transcription set up first — texting works fine for now.");
+      res.status(200).send("ok");
+      return;
+    }
+
+    try {
+      const audioBytes = await downloadTelegramVoice(voice.file_id);
+      text = (await transcribeAudio(audioBytes, "voice.ogg")).trim();
+    } catch (err) {
+      console.error("Voice transcription failed:", err);
+      await sendTelegramMessage("Couldn't transcribe that voice note — try texting instead?");
+      res.status(200).send("ok");
+      return;
+    }
+
+    if (!text) {
+      await sendTelegramMessage("Couldn't make out anything in that voice note — try again?");
+      res.status(200).send("ok");
+      return;
+    }
+
+    // Echoed before anything is acted on, so a mis-transcription is always
+    // visible rather than silently driving the wrong reminder/event.
+    await sendTelegramMessage(`🎤 "${text}"`);
   }
 
   if (!text) {
