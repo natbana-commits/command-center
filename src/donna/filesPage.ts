@@ -264,10 +264,10 @@ const CLIENT_SCRIPT = `
     const classId = classSelect.value ? Number(classSelect.value) : null;
 
     try {
-      const initRes = await fetch("/api/donna-upload-init", {
+      const initRes = await fetch("/api/donna-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, kind, classId }),
+        body: JSON.stringify({ stage: "init", filename: file.name, kind, classId }),
       });
       const initData = await initRes.json();
       if (!initRes.ok) {
@@ -286,10 +286,10 @@ const CLIENT_SCRIPT = `
       }
 
       statusEl.textContent = "Processing… this can take a minute.";
-      const completeRes = await fetch("/api/donna-upload-complete", {
+      const completeRes = await fetch("/api/donna-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId: initData.uploadId }),
+        body: JSON.stringify({ stage: "complete", uploadId: initData.uploadId }),
       });
       const completeData = await completeRes.json();
 

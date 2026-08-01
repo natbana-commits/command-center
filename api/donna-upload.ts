@@ -1,8 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getUpload, updateUpload, downloadUpload } from "../src/storage/uploads.js";
+import { createSignedUploadUrl, createUpload, getUpload, updateUpload, downloadUpload, type UploadKind } from "../src/storage/uploads.js";
 import { transcribeAudio, isOpenAiConfigured, FileTooLargeError } from "../src/transcription/whisper.js";
 import { generateNotesFromTranscript } from "../src/transcription/notes.js";
 import { extractTextFromImage } from "../src/vision/ocr.js";
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 
 function mimeTypeFromFilename(filename: string): string {
   const ext = filename.toLowerCase().split(".").pop() ?? "";
@@ -16,12 +20,35 @@ function mimeTypeFromFilename(filename: string): string {
   return map[ext] ?? "image/jpeg";
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
+async function handleInit(req: VercelRequest, res: VercelResponse) {
+  const body = (req.body ?? {}) as { filename?: string; kind?: string; classId?: number };
+  const filename = body.filename?.trim();
+  const kind = body.kind as UploadKind | undefined;
+  const classId = body.classId ?? null;
+
+  if (!filename || (kind !== "lecture" && kind !== "photo")) {
+    res.status(400).json({ error: "Missing filename or invalid kind" });
     return;
   }
 
+  try {
+    const path = `${kind}/${Date.now()}-${sanitizeFilename(filename)}`;
+    const { signedUrl, token } = await createSignedUploadUrl(path);
+    const upload = await createUpload({
+      storagePath: path,
+      kind,
+      classId,
+      originalFilename: filename,
+    });
+
+    res.status(200).json({ uploadId: upload.id, signedUrl, token, path });
+  } catch (err) {
+    console.error("Upload init failed:", err);
+    res.status(500).json({ error: "Failed to initialize upload" });
+  }
+}
+
+async function handleComplete(req: VercelRequest, res: VercelResponse) {
   const uploadId = Number((req.body ?? {}).uploadId);
   if (!Number.isFinite(uploadId)) {
     res.status(400).json({ error: "Missing or invalid uploadId" });
@@ -70,4 +97,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await updateUpload(uploadId, { status: "failed", error: message });
     res.status(200).json({ status: "failed", error: message });
   }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  const stage = (req.body ?? {}).stage;
+  if (stage === "init") {
+    await handleInit(req, res);
+    return;
+  }
+  if (stage === "complete") {
+    await handleComplete(req, res);
+    return;
+  }
+  res.status(400).json({ error: "Missing or invalid stage" });
 }

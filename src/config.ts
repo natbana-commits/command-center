@@ -7,6 +7,7 @@ export interface NavVisibility {
   calendar: boolean;
   reminders: boolean;
   contacts: boolean;
+  info: boolean;
 }
 
 export interface DashboardConfig {
@@ -36,7 +37,7 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "reminders", visible: true },
   ],
   defaultHomeTab: "news",
-  navVisibility: { files: true, calendar: true, reminders: true, contacts: true },
+  navVisibility: { files: true, calendar: true, reminders: true, contacts: true, info: true },
 };
 
 const DEFAULT_BRIEF_CONFIG: BriefConfig = {

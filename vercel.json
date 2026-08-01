@@ -3,7 +3,7 @@
     { "path": "/api/morning-brief", "schedule": "0 8 * * 1-5" }
   ],
   "functions": {
-    "api/donna-upload-complete.ts": { "maxDuration": 60 }
+    "api/donna-upload.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },
@@ -11,6 +11,7 @@
     { "source": "/donna/calendar", "destination": "/api/donna-calendar" },
     { "source": "/donna/reminders", "destination": "/api/donna-reminders" },
     { "source": "/donna/contacts", "destination": "/api/donna-contacts" },
+    { "source": "/donna/info", "destination": "/api/donna-info" },
     { "source": "/donna/settings", "destination": "/api/donna-settings" },
     { "source": "/", "destination": "/api/donna" }
   ]

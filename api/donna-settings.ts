@@ -92,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               calendar: body["nav-calendar"] === "on",
               reminders: body["nav-reminders"] === "on",
               contacts: body["nav-contacts"] === "on",
+              info: body["nav-info"] === "on",
             },
           },
         });

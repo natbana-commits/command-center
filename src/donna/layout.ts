@@ -3,7 +3,7 @@ import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
 
-const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true, contacts: true };
+const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true, contacts: true, info: true };
 
 export interface LayoutOptions {
   title: string;
