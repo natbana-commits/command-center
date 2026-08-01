@@ -157,7 +157,7 @@ function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
     <article class="newsletter">
       <div class="newsletter-subject">${escapeHtml(latest.subject)}</div>
       <div class="newsletter-sender">${escapeHtml(latest.sender)} · ${escapeHtml(formatNewsletterDate(latest.receivedAt))}</div>
-      <iframe class="newsletter-frame" sandbox="allow-popups" srcdoc="${escapeHtml(latest.html)}"></iframe>
+      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(latest.html)}"></iframe>
     </article>`;
 
   const olderHtml = older.length

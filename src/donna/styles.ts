@@ -1,17 +1,24 @@
 export const BASE_STYLES = `
   @font-face {
-    font-family: "Playfair Display";
+    font-family: "Merriweather";
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url("/fonts/playfair-400.woff2") format("woff2");
+    src: url("/fonts/merriweather-400.woff2") format("woff2");
   }
   @font-face {
-    font-family: "Playfair Display";
+    font-family: "Merriweather";
     font-style: normal;
     font-weight: 700;
     font-display: swap;
-    src: url("/fonts/playfair-700.woff2") format("woff2");
+    src: url("/fonts/merriweather-700.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Merriweather";
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url("/fonts/merriweather-400italic.woff2") format("woff2");
   }
   @font-face {
     font-family: "Inter";
@@ -50,7 +57,7 @@ export const BASE_STYLES = `
     --olive: #b8b29b;
     --danger: #b8442e;
     --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --display: "Playfair Display", Georgia, "Times New Roman", serif;
+    --display: "Merriweather", Georgia, "Times New Roman", serif;
     --mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
     --sp-1: 8px;
     --sp-2: 16px;
