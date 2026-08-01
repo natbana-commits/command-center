@@ -1,5 +1,7 @@
 import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 
+const RETENTION_DAYS = 30;
+
 export interface ReminderNotification {
   id: number;
   googleTaskId: string;
@@ -112,5 +114,20 @@ export async function clearPendingNotificationsForTask(googleTaskId: string): Pr
 
   if (error) {
     throw new Error(`Supabase delete error: ${error.message}`);
+  }
+}
+
+// Only ever deletes already-*sent* rows — a pending (unsent) notification
+// should never be pruned, no matter how old, since it's still waiting to
+// fire.
+export async function pruneOldReminderNotifications(): Promise<void> {
+  const client = getSupabaseClient();
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await withSupabaseRetry(() =>
+    client.from("reminder_notifications").delete().eq("sent", true).lt("notify_at", cutoff)
+  );
+
+  if (error) {
+    throw new Error(`Supabase prune error: ${error.message}`);
   }
 }

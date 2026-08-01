@@ -9,9 +9,10 @@ import { storePendingStories } from "./news/pending.js";
 import { storeDailyContext, pruneOldDailyContext } from "./chat/dailyContext.js";
 import { pruneOldChatMessages } from "./chat/history.js";
 import { localDateKey } from "./util/time.js";
-import { fetchAndStoreNewsletters } from "./gmail/index.js";
+import { fetchAndStoreNewsletters, pruneOldNewsletters } from "./gmail/index.js";
 import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
+import { pruneOldReminderNotifications } from "./reminders/notifications.js";
 
 export interface BriefMessage {
   text: string;
@@ -39,6 +40,8 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldSeen();
   await pruneOldChatMessages();
   await pruneOldDailyContext();
+  await pruneOldNewsletters();
+  await pruneOldReminderNotifications();
 
   const headlineCount = settings.briefConfig.headlineCount;
   const sorted = [...stories].sort((a, b) => b.relevance - a.relevance);

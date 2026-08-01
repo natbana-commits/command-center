@@ -1,6 +1,8 @@
 import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 import type { NewsletterEmail } from "./fetch.js";
 
+const RETENTION_DAYS = 30;
+
 export interface StoredNewsletter {
   id: string;
   day: string;
@@ -59,4 +61,18 @@ export async function getNewslettersForDay(day: string): Promise<StoredNewslette
     receivedAt: row.received_at,
     html: row.html,
   }));
+}
+
+// Only today's newsletters ever get shown (getNewslettersForDay), so
+// anything older is dead weight — each row carries a full HTML body,
+// often 50-90KB.
+export async function pruneOldNewsletters(): Promise<void> {
+  const client = getSupabaseClient();
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const { error } = await withSupabaseRetry(() => client.from("newsletters").delete().lt("day", cutoff));
+
+  if (error) {
+    if (error.code === "PGRST205") return;
+    throw new Error(`Supabase prune error: ${error.message}`);
+  }
 }

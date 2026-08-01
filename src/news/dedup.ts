@@ -24,8 +24,13 @@ export async function filterUnseen(items: FeedItem[]): Promise<FeedItem[]> {
 export async function markSeen(urls: string[]): Promise<void> {
   if (urls.length === 0) return;
 
+  // A single upsert can't affect the same conflict-key row twice in one
+  // statement — Postgres errors on it outright — so duplicate URLs in the
+  // input (the curation step has occasionally returned the same story
+  // twice) need deduping here rather than trusting the caller.
+  const uniqueUrls = [...new Set(urls)];
   const client = getSupabaseClient();
-  const rows = urls.map((url) => ({ url, seen_at: new Date().toISOString() }));
+  const rows = uniqueUrls.map((url) => ({ url, seen_at: new Date().toISOString() }));
   const { error } = await withSupabaseRetry(() =>
     client.from("seen_stories").upsert(rows, { onConflict: "url" })
   );
