@@ -2,8 +2,7 @@ import type { DailyContext } from "./dailyContext.js";
 import type { ChatMessage } from "./history.js";
 import { isGoogleConfigured } from "../google/auth.js";
 import { getClassFolders } from "../drive/classFolders.js";
-import { listFilesInFolder } from "../drive/list.js";
-import { getFileContent } from "../drive/content.js";
+import { getClassFileContext } from "../drive/classContext.js";
 import { listReminders, addReminder, completeReminder, type Reminder } from "../google/tasks.js";
 import { searchEmails } from "../gmail/search.js";
 import { searchContent } from "../search/index.js";
@@ -261,9 +260,6 @@ const TOOLS = [
   },
 ];
 
-const MAX_FILES_PER_CLASS = 10;
-const MAX_CHARS_PER_FILE = 6000;
-
 async function executeGetClassFiles(className: string): Promise<string> {
   if (!isGoogleConfigured()) {
     return "Drive isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
@@ -279,21 +275,7 @@ async function executeGetClassFiles(className: string): Promise<string> {
       : `No class folder configured for "${className}", and no classes have been set up yet.`;
   }
 
-  const files = await listFilesInFolder(match.driveFolderId);
-  if (files.length === 0) {
-    return `The ${match.className} folder exists but has no files in it yet.`;
-  }
-
-  const contents = await Promise.all(
-    files.slice(0, MAX_FILES_PER_CLASS).map(async (f) => {
-      const text = await getFileContent(f);
-      return text
-        ? `--- ${f.name} ---\n${text.slice(0, MAX_CHARS_PER_FILE)}`
-        : `--- ${f.name} ---\n(unsupported file type, no text extracted)`;
-    })
-  );
-
-  return contents.join("\n\n");
+  return getClassFileContext(match);
 }
 
 async function executeAddReminder(title: string, notes?: string): Promise<string> {

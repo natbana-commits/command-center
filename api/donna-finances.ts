@@ -1,0 +1,171 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Products, CountryCode } from "plaid";
+import { loadSettings } from "../src/config.js";
+import { requireAuth } from "../src/auth/session.js";
+import { getPlaidClient, isPlaidConfigured } from "../src/finance/plaidClient.js";
+import { getAllItems, getDecryptedAccessToken, saveItem, deleteItem, setNeedsReauth } from "../src/finance/items.js";
+import { getAllAccounts } from "../src/finance/accounts.js";
+import { getRecentTransactions } from "../src/finance/transactionsStore.js";
+import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/sync.js";
+import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
+import { buildFinancesHtml } from "../src/donna/financesPage.js";
+
+// Plaid's webhook signature covers the exact raw request bytes, and
+// Vercel's automatic body parsing doesn't preserve those (re-serializing
+// the parsed object isn't guaranteed byte-identical) — this route reads
+// the body itself instead, both for verifying the webhook and for the
+// in-app POST actions below.
+export const config = { api: { bodyParser: false } };
+
+async function readRawBody(req: VercelRequest): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer));
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function parseBody(rawBody: string, contentType: string | undefined): Record<string, string> {
+  if (contentType?.includes("application/json")) {
+    return rawBody ? JSON.parse(rawBody) : {};
+  }
+  return Object.fromEntries(new URLSearchParams(rawBody));
+}
+
+interface PlaidWebhookPayload {
+  webhook_type?: string;
+  webhook_code?: string;
+  item_id?: string;
+  error?: { error_code?: string };
+}
+
+async function handlePlaidWebhook(payload: PlaidWebhookPayload): Promise<void> {
+  if (!payload.item_id) return;
+
+  if (payload.webhook_type === "TRANSACTIONS" && payload.webhook_code === "SYNC_UPDATES_AVAILABLE") {
+    await syncTransactionsForItem(payload.item_id);
+    return;
+  }
+  if (payload.webhook_type === "ITEM" && payload.error?.error_code === "ITEM_LOGIN_REQUIRED") {
+    await setNeedsReauth(payload.item_id, true);
+  }
+  // Other webhook types/codes (e.g. WEBHOOK_UPDATE_ACKNOWLEDGED) need no action.
+}
+
+async function handleCreateLinkToken(res: VercelResponse) {
+  const client = getPlaidClient();
+  const response = await client.linkTokenCreate({
+    user: { client_user_id: "nathan" },
+    client_name: "Donna",
+    products: [Products.Transactions],
+    country_codes: [CountryCode.Us],
+    language: "en",
+    webhook: process.env.PLAID_WEBHOOK_URL || undefined,
+  });
+  res.status(200).json({ linkToken: response.data.link_token });
+}
+
+async function handleExchangePublicToken(body: Record<string, string>, res: VercelResponse) {
+  const publicToken = body.publicToken;
+  if (!publicToken) {
+    res.status(400).json({ error: "Missing publicToken" });
+    return;
+  }
+  const institutionName = body.institutionName?.trim() || "Linked account";
+
+  const client = getPlaidClient();
+  const exchange = await client.itemPublicTokenExchange({ public_token: publicToken });
+  const { access_token: accessToken, item_id: itemId } = exchange.data;
+
+  await saveItem(itemId, institutionName, accessToken);
+  await syncAccountsForItem(itemId);
+  await syncTransactionsForItem(itemId);
+
+  res.status(200).json({ ok: true });
+}
+
+async function handleUnlink(body: Record<string, string>, res: VercelResponse) {
+  const itemId = body.itemId;
+  if (itemId) {
+    try {
+      const accessToken = await getDecryptedAccessToken(itemId);
+      await getPlaidClient().itemRemove({ access_token: accessToken });
+    } catch (err) {
+      // Still remove it locally even if Plaid's side fails (e.g. the
+      // Item was already revoked from the bank's side) — a stuck linked
+      // account the user can't remove is worse than a slightly stale
+      // Plaid-side record.
+      console.error(`Plaid item/remove failed for ${itemId} (removing locally anyway):`, err);
+    }
+    await deleteItem(itemId);
+  }
+  res.redirect(303, "/donna/finances");
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const plaidVerification = req.headers["plaid-verification"];
+
+  if (req.method === "POST" && typeof plaidVerification === "string") {
+    const rawBody = await readRawBody(req);
+    const valid = await verifyPlaidWebhook(plaidVerification, rawBody);
+    if (!valid) {
+      res.status(401).send("Invalid signature");
+      return;
+    }
+    try {
+      await handlePlaidWebhook(JSON.parse(rawBody));
+    } catch (err) {
+      console.error("Plaid webhook handling failed:", err);
+    }
+    res.status(200).json({ acknowledged: true });
+    return;
+  }
+
+  if (!requireAuth(req, res)) return;
+
+  if (req.method === "POST") {
+    const rawBody = await readRawBody(req);
+    const body = parseBody(rawBody, req.headers["content-type"]);
+
+    try {
+      if (body.action === "create-link-token") {
+        await handleCreateLinkToken(res);
+        return;
+      }
+      if (body.action === "exchange-public-token") {
+        await handleExchangePublicToken(body, res);
+        return;
+      }
+      if (body.action === "unlink") {
+        await handleUnlink(body, res);
+        return;
+      }
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("Finance action failed:", err);
+      if (body.action === "unlink") {
+        res.redirect(303, "/donna/finances?error=1");
+      } else {
+        res.status(500).json({ error: "Action failed" });
+      }
+    }
+    return;
+  }
+
+  const plaidConfigured = isPlaidConfigured();
+  const settings = await loadSettings();
+  const [items, accounts, transactions] = plaidConfigured
+    ? await Promise.all([getAllItems(), getAllAccounts(), getRecentTransactions(50)])
+    : [[], [], []];
+
+  const html = buildFinancesHtml({
+    plaidConfigured,
+    items,
+    accounts,
+    transactions,
+    navVisibility: settings.dashboardConfig.navVisibility,
+    navOrder: settings.dashboardConfig.navOrder,
+  });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.status(200).send(html);
+}

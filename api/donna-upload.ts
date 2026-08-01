@@ -3,6 +3,7 @@ import { createSignedUploadUrl, createUpload, getUpload, updateUpload, downloadU
 import { transcribeAudio, isOpenAiConfigured, FileTooLargeError } from "../src/transcription/whisper.js";
 import { generateNotesFromTranscript } from "../src/transcription/notes.js";
 import { extractTextFromImage } from "../src/vision/ocr.js";
+import { requireAuth } from "../src/auth/session.js";
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -100,6 +101,8 @@ async function handleComplete(req: VercelRequest, res: VercelResponse) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

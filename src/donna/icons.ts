@@ -57,3 +57,15 @@ export const iconMore = svg(
 export const iconTrendingUp = svg(
   `<path d="M3 17 9 11l4 4 8-8" /><path d="M15 6h6v6" />`
 );
+
+export const iconWallet = svg(
+  `<path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3" /><path d="M3 7v10a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-3" /><path d="M14 12h6v4h-6a2 2 0 0 1 0-4Z" />`
+);
+
+export const iconGraduationCap = svg(
+  `<path d="M2 9 12 4l10 5-10 5-10-5Z" /><path d="M6 11.5v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" /><path d="M20 9v6" />`
+);
+
+export const iconChat = svg(
+  `<path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 4v-4H6a2 2 0 0 1-2-2Z" />`
+);

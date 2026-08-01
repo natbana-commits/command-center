@@ -214,6 +214,7 @@ ${BASE_STYLES}
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
+        <a class="sidebar-user-logout" href="/donna/logout" title="Sign out">&#x2715;</a>
       </div>
     </aside>
 

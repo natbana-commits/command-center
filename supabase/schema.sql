@@ -247,3 +247,87 @@ create table if not exists followed_companies (
   last_seen_accession text,
   created_at timestamptz not null default now()
 );
+
+-- One row per linked Plaid Item (one bank login, which can hold several
+-- accounts — e.g. checking + savings under one PNC login). access_token
+-- is encrypted at the application layer (src/finance/crypto.ts, AES-256-
+-- GCM) before it ever reaches this table — it's a meaningfully higher-
+-- value secret than anything else this app stores. cursor is
+-- transactions/sync's pagination cursor, null until the first sync.
+create table if not exists plaid_items (
+  id bigint generated always as identity primary key,
+  item_id text not null unique,
+  institution_name text not null,
+  access_token_encrypted text not null,
+  access_token_iv text not null,
+  cursor text,
+  needs_reauth boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- Balances as of the last sync — cascades on the parent Item's removal
+-- (unlinking a bank drops its accounts and transactions with it).
+create table if not exists plaid_accounts (
+  id bigint generated always as identity primary key,
+  item_id text not null references plaid_items (item_id) on delete cascade,
+  account_id text not null unique,
+  name text not null,
+  official_name text,
+  type text not null,
+  subtype text,
+  mask text,
+  current_balance numeric,
+  available_balance numeric,
+  iso_currency_code text,
+  updated_at timestamptz not null default now()
+);
+
+-- Populated via Plaid's cursor-based /transactions/sync (not a full
+-- re-fetch each time) — see src/finance/sync.ts.
+create table if not exists plaid_transactions (
+  id bigint generated always as identity primary key,
+  transaction_id text not null unique,
+  account_id text not null references plaid_accounts (account_id) on delete cascade,
+  amount numeric not null,
+  iso_currency_code text,
+  name text not null,
+  merchant_name text,
+  category text,
+  pending boolean not null default false,
+  transaction_date date not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists plaid_transactions_account_date_idx on plaid_transactions (account_id, transaction_date desc);
+
+-- Per-class persistent chat thread for the School page — isolated from
+-- general Donna chat (chat_messages, scoped by day) and from other
+-- classes, so studying for ECO 301 doesn't mix into ECO 302's thread or
+-- reset overnight the way the general daily chat does.
+create table if not exists school_chat_messages (
+  id bigint generated always as identity primary key,
+  class_id bigint not null references class_folders (id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists school_chat_messages_class_id_idx on school_chat_messages (class_id, created_at);
+
+-- Flashcard bank generated from a class's uploaded lecture transcripts
+-- (src/school/generateFlashcards.ts). review_count/next_review_at drive a
+-- lightweight spaced-repetition schedule (src/school/flashcards.ts) —
+-- proportionate to a single-user study tool, not a full SM-2 algorithm.
+create table if not exists flashcards (
+  id bigint generated always as identity primary key,
+  class_id bigint not null references class_folders (id) on delete cascade,
+  question text not null,
+  answer text not null,
+  source_upload_id bigint references uploads (id) on delete set null,
+  last_reviewed_at timestamptz,
+  next_review_at timestamptz,
+  review_count int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists flashcards_class_id_idx on flashcards (class_id);

@@ -3,8 +3,11 @@ import { loadSettings } from "../src/config.js";
 import { getRecentIpoFilings } from "../src/ipos/store.js";
 import { getFollowedCompanies, followCompany, unfollowCompany } from "../src/ipos/followedCompanies.js";
 import { buildIposHtml } from "../src/donna/iposPage.js";
+import { requireAuth } from "../src/auth/session.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
     const action = body.action;

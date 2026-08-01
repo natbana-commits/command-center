@@ -9,13 +9,19 @@
   },
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },
+    { "source": "/donna/login", "destination": "/api/donna?page=login" },
+    { "source": "/donna/logout", "destination": "/api/donna?page=logout" },
     { "source": "/donna/files", "destination": "/api/donna-files" },
     { "source": "/donna/calendar", "destination": "/api/donna-calendar" },
     { "source": "/donna/reminders", "destination": "/api/donna-reminders" },
     { "source": "/donna/contacts", "destination": "/api/donna-contacts" },
-    { "source": "/donna/info", "destination": "/api/donna-info" },
+    { "source": "/donna/info", "destination": "/api/donna?page=info" },
     { "source": "/donna/settings", "destination": "/api/donna-settings" },
     { "source": "/donna/ipos", "destination": "/api/donna-ipos" },
+    { "source": "/donna/finances", "destination": "/api/donna-finances" },
+    { "source": "/donna/school", "destination": "/api/donna-files?page=school" },
+    { "source": "/donna/chat", "destination": "/api/donna-chat?page=chat" },
+    { "source": "/api/plaid-webhook", "destination": "/api/donna-finances" },
     { "source": "/api/reminder-check", "destination": "/api/morning-brief" },
     { "source": "/", "destination": "/api/donna" }
   ]

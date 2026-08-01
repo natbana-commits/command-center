@@ -158,6 +158,14 @@ export const BASE_STYLES = `
     flex: 0 0 auto;
   }
   .sidebar-user-name { font-size: 14px; font-weight: 500; color: var(--ink); }
+  .sidebar-user-logout {
+    margin-left: auto;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 11px;
+    padding: 4px;
+  }
+  .sidebar-user-logout:hover { color: var(--accent); }
 
   .main-content {
     flex: 1;

@@ -12,6 +12,7 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   contacts: "Contacts",
   files: "Files",
   ipos: "IPOs",
+  finances: "Finances",
 };
 
 function renderClassRows(classFolders: ClassFolder[]): string {

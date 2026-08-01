@@ -3,10 +3,13 @@ import { loadSettings } from "../src/config.js";
 import { resolveTimezone, dayBounds } from "../src/util/time.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { buildCalendarHtml, type CalendarDayGroup } from "../src/donna/calendarPage.js";
+import { requireAuth } from "../src/auth/session.js";
 
 const NUM_DAYS = 14;
 
-export default async function handler(_req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
 

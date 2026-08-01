@@ -9,6 +9,9 @@ import {
   iconInfo,
   iconMore,
   iconTrendingUp,
+  iconWallet,
+  iconGraduationCap,
+  iconChat,
 } from "./icons.js";
 
 export const PWA_HEAD = `
@@ -41,6 +44,9 @@ const MIDDLE_TAB_META: Record<NavTabId, { label: string; href: string; icon: str
   contacts: { label: "Contacts", href: "/donna/contacts", icon: iconUser },
   info: { label: "Info", href: "/donna/info", icon: iconInfo },
   ipos: { label: "IPOs", href: "/donna/ipos", icon: iconTrendingUp },
+  finances: { label: "Finances", href: "/donna/finances", icon: iconWallet },
+  school: { label: "School", href: "/donna/school", icon: iconGraduationCap },
+  chat: { label: "Chat", href: "/donna/chat", icon: iconChat },
 };
 
 const MIDDLE_TABS: NavEntry[] = NAV_TAB_IDS.map((id) => ({ tab: id, ...MIDDLE_TAB_META[id] }));

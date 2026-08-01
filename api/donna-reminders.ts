@@ -19,6 +19,7 @@ import {
 } from "../src/reminders/notifications.js";
 import { linkReminderToClass, clearClassLink, getClassIdForTask, getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { buildRemindersHtml } from "../src/donna/remindersPage.js";
+import { requireAuth } from "../src/auth/session.js";
 
 function parseClassId(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
@@ -63,6 +64,8 @@ async function scheduleEarlyIfRequested(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
 

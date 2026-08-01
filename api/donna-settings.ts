@@ -5,8 +5,11 @@ import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
+import { requireAuth } from "../src/auth/session.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
     const action = body.action;

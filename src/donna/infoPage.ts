@@ -43,9 +43,19 @@ const SECTIONS: InfoSection[] = [
       "Once a day Donna checks SEC EDGAR for newly-filed S-1 IPO registrations, reads the filing, and summarizes the business, key financials, deal terms, and notable risk factors — shown here and as a Home glance, with a callout in the morning text when something new filed. It's a best-effort digest of a large document, not a substitute for reading the real filing. \"Follow\" a specific company (from this page or by asking Donna in chat) to also get flagged on its later filings — amendments, or the final priced prospectus, which usually lands well after the initial S-1.",
   },
   {
-    title: "Chat assistant",
+    title: "Finances",
     description:
-      "Donna's the same assistant in Telegram and in the chat bubble on every page here. She can add or complete reminders, search your whole Gmail inbox, search stored newsletters and lecture transcripts by keyword, find and book calendar time, pull up a specific class's files, look up an IPO filing she's already tracked, and check EDGAR live for one she hasn't — all through plain conversation, no special syntax needed.",
+      "Link any Plaid-compatible bank, card, or brokerage (Amex, Marcus, PNC, and thousands of others — Fidelity isn't currently supported by Plaid) via the \"+ Link an account\" button. Donna only ever reads balances and recent transactions — she can't move money, initiate a transfer, or place a trade. Access tokens are encrypted before storage, and updates arrive in real time via Plaid's webhooks rather than needing a manual refresh. Unlink an account any time from this page to remove it and its data.",
+  },
+  {
+    title: "School",
+    description:
+      "Pick a class to see its flashcards and lecture uploads. \"Chat about [class]\" opens a dedicated conversation on the Chat tab that auto-loads that class's Drive files as context and keeps its own separate, persistent history. Generate flashcards from any transcribed lecture upload with one click, then review them on a simple spaced-repetition schedule (cards you get right come back less often; ones you miss come back sooner).",
+  },
+  {
+    title: "Chat",
+    description:
+      "Donna's the same assistant everywhere — Telegram, the floating chat bubble on every page, and the dedicated Chat tab, which adds a mode switcher across the top: General (full tool access — reminders, email search, calendar, IPO lookups) or any class you've set up (auto-loaded Drive context, its own separate history, a one-click \"Generate practice problems\"). The floating bubble is always General mode and shares that same conversation with the Chat tab's General mode, so switching between them mid-conversation is seamless.",
   },
   {
     title: "Dashboard & Morning text",

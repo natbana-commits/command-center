@@ -7,10 +7,11 @@ import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import type { Upload } from "../storage/uploads.js";
 import type { IpoFiling } from "../ipos/store.js";
+import type { PlaidAccount } from "../finance/accounts.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp } from "./icons.js";
+import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet } from "./icons.js";
 import { renderSourceBadge } from "./sourceBadge.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
 
@@ -183,6 +184,18 @@ function renderIposCard(filings: IpoFiling[]): string {
     .join("\n");
 }
 
+function renderFinancesCard(accounts: PlaidAccount[]): string {
+  if (accounts.length === 0) {
+    return `<p class="empty">No accounts linked yet.</p>`;
+  }
+  const totalCash = accounts
+    .filter((a) => a.type === "depository")
+    .reduce((sum, a) => sum + (a.currentBalance ?? 0), 0);
+  const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalCash);
+  const plural = accounts.length === 1 ? "" : "s";
+  return `<p class="hint" style="margin:0;">${escapeHtml(formatted)} total cash across ${accounts.length} account${plural}</p>`;
+}
+
 // Older cached daily_context rows were stored before publishedAt existed —
 // fall back to the brief's own day so the meta row never renders blank.
 function formatStoryDate(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
@@ -285,6 +298,7 @@ export interface DonnaPageData {
   classFolders: ClassFolder[];
   classLinks: Map<string, number>;
   ipoFilings: IpoFiling[];
+  financeAccounts: PlaidAccount[];
 }
 
 function renderCardRow(data: DonnaPageData, timezone: string): string {
@@ -299,6 +313,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     classFolders,
     classLinks,
     ipoFilings,
+    financeAccounts,
   } = data;
 
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
@@ -312,6 +327,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
     files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
     ipos: { icon: iconTrendingUp, title: "IPOs", content: renderIposCard(ipoFilings) },
+    finances: { icon: iconWallet, title: "Finances", content: renderFinancesCard(financeAccounts) },
   };
 
   return dashboardConfig.homeWidgets

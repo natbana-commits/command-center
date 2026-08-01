@@ -13,6 +13,7 @@ import {
 import { addReminder } from "../src/google/tasks.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { buildContactsHtml } from "../src/donna/contactsPage.js";
+import { requireAuth } from "../src/auth/session.js";
 
 // The relationship-tag and interaction-type <select> elements submit
 // "Other" plus a companion "<name>Other" text field when the fixed list
@@ -36,6 +37,8 @@ function resolveIsoDate(raw: string | undefined): string | undefined {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!requireAuth(req, res)) return;
+
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
 
