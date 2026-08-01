@@ -57,7 +57,7 @@ function renderTransactionRow(t: PlaidTransaction, accountName: string): string 
     <div class="agenda-event-row">
       <div class="agenda-event-title">
         ${escapeHtml(t.merchantName ?? t.name)}
-        <span class="hint">${escapeHtml(accountName)}${t.pending ? " · pending" : ""}${t.category ? ` · ${t.category}` : ""}</span>
+        <span class="hint">${escapeHtml(accountName)}${t.pending ? " · pending" : ""}${t.category ? ` · ${escapeHtml(t.category)}` : ""}</span>
       </div>
       <div class="agenda-event-time" style="${isInflow ? "color: var(--accent);" : ""}">${escapeHtml(displayAmount)} · ${escapeHtml(formatTransactionDate(t.transactionDate))}</div>
     </div>`;
