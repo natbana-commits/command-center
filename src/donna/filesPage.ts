@@ -1,3 +1,4 @@
+import type { NavVisibility } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { DriveFile } from "../drive/list.js";
 import type { Upload } from "../storage/uploads.js";
@@ -132,10 +133,11 @@ export interface FilesPageData {
   uploadsByClass: Record<number, Upload[]>;
   generalUploads: Upload[];
   googleConfigured: boolean;
+  navVisibility: NavVisibility;
 }
 
 export function buildFilesHtml(data: FilesPageData): string {
-  const { classFolders, filesByClass, uploadsByClass, generalUploads, googleConfigured } = data;
+  const { classFolders, filesByClass, uploadsByClass, generalUploads, googleConfigured, navVisibility } = data;
 
   const rows = buildLibraryRows(classFolders, filesByClass, uploadsByClass, generalUploads);
   const libraryHtml =
@@ -183,6 +185,7 @@ export function buildFilesHtml(data: FilesPageData): string {
     bodyHtml: body,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
+    navVisibility,
   });
 }
 

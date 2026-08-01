@@ -1,3 +1,4 @@
+import type { NavVisibility } from "../config.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import { escapeHtml } from "../util/html.js";
@@ -62,6 +63,7 @@ export interface RemindersPageData {
   editing?: Reminder | null;
   editingNotification?: ReminderNotification | null;
   notifications: Map<string, ReminderNotification>;
+  navVisibility: NavVisibility;
 }
 
 function renderAddForm(): string {
@@ -124,7 +126,7 @@ function renderEditForm(
 }
 
 export function buildRemindersHtml(data: RemindersPageData): string {
-  const { reminders, googleConfigured, timezone, error, editing, editingNotification, notifications } = data;
+  const { reminders, googleConfigured, timezone, error, editing, editingNotification, notifications, navVisibility } = data;
 
   let body: string;
 
@@ -161,6 +163,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     bodyHtml: body,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
+    navVisibility,
   });
 }
 

@@ -1,6 +1,9 @@
+import type { NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
+
+const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true };
 
 export interface LayoutOptions {
   title: string;
@@ -9,6 +12,7 @@ export interface LayoutOptions {
   extraBodyHtml?: string;
   pageScript?: string;
   showChatFab?: boolean;
+  navVisibility?: NavVisibility;
 }
 
 function renderChatFabMarkup(): string {
@@ -117,7 +121,15 @@ const CHAT_FAB_SCRIPT = `
 `;
 
 export function renderLayout(opts: LayoutOptions): string {
-  const { title, activeTab, bodyHtml, extraBodyHtml = "", pageScript = "", showChatFab = false } = opts;
+  const {
+    title,
+    activeTab,
+    bodyHtml,
+    extraBodyHtml = "",
+    pageScript = "",
+    showChatFab = false,
+    navVisibility = ALL_NAV_VISIBLE,
+  } = opts;
 
   return `<!doctype html>
 <html lang="en">
@@ -137,7 +149,7 @@ ${BASE_STYLES}
         <div class="sidebar-logo-mark">D</div>
         <div class="sidebar-logo-word">Donna</div>
       </div>
-      <nav class="sidebar-nav">${renderSidebarNav(activeTab)}</nav>
+      <nav class="sidebar-nav">${renderSidebarNav(activeTab, navVisibility)}</nav>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
@@ -149,7 +161,7 @@ ${BASE_STYLES}
     </main>
   </div>
 
-  <nav class="bottom-nav">${renderBottomNav(activeTab)}</nav>
+  <nav class="bottom-nav">${renderBottomNav(activeTab, navVisibility)}</nav>
 
   ${extraBodyHtml}
   ${showChatFab ? renderChatFabMarkup() : ""}

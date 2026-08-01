@@ -42,7 +42,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     return { dateLabel, events: dayEvents, isToday: i === 0 };
   });
 
-  const html = buildCalendarHtml({ days, timezone, configured });
+  const html = buildCalendarHtml({ days, timezone, configured, navVisibility: settings.dashboardConfig.navVisibility });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }

@@ -94,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     editing,
     editingNotification,
     notifications,
+    navVisibility: settings.dashboardConfig.navVisibility,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

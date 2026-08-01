@@ -507,8 +507,7 @@ export const BASE_STYLES = `
   form.settings-form { margin-bottom: var(--sp-3); }
   .field { margin-bottom: var(--sp-2); }
   .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-  .field input[type="text"], .field textarea {
-    width: 100%;
+  .field input[type="text"], .field input[type="number"], .field select, .field textarea {
     padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -516,9 +515,27 @@ export const BASE_STYLES = `
     font-family: inherit;
     background: #fff;
   }
+  .field input[type="text"], .field select, .field textarea { width: 100%; }
   .field input.input-mono { font-family: var(--mono); }
   .field textarea { min-height: 100px; }
   .hint { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  .widget-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .widget-row:last-child { border-bottom: none; }
+  .field .widget-row-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    margin-bottom: 0;
+  }
+  .widget-row-controls { display: flex; gap: 4px; }
 
   input:focus, select:focus, textarea:focus, button:focus-visible {
     outline: 2px solid rgba(184, 107, 69, 0.35);

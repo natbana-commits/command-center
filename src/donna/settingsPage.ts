@@ -1,7 +1,13 @@
-import type { Settings } from "../config.js";
+import type { HomeWidgetId, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+
+const WIDGET_LABELS: Record<HomeWidgetId, string> = {
+  "recent-activity": "Recent Activity",
+  upcoming: "Upcoming",
+  reminders: "Reminders",
+};
 
 function renderClassRows(classFolders: ClassFolder[]): string {
   if (classFolders.length === 0) {
@@ -21,6 +27,20 @@ function renderClassRows(classFolders: ClassFolder[]): string {
         </div>`
     )
     .join("\n");
+}
+
+function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: number, total: number): string {
+  return `
+    <div class="widget-row">
+      <label class="widget-row-label">
+        <input type="checkbox" name="widget-${widget.id}" ${widget.visible ? "checked" : ""} />
+        ${escapeHtml(WIDGET_LABELS[widget.id] ?? widget.id)}
+      </label>
+      <div class="widget-row-controls">
+        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-up:${widget.id}" aria-label="Move up">↑</button>` : ""}
+        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-down:${widget.id}" aria-label="Move down">↓</button>` : ""}
+      </div>
+    </div>`;
 }
 
 export function buildSettingsHtml(
@@ -59,6 +79,75 @@ export function buildSettingsHtml(
     </section>
 
     <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Dashboard</h1>
+      <form class="settings-form" method="POST" action="/api/donna-settings">
+        <div class="field">
+          <label>Home cards</label>
+          ${settings.dashboardConfig.homeWidgets
+            .map((w, i) => renderWidgetRow(w, i, settings.dashboardConfig.homeWidgets.length))
+            .join("\n")}
+          <div class="hint">Uncheck a card to hide it from Home, or use the arrows to reorder.</div>
+        </div>
+
+        <div class="field">
+          <label for="defaultHomeTab">Default Home tab</label>
+          <select class="input-mono" id="defaultHomeTab" name="defaultHomeTab">
+            <option value="news" ${settings.dashboardConfig.defaultHomeTab === "news" ? "selected" : ""}>News</option>
+            <option value="newsletters" ${settings.dashboardConfig.defaultHomeTab === "newsletters" ? "selected" : ""}>Newsletters</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Sidebar pages</label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="nav-files" ${settings.dashboardConfig.navVisibility.files ? "checked" : ""} />
+            Files
+          </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="nav-calendar" ${settings.dashboardConfig.navVisibility.calendar ? "checked" : ""} />
+            Calendar
+          </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="nav-reminders" ${settings.dashboardConfig.navVisibility.reminders ? "checked" : ""} />
+            Reminders
+          </label>
+          <div class="hint">Home and Settings always stay in the sidebar. Hiding a page here doesn't lock the URL — it just won't show in nav.</div>
+        </div>
+
+        <button class="btn" type="submit" name="action" value="save-dashboard-settings">Save</button>
+      </form>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Morning text</h1>
+      <form class="settings-form" method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="save-brief-settings" />
+        <div class="field">
+          <label class="widget-row-label">
+            <input type="checkbox" name="news" ${settings.briefConfig.news ? "checked" : ""} />
+            News headlines
+          </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="calendar" ${settings.briefConfig.calendar ? "checked" : ""} />
+            Today's calendar
+          </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="reminders" ${settings.briefConfig.reminders ? "checked" : ""} />
+            Reminders
+          </label>
+          <div class="hint">News and newsletters still show up on the dashboard either way — this only controls what gets texted.</div>
+        </div>
+
+        <div class="field">
+          <label for="headlineCount">Headlines to text</label>
+          <input class="input-mono" type="number" id="headlineCount" name="headlineCount" min="1" max="8" value="${settings.briefConfig.headlineCount}" style="width: 80px;" />
+        </div>
+
+        <button class="btn" type="submit">Save</button>
+      </form>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
       <h1 class="section-title">Classes</h1>
       ${renderClassRows(classFolders)}
 
@@ -76,5 +165,6 @@ export function buildSettingsHtml(
     activeTab: "settings",
     bodyHtml: body,
     showChatFab: true,
+    navVisibility: settings.dashboardConfig.navVisibility,
   });
 }

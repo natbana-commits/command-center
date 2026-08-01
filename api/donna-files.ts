@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { loadSettings } from "../src/config.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { listFilesInFolder, type DriveFile } from "../src/drive/list.js";
 import { getUploadsForClass, getGeneralUploads, type Upload } from "../src/storage/uploads.js";
@@ -7,7 +8,7 @@ import { buildFilesHtml } from "../src/donna/filesPage.js";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const googleConfigured = isGoogleConfigured();
-  const classFolders = await getClassFolders();
+  const [settings, classFolders] = await Promise.all([loadSettings(), getClassFolders()]);
 
   const filesByClass: Record<number, DriveFile[]> = {};
   const uploadsByClass: Record<number, Upload[]> = {};
@@ -29,7 +30,14 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     ),
   ]);
 
-  const html = buildFilesHtml({ classFolders, filesByClass, uploadsByClass, generalUploads, googleConfigured });
+  const html = buildFilesHtml({
+    classFolders,
+    filesByClass,
+    uploadsByClass,
+    generalUploads,
+    googleConfigured,
+    navVisibility: settings.dashboardConfig.navVisibility,
+  });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }

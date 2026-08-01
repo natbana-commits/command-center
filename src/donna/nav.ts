@@ -1,3 +1,4 @@
+import type { NavVisibility } from "../config.js";
 import { iconHome, iconFolder, iconCalendar, iconBell, iconSettings } from "./icons.js";
 
 export const PWA_HEAD = `
@@ -19,16 +20,30 @@ const TABS: { tab: Tab; label: string; href: string; icon: string }[] = [
   { tab: "settings", label: "Settings", href: "/donna/settings", icon: iconSettings },
 ];
 
-export function renderSidebarNav(active: Tab): string {
-  return TABS.map(
-    (t) =>
-      `<a class="sidebar-link${t.tab === active ? " sidebar-link-active" : ""}" href="${t.href}">${t.icon}<span>${t.label}</span></a>`
-  ).join("");
+// "home" and "settings" always stay in nav — they're the only way back to
+// Settings itself and the landing page, so they're not part of
+// NavVisibility at all.
+function visibleTabs(navVisibility: NavVisibility): typeof TABS {
+  return TABS.filter((t) => {
+    if (t.tab === "home" || t.tab === "settings") return true;
+    return navVisibility[t.tab];
+  });
 }
 
-export function renderBottomNav(active: Tab): string {
-  return TABS.map(
-    (t) =>
-      `<a class="bottom-nav-link${t.tab === active ? " bottom-nav-link-active" : ""}" href="${t.href}">${t.icon}<span>${t.label}</span></a>`
-  ).join("");
+export function renderSidebarNav(active: Tab, navVisibility: NavVisibility): string {
+  return visibleTabs(navVisibility)
+    .map(
+      (t) =>
+        `<a class="sidebar-link${t.tab === active ? " sidebar-link-active" : ""}" href="${t.href}">${t.icon}<span>${t.label}</span></a>`
+    )
+    .join("");
+}
+
+export function renderBottomNav(active: Tab, navVisibility: NavVisibility): string {
+  return visibleTabs(navVisibility)
+    .map(
+      (t) =>
+        `<a class="bottom-nav-link${t.tab === active ? " bottom-nav-link-active" : ""}" href="${t.href}">${t.icon}<span>${t.label}</span></a>`
+    )
+    .join("");
 }

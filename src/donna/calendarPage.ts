@@ -1,4 +1,5 @@
 import type { CalendarEvent } from "../calendar.js";
+import type { NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 
@@ -12,6 +13,7 @@ export interface CalendarPageData {
   days: CalendarDayGroup[];
   timezone: string;
   configured: boolean;
+  navVisibility: NavVisibility;
 }
 
 function formatEventTime(iso: string | Date, timezone: string): string {
@@ -49,7 +51,7 @@ function renderDayGroup(day: CalendarDayGroup, timezone: string): string {
 }
 
 export function buildCalendarHtml(data: CalendarPageData): string {
-  const { days, timezone, configured } = data;
+  const { days, timezone, configured, navVisibility } = data;
 
   const body = `
     <div class="section">
@@ -67,5 +69,6 @@ export function buildCalendarHtml(data: CalendarPageData): string {
     activeTab: "calendar",
     bodyHtml: body,
     showChatFab: true,
+    navVisibility,
   });
 }

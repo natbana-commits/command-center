@@ -1,4 +1,5 @@
 import type { DailyContext } from "../chat/dailyContext.js";
+import type { DashboardConfig, HomeWidgetId } from "../config.js";
 import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
@@ -193,12 +194,41 @@ export interface DonnaPageData {
   reminders: Reminder[];
   recentUploads: Upload[];
   googleConfigured: boolean;
+  dashboardConfig: DashboardConfig;
+}
+
+function renderCardRow(
+  dashboardConfig: DashboardConfig,
+  context: DailyContext | null,
+  reminders: Reminder[],
+  recentUploads: Upload[],
+  googleConfigured: boolean
+): string {
+  const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
+    "recent-activity": { icon: iconFolder, title: "Recent Activity", content: renderRecentActivityCard(recentUploads) },
+    upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(context) },
+    reminders: { icon: iconBell, title: "Reminders", content: renderRemindersCard(reminders, googleConfigured) },
+  };
+
+  return dashboardConfig.homeWidgets
+    .filter((w) => w.visible && cardsById[w.id])
+    .map((w) => {
+      const card = cardsById[w.id];
+      return `
+      <div class="card">
+        <div class="card-icon">${card.icon}</div>
+        <div class="card-title">${escapeHtml(card.title)}</div>
+        ${card.content}
+      </div>`;
+    })
+    .join("\n");
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, reminders, recentUploads, googleConfigured } = data;
+  const { context, newsletters, reminders, recentUploads, googleConfigured, dashboardConfig } = data;
   const timezone = context?.timezone ?? "America/New_York";
   const dateLabel = context ? formatFullDate(context.day, timezone) : "";
+  const newsDefault = dashboardConfig.defaultHomeTab !== "newsletters";
 
   const body = `
     <div class="section">
@@ -207,33 +237,19 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     </div>
 
     <div class="card-row">
-      <div class="card">
-        <div class="card-icon">${iconFolder}</div>
-        <div class="card-title">Recent Activity</div>
-        ${renderRecentActivityCard(recentUploads)}
-      </div>
-      <div class="card">
-        <div class="card-icon">${iconCalendar}</div>
-        <div class="card-title">Upcoming</div>
-        ${renderCalendarCard(context)}
-      </div>
-      <div class="card">
-        <div class="card-icon">${iconBell}</div>
-        <div class="card-title">Reminders</div>
-        ${renderRemindersCard(reminders, googleConfigured)}
-      </div>
+      ${renderCardRow(dashboardConfig, context, reminders, recentUploads, googleConfigured)}
     </div>
 
     <div class="home-tabs">
-      <button type="button" class="home-tab-btn home-tab-btn-active" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
-      <button type="button" class="home-tab-btn" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
+      <button type="button" class="home-tab-btn ${newsDefault ? "home-tab-btn-active" : ""}" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
+      <button type="button" class="home-tab-btn ${newsDefault ? "" : "home-tab-btn-active"}" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
     </div>
 
-    <section class="section home-tab-panel" id="news-panel">
+    <section class="section home-tab-panel" id="news-panel" style="${newsDefault ? "" : "display:none;"}">
       ${context ? renderStoriesSection(context) : `<p class="empty">No brief has been generated yet today.</p>`}
     </section>
 
-    <section class="section home-tab-panel" id="newsletters-panel" style="display:none;">
+    <section class="section home-tab-panel" id="newsletters-panel" style="${newsDefault ? "display:none;" : ""}">
       ${renderNewslettersSection(newsletters)}
     </section>`;
 
@@ -247,6 +263,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
   </div>`,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
+    navVisibility: dashboardConfig.navVisibility,
   });
 }
 

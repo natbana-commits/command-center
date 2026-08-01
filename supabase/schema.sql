@@ -76,6 +76,27 @@ on conflict (id) do nothing;
 -- table (safe no-op if you're running this fresh, or already dropped it).
 alter table app_settings drop column if exists reminders;
 
+-- Migration: customizable Home widget layout/nav visibility, and which
+-- sections of the morning brief actually get texted. Defaults reproduce
+-- today's behavior exactly (everything visible/on, in the existing order,
+-- 4 headlines) so existing rows need no manual backfill.
+alter table app_settings add column if not exists dashboard_config jsonb not null default '{
+  "homeWidgets": [
+    { "id": "recent-activity", "visible": true },
+    { "id": "upcoming", "visible": true },
+    { "id": "reminders", "visible": true }
+  ],
+  "defaultHomeTab": "news",
+  "navVisibility": { "files": true, "calendar": true, "reminders": true }
+}'::jsonb;
+
+alter table app_settings add column if not exists brief_config jsonb not null default '{
+  "news": true,
+  "calendar": true,
+  "reminders": true,
+  "headlineCount": 4
+}'::jsonb;
+
 -- Maps a class name to a Google Drive folder, for the customizable file hub.
 -- Populated from the Donna settings page whenever Nathan starts organizing
 -- class files — empty until then.

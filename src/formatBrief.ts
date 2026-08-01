@@ -13,8 +13,6 @@ import { fetchAndStoreNewsletters } from "./gmail/index.js";
 import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
 
-const HEADLINE_COUNT = 4;
-
 export interface BriefMessage {
   text: string;
   parseMode?: "HTML";
@@ -42,11 +40,18 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldChatMessages();
   await pruneOldDailyContext();
 
+  const headlineCount = settings.briefConfig.headlineCount;
   const sorted = [...stories].sort((a, b) => b.relevance - a.relevance);
-  const shown = sorted.slice(0, HEADLINE_COUNT);
-  const held = sorted.slice(HEADLINE_COUNT);
+  const shown = sorted.slice(0, headlineCount);
+  const held = sorted.slice(headlineCount);
   const day = localDateKey(new Date(), calendarResult.timezone);
-  await storePendingStories(held);
+  // Only worth tracking "held back" stories when headlines are actually
+  // being texted — otherwise nobody was ever shown a "want more?" prompt,
+  // and the pending row would just sit there ready to swallow the next
+  // unrelated yes/no reply Donna gets asked in chat.
+  if (settings.briefConfig.news) {
+    await storePendingStories(held);
+  }
   await storeDailyContext({
     day,
     timezone: calendarResult.timezone,
@@ -57,21 +62,27 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await fetchAndStoreNewsletters(day, settings.newsletterQuery);
   const reminders = await listRemindersSafe();
 
-  return [
-    ...formatStoryMessages(shown),
-    {
-      text: "Morning — brief's ready. Full summaries, images, and newsletters: https://command-center-navy-pi.vercel.app/donna",
-    },
-    {
-      text: [
-        "<b>Today's Calendar</b>",
-        formatEvents(calendarResult),
-        "",
-        "<b>Reminders</b>",
-        formatReminders(reminders, isGoogleConfigured()),
-      ].join("\n"),
-      parseMode: "HTML",
-    },
-    formatMorePrompt(held),
-  ];
+  const { news, calendar, reminders: remindersEnabled } = settings.briefConfig;
+  const messages: BriefMessage[] = [];
+
+  if (news) {
+    messages.push(...formatStoryMessages(shown));
+  }
+
+  messages.push({
+    text: "Morning — brief's ready. Full summaries, images, and newsletters: https://command-center-navy-pi.vercel.app/donna",
+  });
+
+  if (calendar || remindersEnabled) {
+    const blocks: string[] = [];
+    if (calendar) blocks.push(`<b>Today's Calendar</b>\n${formatEvents(calendarResult)}`);
+    if (remindersEnabled) blocks.push(`<b>Reminders</b>\n${formatReminders(reminders, isGoogleConfigured())}`);
+    messages.push({ text: blocks.join("\n\n"), parseMode: "HTML" });
+  }
+
+  if (news) {
+    messages.push(formatMorePrompt(held));
+  }
+
+  return messages;
 }

@@ -44,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     reminders,
     recentUploads,
     googleConfigured: isGoogleConfigured(),
+    dashboardConfig: settings.dashboardConfig,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
