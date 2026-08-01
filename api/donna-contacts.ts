@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
+import { resolveTimezone, localDateKey } from "../src/util/time.js";
 import {
   getContacts,
   addContact,
@@ -24,8 +25,19 @@ function resolveTagField(body: Record<string, string>, name: string): string | u
   return value;
 }
 
+// Both date fields below only ever come from <input type="date"> in the
+// real UI (always well-formed YYYY-MM-DD), but the forward-only bump in
+// addInteraction compares these as plain strings — reject anything else
+// rather than risk a malformed value comparing incorrectly.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function resolveIsoDate(raw: string | undefined): string | undefined {
+  return raw && ISO_DATE_RE.test(raw) ? raw : undefined;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const settings = await loadSettings();
+  const timezone = resolveTimezone(settings.timezone);
 
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
@@ -39,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             name,
             firm: body.firm?.trim(),
             notes: body.notes?.trim(),
-            lastContactedAt: body.lastContactedAt,
+            lastContactedAt: resolveIsoDate(body.lastContactedAt),
           });
         }
         res.redirect(303, "/donna/contacts");
@@ -54,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             name,
             firm: body.firm?.trim(),
             notes: body.notes?.trim(),
-            lastContactedAt: body.lastContactedAt,
+            lastContactedAt: resolveIsoDate(body.lastContactedAt),
             bio: body.bio?.trim(),
             relationshipTag: resolveTagField(body, "relationshipTag"),
           });
@@ -93,7 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await addInteraction(contactId, {
             interactionType,
             notes: body.notes?.trim(),
-            occurredAt: body.occurredAt || new Date().toISOString().slice(0, 10),
+            occurredAt: resolveIsoDate(body.occurredAt) ?? localDateKey(new Date(), timezone),
           });
         }
         res.redirect(303, `/donna/contacts?edit=${contactId}`);
@@ -132,6 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     error,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
+    timezone,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

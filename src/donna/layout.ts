@@ -57,6 +57,14 @@ const PROGRESS_BAR_SCRIPT = `
   document.addEventListener("submit", (e) => {
     if (e.target && e.target.tagName === "FORM") start();
   });
+
+  // A back/forward-cache restore brings back the exact DOM state from
+  // the moment of navigating away, "active" class included — without
+  // this the bar would sit there permanently lit on a bfcache-restored
+  // page since no real navigation ever happens to reset it.
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) bar.classList.remove("active");
+  });
 })();
 `;
 

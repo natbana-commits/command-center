@@ -1,7 +1,7 @@
 import type { NavVisibility } from "../config.js";
 import type { Contact, ContactInteraction } from "../contacts/store.js";
 import { escapeHtml } from "../util/html.js";
-import { formatRelativeTime } from "../util/time.js";
+import { formatRelativeTime, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 
 export const INTERACTION_TYPES = ["Call", "Email", "Coffee Chat", "Meeting", "Event"];
@@ -89,8 +89,12 @@ function renderInteractionRow(i: ContactInteraction, contactId: number): string 
     </div>`;
 }
 
-function renderInteractionsSection(contactId: number, interactions: ContactInteraction[]): string {
-  const today = new Date().toISOString().slice(0, 10);
+function renderInteractionsSection(
+  contactId: number,
+  interactions: ContactInteraction[],
+  timezone: string
+): string {
+  const today = localDateKey(new Date(), timezone);
   const listHtml =
     interactions.length === 0
       ? `<p class="empty">No interactions logged yet.</p>`
@@ -113,7 +117,7 @@ function renderInteractionsSection(contactId: number, interactions: ContactInter
     </div>`;
 }
 
-function renderEditForm(c: Contact, interactions: ContactInteraction[]): string {
+function renderEditForm(c: Contact, interactions: ContactInteraction[], timezone: string): string {
   return `
     <form method="POST" action="/donna/contacts" class="reminder-edit-form">
       <input type="hidden" name="action" value="update" />
@@ -159,7 +163,7 @@ function renderEditForm(c: Contact, interactions: ContactInteraction[]): string 
       <input type="hidden" name="id" value="${c.id}" />
       <button class="btn btn-danger" type="submit">Delete contact</button>
     </form>
-    ${renderInteractionsSection(c.id, interactions)}`;
+    ${renderInteractionsSection(c.id, interactions, timezone)}`;
 }
 
 export interface ContactsPageData {
@@ -169,10 +173,11 @@ export interface ContactsPageData {
   error?: string;
   navVisibility: NavVisibility;
   navOrder: string[];
+  timezone: string;
 }
 
 export function buildContactsHtml(data: ContactsPageData): string {
-  const { contacts, editing, editingInteractions, error, navVisibility, navOrder } = data;
+  const { contacts, editing, editingInteractions, error, navVisibility, navOrder, timezone } = data;
 
   let body: string;
 
@@ -182,7 +187,7 @@ export function buildContactsHtml(data: ContactsPageData): string {
         <h1 class="page-title">Edit contact</h1>
       </div>
       <div class="card">
-        ${renderEditForm(editing, editingInteractions ?? [])}
+        ${renderEditForm(editing, editingInteractions ?? [], timezone)}
       </div>`;
   } else {
     const listHtml =

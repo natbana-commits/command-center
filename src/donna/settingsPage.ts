@@ -3,6 +3,7 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { NAV_TAB_LABELS } from "./nav.js";
 
 const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   "recent-activity": "Recent Activity",
@@ -52,14 +53,6 @@ function renderWatchlistRows(entries: WatchlistEntry[]): string {
     .join("\n");
 }
 
-const NAV_TAB_LABELS: Record<string, string> = {
-  files: "Files",
-  calendar: "Calendar",
-  reminders: "Reminders",
-  contacts: "Contacts",
-  info: "Info",
-};
-
 // Same reorderable-row pattern as renderWidgetRow, on distinct action
 // names (move-nav-up/down vs move-up/down) so the single dashboard form
 // can tell a nav-reorder click apart from a widget-reorder click.
@@ -68,7 +61,7 @@ function renderNavRow(tab: string, visible: boolean, index: number, total: numbe
     <div class="widget-row">
       <label class="widget-row-label">
         <input type="checkbox" name="nav-${tab}" ${visible ? "checked" : ""} />
-        ${escapeHtml(NAV_TAB_LABELS[tab] ?? tab)}
+        ${escapeHtml(NAV_TAB_LABELS[tab as keyof typeof NAV_TAB_LABELS] ?? tab)}
       </label>
       <div class="widget-row-controls">
         ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-nav-up:${tab}" aria-label="Move up">↑</button>` : ""}

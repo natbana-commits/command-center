@@ -2,19 +2,21 @@ import { getSupabaseClient, withSupabaseRetry } from "./supabaseClient.js";
 
 export type HomeWidgetId = "recent-activity" | "upcoming" | "reminders" | "contacts" | "files";
 
-export interface NavVisibility {
-  files: boolean;
-  calendar: boolean;
-  reminders: boolean;
-  contacts: boolean;
-  info: boolean;
-}
+// The single source of truth for which "middle" nav tabs exist (every
+// tab except Home/Settings, which stay pinned first/last and aren't
+// individually hideable or reorderable). NavVisibility is derived from
+// this rather than listing the same ids again by hand, so adding a tab
+// here is enough to force a compile error anywhere else (nav.ts's
+// MIDDLE_TAB_META, keyed the same way) that still needs updating.
+export const NAV_TAB_IDS = ["files", "calendar", "reminders", "contacts", "info"] as const;
+export type NavTabId = (typeof NAV_TAB_IDS)[number];
 
-// The order of the "middle" nav tabs (everything except Home/Settings,
-// which stay pinned first/last) — kept as plain strings rather than the
-// `Tab` type from nav.ts to avoid a circular import; callers that need
-// the ordered, filtered list use `visibleTabs()` in nav.ts, which knows
-// the real Tab values.
+export type NavVisibility = Record<NavTabId, boolean>;
+
+// The order of the "middle" nav tabs — kept as plain strings rather than
+// NavTabId[] so a stored row containing a since-removed tab id doesn't
+// fail to typecheck; callers that need the ordered, filtered, validated
+// list use `visibleTabs()` in nav.ts.
 export interface DashboardConfig {
   homeWidgets: { id: HomeWidgetId; visible: boolean }[];
   defaultHomeTab: "news" | "newsletters";
@@ -45,8 +47,8 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "files", visible: true },
   ],
   defaultHomeTab: "news",
-  navVisibility: { files: true, calendar: true, reminders: true, contacts: true, info: true },
-  navOrder: ["files", "calendar", "reminders", "contacts", "info"],
+  navVisibility: Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility,
+  navOrder: [...NAV_TAB_IDS],
 };
 
 const DEFAULT_BRIEF_CONFIG: BriefConfig = {
