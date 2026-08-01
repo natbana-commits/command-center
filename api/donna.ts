@@ -9,6 +9,7 @@ import { getRecentUploads } from "../src/storage/uploads.js";
 import { getContacts } from "../src/contacts/store.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
+import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 
@@ -43,11 +44,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     getClassFolders().catch(() => []),
   ]);
   const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+  const reminderNotifications = await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(
+    () => new Map()
+  );
 
   const html = buildDonnaHtml({
     context,
     newsletters,
     reminders,
+    reminderNotifications,
     recentUploads,
     googleConfigured: isGoogleConfigured(),
     dashboardConfig: settings.dashboardConfig,

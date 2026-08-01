@@ -10,20 +10,38 @@ import { renderLayout } from "./layout.js";
 // stores/returns midnight UTC) — the reminder_notifications row is the only
 // place a real due *time* exists, when one was set. Falls back to Google's
 // (date-only) due field when no notification is pending for this task.
-function effectiveDue(r: Reminder, notification: ReminderNotification | undefined): string | undefined {
+export function effectiveDue(r: Reminder, notification: ReminderNotification | undefined): string | undefined {
   return notification?.notifyAt ?? r.due;
 }
 
-function hasTime(dueIso: string, timezone: string): boolean {
+export function hasTime(dueIso: string, timezone: string): boolean {
   return toLocalDateTimeParts(dueIso, timezone).time !== "00:00";
 }
 
-function formatDue(dueIso: string, timezone: string): string {
+export function formatDue(dueIso: string, timezone: string): string {
   const date = new Date(dueIso);
   const datePart = date.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" });
   if (!hasTime(dueIso, timezone)) return datePart;
   const timePart = date.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
   return `${datePart}, ${timePart}`;
+}
+
+// Converts the gap between the due time and an early notification's time
+// into the cleanest whole unit ("2d" / "3h" / "45m") for a compact hint.
+function formatLeadTime(dueIso: string, earlyIso: string): string {
+  const minutes = Math.round((new Date(dueIso).getTime() - new Date(earlyIso).getTime()) / 60000);
+  if (minutes > 0 && minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes > 0 && minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
+}
+
+// Inverse of the above, for prefilling the edit form's lead-time fields
+// from a stored early notification.
+function leadTimeParts(dueIso: string, earlyIso: string): { value: number; unit: "minutes" | "hours" | "days" } {
+  const minutes = Math.round((new Date(dueIso).getTime() - new Date(earlyIso).getTime()) / 60000);
+  if (minutes > 0 && minutes % 1440 === 0) return { value: minutes / 1440, unit: "days" };
+  if (minutes > 0 && minutes % 60 === 0) return { value: minutes / 60, unit: "hours" };
+  return { value: minutes, unit: "minutes" };
 }
 
 function renderClassSelect(classFolders: ClassFolder[], selectedClassId?: number): string {
@@ -40,10 +58,27 @@ function renderClassSelect(classFolders: ClassFolder[], selectedClassId?: number
     </select>`;
 }
 
+function renderEarlyLeadRow(current?: { value: number; unit: "minutes" | "hours" | "days" }): string {
+  const value = current?.value ?? "";
+  const unit = current?.unit ?? "minutes";
+  return `
+    <div class="reminder-add-row2">
+      <label class="hint" style="margin:0;">Remind me earlier</label>
+      <input type="number" name="earlyLeadValue" min="1" placeholder="e.g. 30" style="width:70px;" value="${value}" />
+      <select name="earlyLeadUnit">
+        <option value="minutes" ${unit === "minutes" ? "selected" : ""}>minutes before</option>
+        <option value="hours" ${unit === "hours" ? "selected" : ""}>hours before</option>
+        <option value="days" ${unit === "days" ? "selected" : ""}>days before</option>
+      </select>
+    </div>
+    <div class="hint">Optional second text, this much before the due time (requires a time above).</div>`;
+}
+
 function renderReminderRow(
   r: Reminder,
   timezone: string,
-  notifications: Map<string, ReminderNotification>
+  notifications: Map<string, ReminderNotification>,
+  earlyNotifications: Map<string, ReminderNotification>
 ): string {
   const due = effectiveDue(r, notifications.get(r.id));
   const dueDate = due ? new Date(due) : null;
@@ -55,6 +90,10 @@ function renderReminderRow(
     ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
     : "";
 
+  const early = earlyNotifications.get(r.id);
+  const earlyHint =
+    due && early ? `<span class="hint" style="margin:0;">+ texts ${formatLeadTime(due, early.notifyAt)} early</span>` : "";
+
   return `
     <div class="reminder-row ${rowClass}">
       <form method="POST" action="/donna/reminders" style="display:contents;">
@@ -64,7 +103,10 @@ function renderReminderRow(
       </form>
       <div class="reminder-body">
         <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
-        ${dueBadge}
+        <div class="interaction-meta">
+          ${dueBadge}
+          ${earlyHint}
+        </div>
       </div>
       <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
     </div>`;
@@ -77,8 +119,10 @@ export interface RemindersPageData {
   error?: string;
   editing?: Reminder | null;
   editingNotification?: ReminderNotification | null;
+  editingEarlyNotification?: ReminderNotification | null;
   editingClassId?: number | null;
   notifications: Map<string, ReminderNotification>;
+  earlyNotifications: Map<string, ReminderNotification>;
   classFolders: ClassFolder[];
   classLinks: Map<string, number>;
   navVisibility: NavVisibility;
@@ -91,13 +135,16 @@ function renderAddForm(classFolders: ClassFolder[]): string {
       <input type="hidden" name="action" value="add" />
       <input type="text" name="title" placeholder="Add a reminder…" required />
       <div class="reminder-add-row2">
+        <label class="hint" style="margin:0;">Date</label>
         <input type="date" name="dueDate" id="reminder-due-date" />
+        <label class="hint" style="margin:0;">Time</label>
         <input type="time" name="dueTime" id="reminder-due-time" />
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(0)">Today</button>
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(1)">Tomorrow</button>
       </div>
       ${classFolders.length > 0 ? renderClassSelect(classFolders) : ""}
       <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
+      ${renderEarlyLeadRow()}
       <textarea name="notes" placeholder="Notes (optional)"></textarea>
       <button class="btn" type="submit">Add</button>
     </form>`;
@@ -107,12 +154,14 @@ function renderEditForm(
   r: Reminder,
   timezone: string,
   notification: ReminderNotification | null | undefined,
+  earlyNotification: ReminderNotification | null | undefined,
   classFolders: ClassFolder[],
   editingClassId: number | null | undefined
 ): string {
   const due = effectiveDue(r, notification ?? undefined);
   const parts = due ? toLocalDateTimeParts(due, timezone) : { date: "", time: "" };
   const timeValue = due && hasTime(due, timezone) ? parts.time : "";
+  const leadCurrent = due && earlyNotification ? leadTimeParts(due, earlyNotification.notifyAt) : undefined;
 
   return `
     <form method="POST" action="/donna/reminders" class="reminder-edit-form">
@@ -125,11 +174,14 @@ function renderEditForm(
       </div>
 
       <div class="reminder-add-row2">
+        <label class="hint" style="margin:0;">Date</label>
         <input type="date" name="dueDate" value="${escapeHtml(parts.date)}" />
+        <label class="hint" style="margin:0;">Time</label>
         <input type="time" name="dueTime" value="${escapeHtml(timeValue)}" />
       </div>
       ${classFolders.length > 0 ? renderClassSelect(classFolders, editingClassId ?? undefined) : ""}
       <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
+      ${renderEarlyLeadRow(leadCurrent)}
 
       <div class="field">
         <label for="edit-notes">Notes</label>
@@ -156,11 +208,12 @@ function renderGroupedReminders(
   reminders: Reminder[],
   timezone: string,
   notifications: Map<string, ReminderNotification>,
+  earlyNotifications: Map<string, ReminderNotification>,
   classFolders: ClassFolder[],
   classLinks: Map<string, number>
 ): string {
   if (classFolders.length === 0) {
-    return reminders.map((r) => renderReminderRow(r, timezone, notifications)).join("\n");
+    return reminders.map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications)).join("\n");
   }
 
   const groups = classFolders.map((c) => ({
@@ -180,7 +233,7 @@ function renderGroupedReminders(
       ${
         g.reminders.length === 0
           ? `<p class="empty">No deadlines.</p>`
-          : g.reminders.map((r) => renderReminderRow(r, timezone, notifications)).join("\n")
+          : g.reminders.map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications)).join("\n")
       }
     </div>`
     )
@@ -195,8 +248,10 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     error,
     editing,
     editingNotification,
+    editingEarlyNotification,
     editingClassId,
     notifications,
+    earlyNotifications,
     classFolders,
     classLinks,
     navVisibility,
@@ -211,14 +266,14 @@ export function buildRemindersHtml(data: RemindersPageData): string {
         <h1 class="page-title">Edit reminder</h1>
       </div>
       <div class="card">
-        ${renderEditForm(editing, timezone, editingNotification, classFolders, editingClassId)}
+        ${renderEditForm(editing, timezone, editingNotification, editingEarlyNotification, classFolders, editingClassId)}
       </div>`;
   } else {
     const listHtml = !googleConfigured
       ? `<p class="empty">Not connected yet — finish Google setup in Settings to use reminders.</p>`
       : reminders.length === 0
         ? `<p class="empty">No reminders. Nice.</p>`
-        : renderGroupedReminders(reminders, timezone, notifications, classFolders, classLinks);
+        : renderGroupedReminders(reminders, timezone, notifications, earlyNotifications, classFolders, classLinks);
 
     body = `
       <div class="section">

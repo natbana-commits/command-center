@@ -2,12 +2,15 @@ import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 
 const RETENTION_DAYS = 30;
 
+export type NotificationKind = "main" | "early";
+
 export interface ReminderNotification {
   id: number;
   googleTaskId: string;
   notifyAt: string;
   message: string;
   sent: boolean;
+  kind: NotificationKind;
 }
 
 function rowToNotification(row: {
@@ -16,6 +19,7 @@ function rowToNotification(row: {
   notify_at: string;
   message: string;
   sent: boolean;
+  kind: NotificationKind;
 }): ReminderNotification {
   return {
     id: row.id,
@@ -23,13 +27,15 @@ function rowToNotification(row: {
     notifyAt: row.notify_at,
     message: row.message,
     sent: row.sent,
+    kind: row.kind,
   };
 }
 
 export async function scheduleNotification(
   googleTaskId: string,
   notifyAtIso: string,
-  message: string
+  message: string,
+  kind: NotificationKind = "main"
 ): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() =>
@@ -37,6 +43,7 @@ export async function scheduleNotification(
       google_task_id: googleTaskId,
       notify_at: notifyAtIso,
       message,
+      kind,
     })
   );
 
@@ -73,13 +80,9 @@ export async function markNotificationSent(id: number): Promise<void> {
   }
 }
 
-// Google Tasks' `due` field silently discards whatever time-of-day is sent
-// and always stores midnight UTC (confirmed directly against the live API,
-// not just a client-display quirk) — so this table is the only place a
-// reminder's actual due *time* exists. Building a map keyed by task id lets
-// the Reminders page show/edit the real time instead of Google's zeroed one.
-export async function getPendingNotificationsForTasks(
-  taskIds: string[]
+async function getPendingNotificationsByKind(
+  taskIds: string[],
+  kind: NotificationKind
 ): Promise<Map<string, ReminderNotification>> {
   if (taskIds.length === 0) return new Map();
 
@@ -90,6 +93,7 @@ export async function getPendingNotificationsForTasks(
       .select("*")
       .in("google_task_id", taskIds)
       .eq("sent", false)
+      .eq("kind", kind)
   );
 
   if (error) {
@@ -103,9 +107,32 @@ export async function getPendingNotificationsForTasks(
   return map;
 }
 
-// Removes any not-yet-sent notification for a task — used before setting a
-// new one on edit (so the old time doesn't also fire) and when a due time
-// is cleared entirely.
+// Google Tasks' `due` field silently discards whatever time-of-day is sent
+// and always stores midnight UTC (confirmed directly against the live API,
+// not just a client-display quirk) — so this table is the only place a
+// reminder's actual due *time* exists. Building a map keyed by task id lets
+// the Reminders page show/edit the real time instead of Google's zeroed one.
+// Filtered to kind="main" so an early heads-up notification (which fires
+// before the real due time, not at it) never gets picked up as "the" due
+// time here.
+export async function getPendingNotificationsForTasks(
+  taskIds: string[]
+): Promise<Map<string, ReminderNotification>> {
+  return getPendingNotificationsByKind(taskIds, "main");
+}
+
+// Same shape, for the "remind me earlier" lead time — used to prefill the
+// edit form and to show a hint on the reminders list that an early ping
+// is scheduled.
+export async function getEarlyNotificationsForTasks(
+  taskIds: string[]
+): Promise<Map<string, ReminderNotification>> {
+  return getPendingNotificationsByKind(taskIds, "early");
+}
+
+// Removes any not-yet-sent notification for a task, of either kind — used
+// before setting a fresh main/early pair on edit (so a stale time can't
+// also fire) and when a due time is cleared entirely.
 export async function clearPendingNotificationsForTask(googleTaskId: string): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() =>

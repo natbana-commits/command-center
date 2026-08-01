@@ -15,6 +15,7 @@ import {
   scheduleNotification,
   clearPendingNotificationsForTask,
   getPendingNotificationsForTasks,
+  getEarlyNotificationsForTasks,
 } from "../src/reminders/notifications.js";
 import { linkReminderToClass, clearClassLink, getClassIdForTask, getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { buildRemindersHtml } from "../src/donna/remindersPage.js";
@@ -23,6 +24,42 @@ function parseClassId(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
   const id = Number(raw);
   return Number.isFinite(id) ? id : undefined;
+}
+
+const LEAD_MINUTES_PER_UNIT: Record<string, number> = { minutes: 1, hours: 60, days: 1440 };
+
+// Parses the add/edit form's "remind me earlier" number + unit into total
+// minutes. Returns undefined for blank/invalid/non-positive input rather
+// than throwing — the early ping is entirely optional.
+function parseLeadMinutes(rawValue: string | undefined, rawUnit: string | undefined): number | undefined {
+  const value = Number(rawValue);
+  const perUnit = LEAD_MINUTES_PER_UNIT[rawUnit ?? ""];
+  if (!Number.isFinite(value) || value <= 0 || !perUnit) return undefined;
+  return Math.round(value * perUnit);
+}
+
+function formatLeadLabel(minutes: number): string {
+  if (minutes % 1440 === 0) return `${minutes / 1440} day${minutes === 1440 ? "" : "s"}`;
+  if (minutes % 60 === 0) return `${minutes / 60} hour${minutes === 60 ? "" : "s"}`;
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+// Schedules the optional early heads-up alongside the main notification —
+// silently skips it if there's no lead time given or the computed early
+// time has already passed (e.g. a 1-day lead on a reminder due in an hour).
+async function scheduleEarlyIfRequested(
+  taskId: string,
+  dueIso: string,
+  title: string,
+  body: Record<string, string>
+): Promise<void> {
+  const leadMinutes = parseLeadMinutes(body.earlyLeadValue, body.earlyLeadUnit);
+  if (!leadMinutes) return;
+
+  const earlyIso = new Date(new Date(dueIso).getTime() - leadMinutes * 60000).toISOString();
+  if (new Date(earlyIso).getTime() <= Date.now()) return;
+
+  await scheduleNotification(taskId, earlyIso, `${title} (due in ${formatLeadLabel(leadMinutes)})`, "early");
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -46,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const created = await addReminder(googleTitle, body.notes?.trim() || undefined, dueIso);
           if (hasTime && dueIso) {
             await scheduleNotification(created.id, dueIso, title);
+            await scheduleEarlyIfRequested(created.id, dueIso, title, body);
           }
           const classId = parseClassId(body.classId);
           if (classId !== undefined) {
@@ -72,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await clearPendingNotificationsForTask(id);
           if (hasTime && dueIso) {
             await scheduleNotification(id, dueIso, title);
+            await scheduleEarlyIfRequested(id, dueIso, title, body);
           }
 
           // Same clear-then-reset approach for the class link.
@@ -106,12 +145,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const editingNotification = editing
     ? (await getPendingNotificationsForTasks([editing.id]).catch(() => new Map())).get(editing.id) ?? null
     : null;
+  const editingEarlyNotification = editing
+    ? (await getEarlyNotificationsForTasks([editing.id]).catch(() => new Map())).get(editing.id) ?? null
+    : null;
   const editingClassId = editing ? await getClassIdForTask(editing.id).catch(() => null) : null;
 
   const reminders = editing ? [] : await listRemindersSafe();
   const notifications = editing
     ? new Map()
     : await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(() => new Map());
+  const earlyNotifications = editing
+    ? new Map()
+    : await getEarlyNotificationsForTasks(reminders.map((r) => r.id)).catch(() => new Map());
   const classLinks = editing
     ? new Map<string, number>()
     : await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
@@ -123,8 +168,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     error,
     editing,
     editingNotification,
+    editingEarlyNotification,
     editingClassId,
     notifications,
+    earlyNotifications,
     classFolders,
     classLinks,
     navVisibility: settings.dashboardConfig.navVisibility,

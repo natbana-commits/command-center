@@ -190,6 +190,10 @@ create table if not exists reminder_notifications (
   notify_at timestamptz not null,
   message text not null,
   sent boolean not null default false,
+  -- 'main' fires at the reminder's actual due time; 'early' is an
+  -- optional second heads-up some number of minutes/hours/days before
+  -- it. A task can have at most one pending row of each kind.
+  kind text not null default 'main',
   created_at timestamptz not null default now()
 );
 

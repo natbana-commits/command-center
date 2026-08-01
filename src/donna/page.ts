@@ -4,12 +4,14 @@ import type { Contact } from "../contacts/store.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
+import type { ReminderNotification } from "../reminders/notifications.js";
 import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { iconBell, iconCalendar, iconFolder, iconUser } from "./icons.js";
 import { renderSourceBadge } from "./sourceBadge.js";
+import { effectiveDue, formatDue } from "./remindersPage.js";
 
 function formatEventTime(iso: string, timezone: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -80,7 +82,12 @@ function renderRecentActivityCard(uploads: Upload[]): string {
     .join("\n");
 }
 
-function renderRemindersCard(reminders: Reminder[], googleConfigured: boolean): string {
+function renderRemindersCard(
+  reminders: Reminder[],
+  googleConfigured: boolean,
+  notifications: Map<string, ReminderNotification>,
+  timezone: string
+): string {
   if (!googleConfigured) {
     return `<p class="empty">Not connected yet — finish Google setup to use reminders.</p>`;
   }
@@ -89,7 +96,23 @@ function renderRemindersCard(reminders: Reminder[], googleConfigured: boolean): 
   }
   return reminders
     .slice(0, 4)
-    .map((r) => `<div class="agenda-event-row"><div class="agenda-event-title">${escapeHtml(r.title)}</div></div>`)
+    .map((r) => {
+      const due = effectiveDue(r, notifications.get(r.id));
+      const dueDate = due ? new Date(due) : null;
+      const overdue = dueDate ? dueDate.getTime() < Date.now() : false;
+      const isToday = dueDate ? new Date().toDateString() === dueDate.toDateString() : false;
+      const rowClass = overdue ? "reminder-row-overdue" : isToday ? "reminder-row-today" : "";
+      const dueBadge = due
+        ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
+        : "";
+      return `
+        <div class="reminder-row ${rowClass}">
+          <div class="reminder-body">
+            <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
+            ${dueBadge}
+          </div>
+        </div>`;
+    })
     .join("\n");
 }
 
@@ -232,6 +255,7 @@ export interface DonnaPageData {
   context: DailyContext | null;
   newsletters: StoredNewsletter[];
   reminders: Reminder[];
+  reminderNotifications: Map<string, ReminderNotification>;
   recentUploads: Upload[];
   googleConfigured: boolean;
   dashboardConfig: DashboardConfig;
@@ -240,14 +264,27 @@ export interface DonnaPageData {
   classLinks: Map<string, number>;
 }
 
-function renderCardRow(data: DonnaPageData): string {
-  const { dashboardConfig, context, reminders, recentUploads, googleConfigured, contacts, classFolders, classLinks } =
-    data;
+function renderCardRow(data: DonnaPageData, timezone: string): string {
+  const {
+    dashboardConfig,
+    context,
+    reminders,
+    reminderNotifications,
+    recentUploads,
+    googleConfigured,
+    contacts,
+    classFolders,
+    classLinks,
+  } = data;
 
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
     "recent-activity": { icon: iconFolder, title: "Recent Activity", content: renderRecentActivityCard(recentUploads) },
     upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(context) },
-    reminders: { icon: iconBell, title: "Reminders", content: renderRemindersCard(reminders, googleConfigured) },
+    reminders: {
+      icon: iconBell,
+      title: "Reminders",
+      content: renderRemindersCard(reminders, googleConfigured, reminderNotifications, timezone),
+    },
     contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
     files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
   };
@@ -279,7 +316,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     </div>
 
     <div class="card-row">
-      ${renderCardRow(data)}
+      ${renderCardRow(data, timezone)}
     </div>
 
     <div class="home-tabs">

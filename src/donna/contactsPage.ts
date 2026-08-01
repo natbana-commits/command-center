@@ -109,6 +109,7 @@ function renderInteractionsSection(
         <input type="hidden" name="contactId" value="${contactId}" />
         <div class="interaction-add-row">
           ${renderTagSelect("interactionType", INTERACTION_TYPES, null, "interaction-type-other-wrap")}
+          <label class="hint" style="margin:0;">Date</label>
           <input type="date" name="occurredAt" value="${today}" />
         </div>
         <textarea name="notes" placeholder="Notes (optional)"></textarea>
