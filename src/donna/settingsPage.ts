@@ -1,5 +1,6 @@
 import type { HomeWidgetId, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
+import type { WatchlistEntry } from "../news/watchlist.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 
@@ -29,6 +30,26 @@ function renderClassRows(classFolders: ClassFolder[]): string {
     .join("\n");
 }
 
+function renderWatchlistRows(entries: WatchlistEntry[]): string {
+  if (entries.length === 0) {
+    return `<p class="empty">No watchlist entries yet.</p>`;
+  }
+
+  return entries
+    .map(
+      (e) => `
+        <div class="class-row">
+          <span>${escapeHtml(e.label)}</span>
+          <form method="POST" action="/api/donna-settings">
+            <input type="hidden" name="action" value="delete-watchlist-entry" />
+            <input type="hidden" name="id" value="${e.id}" />
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </div>`
+    )
+    .join("\n");
+}
+
 function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: number, total: number): string {
   return `
     <div class="widget-row">
@@ -46,6 +67,7 @@ function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: 
 export function buildSettingsHtml(
   settings: Settings,
   classFolders: ClassFolder[],
+  watchlistEntries: WatchlistEntry[],
   saved: boolean,
   error?: string
 ): string {
@@ -145,6 +167,18 @@ export function buildSettingsHtml(
 
         <button class="btn" type="submit">Save</button>
       </form>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Watchlist</h1>
+      ${renderWatchlistRows(watchlistEntries)}
+
+      <form class="add-class-form" method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="add-watchlist-entry" />
+        <input type="text" name="label" placeholder="Company or ticker, e.g. Klarna or KLAR" required />
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="hint">A watchlist mention gets priority in the daily news picks and a badge in the feed.</div>
     </section>
 
     <section class="section card" style="margin-top: 16px;">

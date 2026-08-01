@@ -132,7 +132,10 @@ function renderNewsRow(story: DailyContext["stories"][number], fallbackDay: stri
       <summary>
         ${thumb}
         <div class="news-row-main">
-          <div class="news-row-meta"><span>${escapeHtml(story.source)}</span><span>·</span><span>${escapeHtml(formatStoryDate(story, fallbackDay, timezone))}</span></div>
+          <div class="news-row-meta">
+            <span>${escapeHtml(story.source)}</span><span>·</span><span>${escapeHtml(formatStoryDate(story, fallbackDay, timezone))}</span>
+            ${story.watchlistMatch ? `<span class="news-watchlist-badge">★ Watchlist</span>` : ""}
+          </div>
           <h2 class="news-row-headline">${escapeHtml(story.headline)}</h2>
           <p class="news-row-summary">${escapeHtml(firstLine)}</p>
         </div>

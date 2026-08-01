@@ -280,7 +280,16 @@ export const BASE_STYLES = `
     color: var(--text-muted);
     margin-bottom: 2px;
     display: flex;
+    align-items: center;
     gap: 8px;
+  }
+  .news-watchlist-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(184, 107, 69, 0.1);
+    border-radius: 4px;
+    padding: 1px 6px;
   }
   .news-row-headline {
     font-family: var(--sans);

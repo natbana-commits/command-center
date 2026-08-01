@@ -12,6 +12,7 @@ export interface NewsStory {
   relevance: number;
   imageUrl?: string;
   publishedAt?: string;
+  watchlistMatch?: boolean;
 }
 
 const SYSTEM_PROMPT = `You are a senior ECM analyst at a bulge bracket investment bank preparing a morning briefing for a finance-recruiting-focused Princeton econ student. You will be given a list of real headlines and snippets pulled directly from WSJ, FT, Bloomberg, MarketWatch, CNBC, and Seeking Alpha RSS feeds today. Select and expand on the most relevant ones — never invent a story or URL that isn't in the provided list.
@@ -35,11 +36,16 @@ RELEVANCE SCORING (be strict — most stories should be 6-8, not 9-10):
 For each selected story, the "url" field MUST exactly match a url from the provided list — never alter or guess it.
 
 Each object MUST follow this exact schema:
-{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"First paragraph with key facts and context.\\n\\nSecond paragraph on implications and market backdrop, informed by your own knowledge of the company/sector beyond the snippet.","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","blurb":"one short, casual, FACTUAL sentence (under 15 words) naming the actual company/deal — a plain-English one-liner of what happened, not vague like the teaser, and not a press-release headline restatement","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8}
+{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"First paragraph with key facts and context.\\n\\nSecond paragraph on implications and market backdrop, informed by your own knowledge of the company/sector beyond the snippet.","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","blurb":"one short, casual, FACTUAL sentence (under 15 words) naming the actual company/deal — a plain-English one-liner of what happened, not vague like the teaser, and not a press-release headline restatement","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8,"watchlistMatch":false}
 
 CRITICAL: Return ONLY the JSON array. No text before [. No text after ].`;
 
-export async function curateStories(items: FeedItem[]): Promise<NewsStory[]> {
+function watchlistInstruction(labels: string[]): string {
+  if (labels.length === 0) return "";
+  return `\n\nWATCHLIST: Nathan is specifically tracking these companies/tickers: ${labels.join(", ")}. If any headline or snippet in the provided list mentions one of them (including name variants and ticker mentions), you MUST include that story among the 8 selected — even if it wouldn't otherwise clear the relevance bar — and set its "watchlistMatch" to true. If including all matches means dropping a non-matching pick, drop the lowest-relevance non-matching one first. Set "watchlistMatch" to false on every story that isn't a watchlist match.`;
+}
+
+export async function curateStories(items: FeedItem[], watchlistLabels: string[] = []): Promise<NewsStory[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("Missing ANTHROPIC_API_KEY in environment");
@@ -63,7 +69,7 @@ export async function curateStories(items: FeedItem[]): Promise<NewsStory[]> {
     body: JSON.stringify({
       model: "claude-sonnet-5",
       max_tokens: 10000,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + watchlistInstruction(watchlistLabels),
       messages: [
         {
           role: "user",

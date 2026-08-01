@@ -3,6 +3,7 @@ import type { HomeWidgetId } from "../src/config.js";
 import { loadSettings, saveSettings } from "../src/config.js";
 import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
 import { parseDriveFolderId } from "../src/drive/list.js";
+import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -39,6 +40,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteClassFolder(id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "add-watchlist-entry") {
+        const label = body.label?.trim();
+        if (label) {
+          await addWatchlistEntry(label);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "delete-watchlist-entry") {
+        const id = Number(body.id);
+        if (Number.isFinite(id)) {
+          await deleteWatchlistEntry(id);
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -103,11 +122,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders] = await Promise.all([loadSettings(), getClassFolders()]);
+  const [settings, classFolders, watchlistEntries] = await Promise.all([
+    loadSettings(),
+    getClassFolders(),
+    getWatchlistEntries(),
+  ]);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
 
-  const html = buildSettingsHtml(settings, classFolders, saved, error);
+  const html = buildSettingsHtml(settings, classFolders, watchlistEntries, saved, error);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }

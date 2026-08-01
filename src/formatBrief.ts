@@ -6,6 +6,7 @@ import { curateStories } from "./news/curate.js";
 import { formatStoryMessages, formatMorePrompt } from "./news/format.js";
 import { filterUnseen, markSeen, pruneOldSeen } from "./news/dedup.js";
 import { storePendingStories } from "./news/pending.js";
+import { getWatchlistEntries } from "./news/watchlist.js";
 import { storeDailyContext, pruneOldDailyContext } from "./chat/dailyContext.js";
 import { pruneOldChatMessages } from "./chat/history.js";
 import { localDateKey } from "./util/time.js";
@@ -21,12 +22,16 @@ export interface BriefMessage {
 
 export async function buildBriefMessages(): Promise<BriefMessage[]> {
   const settings = await loadSettings();
-  const [calendarResult, feedItems] = await Promise.all([
+  const [calendarResult, feedItems, watchlistEntries] = await Promise.all([
     getTodaysEvents(settings.timezone),
     fetchFeedItems(),
+    getWatchlistEntries(),
   ]);
   const unseenItems = await filterUnseen(feedItems);
-  const curated = await curateStories(unseenItems);
+  const curated = await curateStories(
+    unseenItems,
+    watchlistEntries.map((e) => e.label)
+  );
   // Attach the image and original publish date from the feed item rather
   // than trusting the model to pass them through unchanged.
   const imageByUrl = new Map(unseenItems.map((item) => [item.link, item.imageUrl]));
@@ -44,7 +49,15 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldReminderNotifications();
 
   const headlineCount = settings.briefConfig.headlineCount;
-  const sorted = [...stories].sort((a, b) => b.relevance - a.relevance);
+  // Watchlist matches sort first regardless of relevance, so they land in
+  // the texted subset (not just the full stored set) even when
+  // headlineCount is small — "bump it in the daily 8" needs to mean the
+  // headlines that actually get sent, not just what's stored for the
+  // dashboard.
+  const sorted = [...stories].sort((a, b) => {
+    const watchlistDiff = Number(b.watchlistMatch ?? false) - Number(a.watchlistMatch ?? false);
+    return watchlistDiff !== 0 ? watchlistDiff : b.relevance - a.relevance;
+  });
   const shown = sorted.slice(0, headlineCount);
   const held = sorted.slice(headlineCount);
   const day = localDateKey(new Date(), calendarResult.timezone);

@@ -107,6 +107,15 @@ create table if not exists class_folders (
   created_at timestamptz not null default now()
 );
 
+-- User-managed list of companies/tickers to watch for in the daily news
+-- curation — a growing list of independent entries, same shape as
+-- class_folders, not a config blob.
+create table if not exists watchlist_entries (
+  id bigint generated always as identity primary key,
+  label text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Private bucket for lecture recordings and scanned photos/documents.
 -- Uploads go directly from the browser to Storage via a service-role-minted
 -- signed URL (bypasses Vercel's request body size limits), so no public
