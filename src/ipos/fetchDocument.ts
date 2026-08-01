@@ -28,7 +28,16 @@ export async function fetchS1Text(cik: string, accessionNo: string): Promise<{ t
   if (htmlItems.length === 0) {
     throw new Error(`No primary document found in filing directory ${indexUrl}`);
   }
-  const primaryDoc = htmlItems.reduce((largest, item) =>
+
+  // Exhibits conventionally start with "ex" (ex10, ex21, ex23, ex99...) —
+  // excluding them from the candidate pool first means even a filing
+  // whose directory listing has no usable size data doesn't silently
+  // degrade to "whichever item happens to come first."
+  const EXHIBIT_PREFIX_RE = /^ex\d/i;
+  const nonExhibitItems = htmlItems.filter((item) => !EXHIBIT_PREFIX_RE.test(item.name));
+  const candidates = nonExhibitItems.length > 0 ? nonExhibitItems : htmlItems;
+
+  const primaryDoc = candidates.reduce((largest, item) =>
     Number(item.size ?? 0) > Number(largest.size ?? 0) ? item : largest
   );
 

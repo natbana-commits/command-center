@@ -31,7 +31,11 @@ function parseAtomEntries(xml: string): EdgarFilingEntry[] {
   for (const block of entryBlocks) {
     const titleMatch = block.match(/<title>([^<]*)<\/title>/);
     const linkMatch = block.match(/<link[^>]*href="([^"]+)"/);
-    const categoryMatch = block.match(/<category term="([^"]+)"/);
+    // The real feed emits <category scheme="..." label="..." term="S-1"/>
+    // — term isn't always the first attribute, so it can't be anchored
+    // right after "<category " (confirmed against the live feed, where
+    // that stricter pattern silently matched nothing at all).
+    const categoryMatch = block.match(/<category[^>]*\sterm="([^"]+)"/);
     const filedMatch = block.match(/Filed:[^0-9]*(\d{4}-\d{2}-\d{2})/);
     const accNoMatch = block.match(/AccNo:[^0-9]*(\d{10}-\d{2}-\d{6})/);
     const cikMatch = linkMatch?.[1].match(/\/data\/(\d+)\//);

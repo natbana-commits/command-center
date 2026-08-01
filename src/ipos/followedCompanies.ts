@@ -91,61 +91,72 @@ export interface FollowedCompanyUpdate {
   filing: IpoFiling;
 }
 
+async function checkOneCompany(company: FollowedCompany): Promise<FollowedCompanyUpdate | null> {
+  const cikPadded = company.cik.padStart(10, "0");
+  const response = await fetch(`https://data.sec.gov/submissions/CIK${cikPadded}.json`, {
+    headers: { "User-Agent": EDGAR_USER_AGENT },
+  });
+  if (!response.ok) {
+    console.error(`EDGAR submissions fetch failed for ${company.companyName} (${response.status})`);
+    return null;
+  }
+
+  const data = (await response.json()) as EdgarSubmissions;
+  const recent = data.filings?.recent;
+  if (!recent || recent.accessionNumber.length === 0) return null;
+
+  const newestAccession = recent.accessionNumber[0];
+  if (newestAccession === company.lastSeenAccession) return null;
+
+  // First check for a newly-followed company: just record today's
+  // newest filing as the baseline rather than summarizing the whole
+  // pre-existing history.
+  if (!company.lastSeenAccession) {
+    await updateLastSeenAccession(company.cik, newestAccession);
+    return null;
+  }
+
+  let update: FollowedCompanyUpdate | null = null;
+  try {
+    const filing = await summarizeCompanyOnDemand(
+      company.cik,
+      newestAccession,
+      company.companyName,
+      recent.filingDate[0]
+    );
+    update = { company, filing };
+  } catch (err) {
+    // An unreadable filing (e.g. an unusual document format) still
+    // advances the cursor below rather than retrying it forever — the
+    // company's page history isn't lost, just this one snapshot's
+    // summary.
+    console.error(`Failed to summarize update for ${company.companyName}:`, err);
+  }
+
+  await updateLastSeenAccession(company.cik, newestAccession);
+  return update;
+}
+
 // Checks every followed company's full filing history (any form type,
 // not just S-1 — an S-1/A amendment or the eventual 424B4 pricing
 // prospectus both matter to someone following the deal) for anything
 // newer than last_seen_accession, and summarizes the newest one found.
+// Runs concurrently — this shares a request budget with the main daily
+// IPO check and the rest of the morning brief, so N companies checked
+// one-at-a-time would multiply the time risk of losing the whole brief
+// to a timeout.
 export async function checkFollowedCompanyUpdates(): Promise<FollowedCompanyUpdate[]> {
   const followed = await getFollowedCompanies();
+
+  const settled = await Promise.allSettled(followed.map((company) => checkOneCompany(company)));
+
   const results: FollowedCompanyUpdate[] = [];
-
-  for (const company of followed) {
-    try {
-      const cikPadded = company.cik.padStart(10, "0");
-      const response = await fetch(`https://data.sec.gov/submissions/CIK${cikPadded}.json`, {
-        headers: { "User-Agent": EDGAR_USER_AGENT },
-      });
-      if (!response.ok) {
-        console.error(`EDGAR submissions fetch failed for ${company.companyName} (${response.status})`);
-        continue;
-      }
-
-      const data = (await response.json()) as EdgarSubmissions;
-      const recent = data.filings?.recent;
-      if (!recent || recent.accessionNumber.length === 0) continue;
-
-      const newestAccession = recent.accessionNumber[0];
-      if (newestAccession === company.lastSeenAccession) continue;
-
-      // First check for a newly-followed company: just record today's
-      // newest filing as the baseline rather than summarizing the whole
-      // pre-existing history.
-      if (!company.lastSeenAccession) {
-        await updateLastSeenAccession(company.cik, newestAccession);
-        continue;
-      }
-
-      try {
-        const filing = await summarizeCompanyOnDemand(
-          company.cik,
-          newestAccession,
-          company.companyName,
-          recent.filingDate[0]
-        );
-        results.push({ company, filing });
-      } catch (err) {
-        // An unreadable filing (e.g. an unusual document format) still
-        // advances the cursor below rather than retrying it forever —
-        // the company's page history isn't lost, just this one
-        // snapshot's summary.
-        console.error(`Failed to summarize update for ${company.companyName}:`, err);
-      }
-
-      await updateLastSeenAccession(company.cik, newestAccession);
-    } catch (err) {
-      console.error(`Failed to check updates for ${company.companyName}:`, err);
+  settled.forEach((outcome, i) => {
+    if (outcome.status === "fulfilled") {
+      if (outcome.value) results.push(outcome.value);
+    } else {
+      console.error(`Failed to check updates for ${followed[i].companyName}:`, outcome.reason);
     }
-  }
-
+  });
   return results;
 }

@@ -5,7 +5,7 @@
   "functions": {
     "api/donna-upload.ts": { "maxDuration": 60 },
     "api/telegram-webhook.ts": { "maxDuration": 30 },
-    "api/morning-brief.ts": { "maxDuration": 120 }
+    "api/morning-brief.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },

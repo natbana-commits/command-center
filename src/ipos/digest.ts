@@ -1,6 +1,5 @@
 const FRONT_MATTER_CHARS = 50000;
 const SECTION_WINDOW_CHARS = 12000;
-const SKIP_TOC_CHARS = 3000;
 const MAX_DIGEST_CHARS = 90000;
 
 const TAIL_SECTION_ANCHORS = ["USE OF PROCEEDS", "CAPITALIZATION", "UNDERWRITING"];
@@ -17,9 +16,18 @@ const TAIL_SECTION_ANCHORS = ["USE OF PROCEEDS", "CAPITALIZATION", "UNDERWRITING
 export function buildDigest(fullText: string): string {
   const frontMatter = fullText.slice(0, FRONT_MATTER_CHARS);
 
+  // Matched case-insensitively against an uppercased copy (real filings
+  // mix case in headings), using the LAST occurrence of each anchor
+  // rather than skipping a fixed distance — a filing's table of contents
+  // lists the section name once near the front, and the real heading is
+  // virtually always the last (often only other) occurrence, which a
+  // fixed skip distance can't reliably clear on every filing (confirmed
+  // against live filings where the ToC entry landed past any reasonable
+  // fixed cutoff).
+  const upperText = fullText.toUpperCase();
   const tailSections: string[] = [];
   for (const anchor of TAIL_SECTION_ANCHORS) {
-    const idx = fullText.indexOf(anchor, SKIP_TOC_CHARS);
+    const idx = upperText.lastIndexOf(anchor);
     if (idx !== -1) {
       tailSections.push(fullText.slice(idx, idx + SECTION_WINDOW_CHARS));
     }

@@ -31,16 +31,27 @@ export async function checkAndSummarizeNewIpos(): Promise<IpoFiling[]> {
   const processed = await getProcessedAccessions(entries.map((e) => e.accessionNo));
   const unprocessed = entries.filter((e) => !processed.has(e.accessionNo)).slice(0, MAX_PER_RUN);
 
+  // Run concurrently rather than one-at-a-time — this whole check runs
+  // inside the same request that sends the morning brief, so stacking up
+  // to MAX_PER_RUN sequential fetch+Claude-summarize round trips risks
+  // exceeding the function's time budget and losing the entire brief,
+  // not just the IPO section.
+  const settled = await Promise.allSettled(
+    unprocessed.map((entry) =>
+      summarizeCompanyOnDemand(entry.cik, entry.accessionNo, entry.companyName, entry.filedDate)
+    )
+  );
+
   const results: IpoFiling[] = [];
-  for (const entry of unprocessed) {
-    try {
-      const filing = await summarizeCompanyOnDemand(entry.cik, entry.accessionNo, entry.companyName, entry.filedDate);
-      results.push(filing);
-    } catch (err) {
+  settled.forEach((outcome, i) => {
+    if (outcome.status === "fulfilled") {
+      results.push(outcome.value);
+    } else {
       // A single filing's failure (a fetch error, a bad Claude response)
       // shouldn't drop the rest of the batch or the whole daily brief.
-      console.error(`Failed to process IPO filing ${entry.accessionNo} (${entry.companyName}):`, err);
+      const entry = unprocessed[i];
+      console.error(`Failed to process IPO filing ${entry.accessionNo} (${entry.companyName}):`, outcome.reason);
     }
-  }
+  });
   return results;
 }
