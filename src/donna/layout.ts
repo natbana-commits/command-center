@@ -1,10 +1,13 @@
-import type { NavVisibility } from "../config.js";
+import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
 
-const ALL_NAV_VISIBLE: NavVisibility = { files: true, calendar: true, reminders: true, contacts: true, info: true };
-const DEFAULT_NAV_ORDER = ["files", "calendar", "reminders", "contacts", "info"];
+// Derived from NAV_TAB_IDS rather than listed by hand — the same
+// self-heal reasoning as config.ts's loadSettings() applies here too:
+// adding a tab shouldn't require remembering this fallback exists.
+const ALL_NAV_VISIBLE: NavVisibility = Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility;
+const DEFAULT_NAV_ORDER: string[] = [...NAV_TAB_IDS];
 
 export interface LayoutOptions {
   title: string;

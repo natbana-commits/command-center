@@ -1,6 +1,6 @@
 import { getSupabaseClient, withSupabaseRetry } from "./supabaseClient.js";
 
-export type HomeWidgetId = "recent-activity" | "upcoming" | "reminders" | "contacts" | "files";
+export type HomeWidgetId = "recent-activity" | "upcoming" | "reminders" | "contacts" | "files" | "ipos";
 
 // The single source of truth for which "middle" nav tabs exist (every
 // tab except Home/Settings, which stay pinned first/last and aren't
@@ -8,7 +8,7 @@ export type HomeWidgetId = "recent-activity" | "upcoming" | "reminders" | "conta
 // this rather than listing the same ids again by hand, so adding a tab
 // here is enough to force a compile error anywhere else (nav.ts's
 // MIDDLE_TAB_META, keyed the same way) that still needs updating.
-export const NAV_TAB_IDS = ["files", "calendar", "reminders", "contacts", "info"] as const;
+export const NAV_TAB_IDS = ["files", "calendar", "reminders", "contacts", "info", "ipos"] as const;
 export type NavTabId = (typeof NAV_TAB_IDS)[number];
 
 export type NavVisibility = Record<NavTabId, boolean>;
@@ -28,6 +28,7 @@ export interface BriefConfig {
   news: boolean;
   calendar: boolean;
   reminders: boolean;
+  ipos: boolean;
   headlineCount: number;
 }
 
@@ -45,6 +46,7 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "reminders", visible: true },
     { id: "contacts", visible: true },
     { id: "files", visible: true },
+    { id: "ipos", visible: true },
   ],
   defaultHomeTab: "news",
   navVisibility: Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility,
@@ -55,6 +57,7 @@ const DEFAULT_BRIEF_CONFIG: BriefConfig = {
   news: true,
   calendar: true,
   reminders: true,
+  ipos: true,
   headlineCount: 4,
 };
 

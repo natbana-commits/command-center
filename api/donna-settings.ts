@@ -120,6 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             news: body.news === "on",
             calendar: body.calendar === "on",
             reminders: body.reminders === "on",
+            ipos: body.ipos === "on",
             headlineCount,
           },
         });

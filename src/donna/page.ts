@@ -6,10 +6,11 @@ import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import type { Upload } from "../storage/uploads.js";
+import type { IpoFiling } from "../ipos/store.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { iconBell, iconCalendar, iconFolder, iconUser } from "./icons.js";
+import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp } from "./icons.js";
 import { renderSourceBadge } from "./sourceBadge.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
 
@@ -161,6 +162,27 @@ function renderFilesCard(
     .join("\n");
 }
 
+function renderIposCard(filings: IpoFiling[]): string {
+  if (filings.length === 0) {
+    return `<p class="empty">No new IPO filings tracked yet.</p>`;
+  }
+  return filings
+    .slice(0, 3)
+    .map((f) => {
+      const dateLabel = new Date(`${f.filedDate}T12:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const title = f.ticker ? `${f.companyName} (${f.ticker})` : f.companyName;
+      return `
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(title)}</div>
+          <div class="agenda-event-time">${escapeHtml(dateLabel)}</div>
+        </div>`;
+    })
+    .join("\n");
+}
+
 // Older cached daily_context rows were stored before publishedAt existed —
 // fall back to the brief's own day so the meta row never renders blank.
 function formatStoryDate(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
@@ -262,6 +284,7 @@ export interface DonnaPageData {
   contacts: Contact[];
   classFolders: ClassFolder[];
   classLinks: Map<string, number>;
+  ipoFilings: IpoFiling[];
 }
 
 function renderCardRow(data: DonnaPageData, timezone: string): string {
@@ -275,6 +298,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     contacts,
     classFolders,
     classLinks,
+    ipoFilings,
   } = data;
 
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
@@ -287,6 +311,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     },
     contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
     files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
+    ipos: { icon: iconTrendingUp, title: "IPOs", content: renderIposCard(ipoFilings) },
   };
 
   return dashboardConfig.homeWidgets

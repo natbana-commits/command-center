@@ -12,12 +12,16 @@ import { findOpenSlot } from "../scheduling/findSlot.js";
 import { createCalendarEvent } from "../google/calendar.js";
 import { scheduleNotification } from "../reminders/notifications.js";
 import { withTimeSuffix, formatTimeLabel } from "../util/time.js";
+import { searchCompanyFilings } from "../ipos/edgarFeed.js";
+import { summarizeCompanyOnDemand } from "../ipos/checkNewIpos.js";
+import { getIpoFilingByCompanyOrTicker, type IpoFiling } from "../ipos/store.js";
+import { followCompany } from "../ipos/followedCompanies.js";
 
 const PERSONA_PROMPT = `You are Donna — the assistant embedded in Nathan's personal morning-brief Telegram bot (the same Donna this project's dashboard will eventually be named after: sharp, unflappable, always three steps ahead — not perky, not robotic). He can reply in this chat any time, not just right after the morning brief.
 
 You have today's calendar, reminders, and curated news stories below — use them. You may also draw freely on your own general knowledge of markets, finance, and current events when a question goes beyond what's explicitly listed; you are not limited to only the provided text.
 
-You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), search_content (searches stored newsletter bodies and lecture/photo upload transcripts by keyword — use this when he's trying to recall something from a specific past newsletter or lecture, as opposed to email generally or a specific class's Drive files), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), and schedule_reminder (schedules an actual timed text, not just a checklist entry). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
+You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), search_content (searches stored newsletter bodies and lecture/photo upload transcripts by keyword — use this when he's trying to recall something from a specific past newsletter or lecture, as opposed to email generally or a specific class's Drive files), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), schedule_reminder (schedules an actual timed text, not just a checklist entry), get_ipo_filing (pulls up the stored summary of an IPO S-1 filing Donna has already tracked, by company name or ticker), lookup_company_filings (checks EDGAR live for a company's S-1 that hasn't been tracked yet, and summarizes it on the spot if found — only covers S-1/IPO filings, not a general EDGAR search), and follow_company (starts tracking a company's future EDGAR filings — amendments, the eventual priced prospectus — flagging them in the daily check, not just its initial S-1). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
 
 For schedule_reminder specifically: only call it once you know exactly when Nathan wants to be nudged. A deadline is not automatically a nudge time — "homework due Wednesday 11:59pm" tells you nothing about when he wants to be reminded about it. When that's ambiguous, ask him first (e.g. "want a nudge tomorrow morning, or at a specific time?") and call the tool once he answers, rather than guessing. Resolve whatever time he gives you (relative or absolute) into an exact ISO 8601 datetime using the current date/time given below.
 
@@ -219,6 +223,42 @@ const TOOLS = [
       required: ["title", "notify_at_iso"],
     },
   },
+  {
+    name: "get_ipo_filing",
+    description:
+      "Look up an already-tracked IPO S-1 filing by company name or ticker, returning its business summary, financials, deal terms, and risk highlights. Use for follow-up questions about an IPO Donna has already summarized (in the daily check or an earlier lookup_company_filings call).",
+    input_schema: {
+      type: "object",
+      properties: {
+        company_or_ticker: { type: "string", description: "Company name or ticker to look up, e.g. 'Figma' or 'FIG'" },
+      },
+      required: ["company_or_ticker"],
+    },
+  },
+  {
+    name: "lookup_company_filings",
+    description:
+      "Check SEC EDGAR live for a company's initial S-1 IPO registration that hasn't been tracked yet (e.g. asked about before the daily check ran, or an older filing outside the daily window), and summarize it on the spot if one is found. Only covers S-1/IPO filings — not a general EDGAR search tool.",
+    input_schema: {
+      type: "object",
+      properties: {
+        company_name: { type: "string", description: "Company name to search EDGAR for, e.g. 'Figma'" },
+      },
+      required: ["company_name"],
+    },
+  },
+  {
+    name: "follow_company",
+    description:
+      "Start tracking a company's future SEC EDGAR filings (any form type — an S-1/A amendment, the eventual 424B4 priced prospectus) so they get flagged in the daily check, not just its initial S-1. Use when Nathan asks to follow, track, or keep an eye on a specific IPO company.",
+    input_schema: {
+      type: "object",
+      properties: {
+        company_name: { type: "string", description: "Company name to follow, e.g. 'Figma'" },
+      },
+      required: ["company_name"],
+    },
+  },
 ];
 
 const MAX_FILES_PER_CLASS = 10;
@@ -398,6 +438,86 @@ async function executeScheduleReminder(title: string, notifyAtIso: string, timez
   return `Scheduled: "${title}" — I'll text you then.`;
 }
 
+function formatFilingForChat(filing: IpoFiling): string {
+  return [
+    `${filing.companyName}${filing.ticker ? ` (${filing.ticker})` : ""} — filed ${filing.filedDate}`,
+    `Business: ${filing.businessSummary ?? "not summarized"}`,
+    `Financials: ${filing.financialsSummary ?? "not summarized"}`,
+    `Deal terms: ${filing.dealTermsSummary ?? "not summarized"}`,
+    filing.riskHighlights.length
+      ? `Risk highlights:\n${filing.riskHighlights.map((r) => `- ${r}`).join("\n")}`
+      : "",
+    `Source: ${filing.sourceUrl}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+async function executeGetIpoFiling(companyOrTicker: string): Promise<string> {
+  if (!companyOrTicker) {
+    return "Need a company name or ticker to look up.";
+  }
+  const filing = await getIpoFilingByCompanyOrTicker(companyOrTicker);
+  if (!filing) {
+    return `No tracked IPO filing found matching "${companyOrTicker}" — try lookup_company_filings in case the daily check hasn't caught it yet.`;
+  }
+  return formatFilingForChat(filing);
+}
+
+async function executeLookupCompanyFilings(companyName: string): Promise<string> {
+  if (!companyName) {
+    return "Need a company name to search EDGAR for.";
+  }
+
+  const alreadyTracked = await getIpoFilingByCompanyOrTicker(companyName);
+  if (alreadyTracked) {
+    return formatFilingForChat(alreadyTracked);
+  }
+
+  let entries;
+  try {
+    entries = await searchCompanyFilings(companyName);
+  } catch (err) {
+    return `Couldn't search EDGAR: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  const initial = entries.find((e) => e.formType === "S-1");
+  if (!initial) {
+    return `No S-1 filing found on EDGAR for "${companyName}".`;
+  }
+
+  try {
+    const filing = await summarizeCompanyOnDemand(
+      initial.cik,
+      initial.accessionNo,
+      initial.companyName,
+      initial.filedDate
+    );
+    return formatFilingForChat(filing);
+  } catch (err) {
+    return `Found the filing but couldn't summarize it: ${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
+async function executeFollowCompany(companyName: string): Promise<string> {
+  if (!companyName) {
+    return "Need a company name to follow.";
+  }
+
+  let entries;
+  try {
+    entries = await searchCompanyFilings(companyName);
+  } catch (err) {
+    return `Couldn't search EDGAR: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  const match = entries[0];
+  if (!match) {
+    return `No S-1 filing found on EDGAR for "${companyName}" — can't resolve it to follow yet.`;
+  }
+
+  await followCompany(match.cik, match.companyName);
+  return `Now following ${match.companyName} — I'll flag any new filing for it in the morning check.`;
+}
+
 async function executeToolCall(name: string, input: unknown, timezone: string): Promise<string> {
   if (name === "get_class_files") {
     const className = (input as { class_name?: string } | undefined)?.class_name ?? "";
@@ -433,6 +553,18 @@ async function executeToolCall(name: string, input: unknown, timezone: string): 
   if (name === "schedule_reminder") {
     const parsed = input as { title?: string; notify_at_iso?: string } | undefined;
     return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "", timezone);
+  }
+  if (name === "get_ipo_filing") {
+    const parsed = input as { company_or_ticker?: string } | undefined;
+    return executeGetIpoFiling(parsed?.company_or_ticker ?? "");
+  }
+  if (name === "lookup_company_filings") {
+    const parsed = input as { company_name?: string } | undefined;
+    return executeLookupCompanyFilings(parsed?.company_name ?? "");
+  }
+  if (name === "follow_company") {
+    const parsed = input as { company_name?: string } | undefined;
+    return executeFollowCompany(parsed?.company_name ?? "");
   }
   return `Unknown tool: ${name}`;
 }

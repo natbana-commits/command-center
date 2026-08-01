@@ -212,3 +212,38 @@ create table if not exists reminder_class_links (
 
 create index if not exists reminder_class_links_class_id_idx on reminder_class_links (class_id);
 create unique index if not exists reminder_class_links_task_id_idx on reminder_class_links (google_task_id);
+
+-- One row per initial S-1 IPO registration Donna has fetched and
+-- summarized (via the daily EDGAR poll or an on-demand chat lookup).
+-- accession_no's uniqueness is the only dedup mechanism needed — the
+-- EDGAR feed always returns the latest filings sorted newest-first, so
+-- there's no separate "last checked" cursor to maintain.
+create table if not exists ipo_filings (
+  id bigint generated always as identity primary key,
+  accession_no text not null unique,
+  cik text not null,
+  company_name text not null,
+  ticker text,
+  exchange text,
+  filed_date date not null,
+  source_url text not null,
+  business_summary text,
+  financials_summary text,
+  deal_terms_summary text,
+  risk_highlights text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists ipo_filings_filed_date_idx on ipo_filings (filed_date desc);
+
+-- Companies Nathan has asked to keep tracking beyond their initial S-1 —
+-- checked daily for any new filing (amendments, the eventual 424B4
+-- pricing prospectus) via EDGAR's per-company submissions feed.
+create table if not exists followed_companies (
+  id bigint generated always as identity primary key,
+  cik text not null unique,
+  company_name text not null,
+  ticker text,
+  last_seen_accession text,
+  created_at timestamptz not null default now()
+);

@@ -38,9 +38,14 @@ const SECTIONS: InfoSection[] = [
       "A recruiting/networking tracker — name, firm, bio, a relationship tag (Recruiter, Alum, Mentor, etc.), and a running log of interactions (call, email, coffee chat…) each with its own date and notes. \"Time since last contact\" updates automatically from whichever was most recent. Each contact also has a one-click \"+ Reminder\" button for a follow-up.",
   },
   {
+    title: "IPOs",
+    description:
+      "Once a day Donna checks SEC EDGAR for newly-filed S-1 IPO registrations, reads the filing, and summarizes the business, key financials, deal terms, and notable risk factors — shown here and as a Home glance, with a callout in the morning text when something new filed. It's a best-effort digest of a large document, not a substitute for reading the real filing. \"Follow\" a specific company (from this page or by asking Donna in chat) to also get flagged on its later filings — amendments, or the final priced prospectus, which usually lands well after the initial S-1.",
+  },
+  {
     title: "Chat assistant",
     description:
-      "Donna's the same assistant in Telegram and in the chat bubble on every page here. She can add or complete reminders, search your whole Gmail inbox, search stored newsletters and lecture transcripts by keyword, find and book calendar time, and pull up a specific class's files — all through plain conversation, no special syntax needed.",
+      "Donna's the same assistant in Telegram and in the chat bubble on every page here. She can add or complete reminders, search your whole Gmail inbox, search stored newsletters and lecture transcripts by keyword, find and book calendar time, pull up a specific class's files, look up an IPO filing she's already tracked, and check EDGAR live for one she hasn't — all through plain conversation, no special syntax needed.",
   },
   {
     title: "Dashboard & Morning text",

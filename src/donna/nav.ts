@@ -1,5 +1,15 @@
 import { NAV_TAB_IDS, type NavTabId, type NavVisibility } from "../config.js";
-import { iconHome, iconFolder, iconCalendar, iconBell, iconSettings, iconUser, iconInfo, iconMore } from "./icons.js";
+import {
+  iconHome,
+  iconFolder,
+  iconCalendar,
+  iconBell,
+  iconSettings,
+  iconUser,
+  iconInfo,
+  iconMore,
+  iconTrendingUp,
+} from "./icons.js";
 
 export const PWA_HEAD = `
 <link rel="icon" href="/icon-192.png" type="image/png" />
@@ -30,6 +40,7 @@ const MIDDLE_TAB_META: Record<NavTabId, { label: string; href: string; icon: str
   reminders: { label: "Reminders", href: "/donna/reminders", icon: iconBell },
   contacts: { label: "Contacts", href: "/donna/contacts", icon: iconUser },
   info: { label: "Info", href: "/donna/info", icon: iconInfo },
+  ipos: { label: "IPOs", href: "/donna/ipos", icon: iconTrendingUp },
 };
 
 const MIDDLE_TABS: NavEntry[] = NAV_TAB_IDS.map((id) => ({ tab: id, ...MIDDLE_TAB_META[id] }));

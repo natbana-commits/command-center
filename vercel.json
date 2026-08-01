@@ -4,7 +4,8 @@
   ],
   "functions": {
     "api/donna-upload.ts": { "maxDuration": 60 },
-    "api/telegram-webhook.ts": { "maxDuration": 30 }
+    "api/telegram-webhook.ts": { "maxDuration": 30 },
+    "api/morning-brief.ts": { "maxDuration": 120 }
   },
   "rewrites": [
     { "source": "/donna", "destination": "/api/donna" },
@@ -14,6 +15,8 @@
     { "source": "/donna/contacts", "destination": "/api/donna-contacts" },
     { "source": "/donna/info", "destination": "/api/donna-info" },
     { "source": "/donna/settings", "destination": "/api/donna-settings" },
+    { "source": "/donna/ipos", "destination": "/api/donna-ipos" },
+    { "source": "/api/reminder-check", "destination": "/api/morning-brief" },
     { "source": "/", "destination": "/api/donna" }
   ]
 }

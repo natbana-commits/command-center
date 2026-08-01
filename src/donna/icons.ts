@@ -53,3 +53,7 @@ export const iconSend = svg(`<path d="M4 20 20 12 4 4v6l12 2-12 2Z" />`);
 export const iconMore = svg(
   `<circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />`
 );
+
+export const iconTrendingUp = svg(
+  `<path d="M3 17 9 11l4 4 8-8" /><path d="M15 6h6v6" />`
+);

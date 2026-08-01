@@ -14,6 +14,8 @@ import { fetchAndStoreNewsletters, pruneOldNewsletters } from "./gmail/index.js"
 import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
 import { pruneOldReminderNotifications } from "./reminders/notifications.js";
+import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
+import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
 
 export interface BriefMessage {
   text: string;
@@ -22,10 +24,15 @@ export interface BriefMessage {
 
 export async function buildBriefMessages(): Promise<BriefMessage[]> {
   const settings = await loadSettings();
-  const [calendarResult, feedItems, watchlistEntries] = await Promise.all([
+  const [calendarResult, feedItems, watchlistEntries, ipoFilings, followedUpdates] = await Promise.all([
     getTodaysEvents(settings.timezone),
     fetchFeedItems(),
     getWatchlistEntries(),
+    // Independent of the news/calendar pipeline, so it runs alongside
+    // rather than after — a fetch/summarize failure never blocks the
+    // rest of the brief.
+    settings.briefConfig.ipos ? checkAndSummarizeNewIpos().catch(() => []) : Promise.resolve([]),
+    settings.briefConfig.ipos ? checkFollowedCompanyUpdates().catch(() => []) : Promise.resolve([]),
   ]);
   const unseenItems = await filterUnseen(feedItems);
   const curated = await curateStories(
@@ -98,6 +105,20 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
 
   if (news) {
     messages.push(formatMorePrompt(held));
+  }
+
+  if (ipoFilings.length > 0) {
+    const names = ipoFilings.map((f) => f.companyName).join(", ");
+    messages.push({
+      text: `🆕 New IPO filing(s): ${names} — see the full digest: https://command-center-navy-pi.vercel.app/donna/ipos`,
+    });
+  }
+
+  if (followedUpdates.length > 0) {
+    const lines = followedUpdates
+      .map(({ company, filing }) => `📄 Update on ${company.companyName}: new filing (${filing.filedDate})`)
+      .join("\n");
+    messages.push({ text: `${lines}\nSee the IPOs page: https://command-center-navy-pi.vercel.app/donna/ipos` });
   }
 
   return messages;

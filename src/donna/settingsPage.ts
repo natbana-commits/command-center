@@ -11,6 +11,7 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   reminders: "Reminders",
   contacts: "Contacts",
   files: "Files",
+  ipos: "IPOs",
 };
 
 function renderClassRows(classFolders: ClassFolder[]): string {
@@ -174,6 +175,10 @@ export function buildSettingsHtml(
           <label class="widget-row-label">
             <input type="checkbox" name="reminders" ${settings.briefConfig.reminders ? "checked" : ""} />
             Reminders
+          </label>
+          <label class="widget-row-label">
+            <input type="checkbox" name="ipos" ${settings.briefConfig.ipos ? "checked" : ""} />
+            IPO filings
           </label>
           <div class="hint">News and newsletters still show up on the dashboard either way — this only controls what gets texted.</div>
         </div>
