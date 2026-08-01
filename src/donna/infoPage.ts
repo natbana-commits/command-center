@@ -25,7 +25,7 @@ const SECTIONS: InfoSection[] = [
   {
     title: "Reminders",
     description:
-      "Backed by Google Tasks, so anything you add also shows up in your real Tasks app. Give a reminder a specific time and Donna will actually text you then, not just show a due date. You can also link a reminder to a class — linked ones show grouped by class here and as an \"Upcoming Deadlines\" glance on the Files page.",
+      "Backed by Google Tasks, so anything you add also shows up in your real Tasks app — including from the Tasks tab built into the Google Calendar app itself, as long as you file it under the \"Donna Reminders\" list there. Give a reminder a specific time and Donna will actually text you then, not just show a due date. Color-coded groups (School, Life, Personal, etc. — manage them from Settings) organize reminders independently of class links: sort by due date or switch to grouped view, and the \"+\" button opens a quick add form. You can also link a reminder to a class — linked ones power the \"Upcoming Deadlines\" glance on the Files page.",
   },
   {
     title: "Files",

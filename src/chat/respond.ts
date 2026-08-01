@@ -10,6 +10,7 @@ import { getEventsInRange } from "../calendar.js";
 import { findOpenSlot } from "../scheduling/findSlot.js";
 import { createCalendarEvent } from "../google/calendar.js";
 import { scheduleNotification } from "../reminders/notifications.js";
+import { getReminderGroups, linkReminderToGroup, type ReminderGroup } from "../reminders/groups.js";
 import { withTimeSuffix, formatTimeLabel } from "../util/time.js";
 import { searchCompanyFilings } from "../ipos/edgarFeed.js";
 import { summarizeCompanyOnDemand } from "../ipos/checkNewIpos.js";
@@ -23,6 +24,8 @@ You have today's calendar, reminders, and curated news stories below — use the
 You cannot take real-world actions — no browsing, no code execution, and you can never write or modify files. You do have a few read/write tools: get_class_files (pulls a class's Drive folder contents), search_email (searches Nathan's whole Gmail inbox, not just newsletters), search_content (searches stored newsletter bodies and lecture/photo upload transcripts by keyword — use this when he's trying to recall something from a specific past newsletter or lecture, as opposed to email generally or a specific class's Drive files), add_reminder / complete_reminder (real Google Tasks — use these whenever Nathan asks to add or check something off, don't just acknowledge it in text), find_and_schedule_time (finds a free calendar slot and books it directly — no confirmation step, same as reminders), schedule_reminder (schedules an actual timed text, not just a checklist entry), get_ipo_filing (pulls up the stored summary of an IPO S-1 filing Donna has already tracked, by company name or ticker), lookup_company_filings (checks EDGAR live for a company's S-1 that hasn't been tracked yet, and summarizes it on the spot if found — only covers S-1/IPO filings, not a general EDGAR search), and follow_company (starts tracking a company's future EDGAR filings — amendments, the eventual priced prospectus — flagging them in the daily check, not just its initial S-1). If asked to do something outside these, say plainly that you can't, then answer whatever part you can.
 
 For schedule_reminder specifically: only call it once you know exactly when Nathan wants to be nudged. A deadline is not automatically a nudge time — "homework due Wednesday 11:59pm" tells you nothing about when he wants to be reminded about it. When that's ambiguous, ask him first (e.g. "want a nudge tomorrow morning, or at a specific time?") and call the tool once he answers, rather than guessing. Resolve whatever time he gives you (relative or absolute) into an exact ISO 8601 datetime using the current date/time given below.
+
+For add_reminder and schedule_reminder's optional group: check the "Existing reminder groups" list below. If Nathan didn't say which group this belongs to and it isn't obviously implied by what he said, ask him first (e.g. "which group — School, Life, or Personal?") and call the tool once he answers, same as the time-ambiguity rule above — don't guess a group just to avoid asking. If he names a group that doesn't exist yet, just leave it off rather than inventing one (he can add real groups from Settings).
 
 If a tool failed earlier in this conversation (e.g. "not set up yet"), don't assume that's still true — the setup can change mid-conversation. Actually call the tool again rather than repeating the old failure from memory.
 
@@ -45,7 +48,12 @@ function formatNow(timezone: string): string {
   return `${dateLabel}, ${timeLabel} (${timezone})`;
 }
 
-function formatContextBlock(context: DailyContext | null, reminders: Reminder[], timezone: string): string {
+function formatContextBlock(
+  context: DailyContext | null,
+  reminders: Reminder[],
+  timezone: string,
+  reminderGroups: ReminderGroup[]
+): string {
   const calendarText = context?.calendarEvents.length
     ? context.calendarEvents
         .map((e) => {
@@ -75,10 +83,14 @@ function formatContextBlock(context: DailyContext | null, reminders: Reminder[],
         .join("\n\n")
     : "No stories curated today.";
 
+  const groupsText =
+    reminderGroups.length > 0 ? reminderGroups.map((g) => g.name).join(", ") : "None set up yet.";
+
   return [
     `Right now: ${formatNow(timezone)}`,
     `Today's calendar:\n${calendarText}`,
     `Today's reminders:\n${remindersText}`,
+    `Existing reminder groups: ${groupsText}`,
     `Today's curated news stories:\n${storiesText}`,
   ].join("\n\n---\n\n");
 }
@@ -139,6 +151,11 @@ const TOOLS = [
       properties: {
         title: { type: "string", description: "Short reminder text" },
         notes: { type: "string", description: "Optional extra detail" },
+        group: {
+          type: "string",
+          description:
+            "Which existing reminder group this belongs to (see the group list in context), e.g. 'School' or 'Personal'. Only set this once you know it — if it's not explicit or obvious from what Nathan said, ask him which group before calling this tool, don't guess.",
+        },
       },
       required: ["title"],
     },
@@ -218,6 +235,11 @@ const TOOLS = [
           description:
             "The exact absolute date and time to send the reminder, as an ISO 8601 datetime with timezone offset, resolved from the current date/time given in the system prompt and whatever Nathan said",
         },
+        group: {
+          type: "string",
+          description:
+            "Which existing reminder group this belongs to (see the group list in context), e.g. 'School' or 'Personal'. Only set this once you know it — if it's not explicit or obvious from what Nathan said, ask him which group before calling this tool, don't guess.",
+        },
       },
       required: ["title", "notify_at_iso"],
     },
@@ -278,14 +300,27 @@ async function executeGetClassFiles(className: string): Promise<string> {
   return getClassFileContext(match);
 }
 
-async function executeAddReminder(title: string, notes?: string): Promise<string> {
+// Case-insensitive match against the existing reminder groups list —
+// returns undefined (silently, no error) if there's no match or none was
+// given, since group is always optional.
+async function resolveGroupId(groupName: string | undefined): Promise<number | undefined> {
+  if (!groupName) return undefined;
+  const groups = await getReminderGroups().catch(() => []);
+  return groups.find((g) => g.name.toLowerCase() === groupName.toLowerCase())?.id;
+}
+
+async function executeAddReminder(title: string, notes?: string, group?: string): Promise<string> {
   if (!isGoogleConfigured()) {
     return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
   }
   if (!title) {
     return "Need a title to add a reminder.";
   }
-  await addReminder(title, notes);
+  const created = await addReminder(title, notes);
+  const groupId = await resolveGroupId(group);
+  if (groupId !== undefined) {
+    await linkReminderToGroup(created.id, groupId).catch(() => undefined);
+  }
   return `Added: "${title}"`;
 }
 
@@ -387,7 +422,12 @@ async function executeFindAndScheduleTime(
   return `Booked "${activityTitle}" for ${startLabel}–${endLabel}.`;
 }
 
-async function executeScheduleReminder(title: string, notifyAtIso: string, timezone: string): Promise<string> {
+async function executeScheduleReminder(
+  title: string,
+  notifyAtIso: string,
+  timezone: string,
+  group?: string
+): Promise<string> {
   if (!isGoogleConfigured()) {
     return "Google Tasks isn't connected yet — Nathan needs to finish the Google OAuth setup first.";
   }
@@ -404,6 +444,11 @@ async function executeScheduleReminder(title: string, notifyAtIso: string, timez
   // is the only way it's visible there.
   const googleTitle = withTimeSuffix(title, formatTimeLabel(notifyAtIso, timezone));
   const task = await addReminder(googleTitle, undefined, notifyAtIso);
+
+  const groupId = await resolveGroupId(group);
+  if (groupId !== undefined) {
+    await linkReminderToGroup(task.id, groupId).catch(() => undefined);
+  }
 
   try {
     await scheduleNotification(task.id, parsed.toISOString(), title);
@@ -506,8 +551,8 @@ async function executeToolCall(name: string, input: unknown, timezone: string): 
     return executeGetClassFiles(className);
   }
   if (name === "add_reminder") {
-    const parsed = input as { title?: string; notes?: string } | undefined;
-    return executeAddReminder(parsed?.title ?? "", parsed?.notes);
+    const parsed = input as { title?: string; notes?: string; group?: string } | undefined;
+    return executeAddReminder(parsed?.title ?? "", parsed?.notes, parsed?.group);
   }
   if (name === "complete_reminder") {
     const parsed = input as { title?: string } | undefined;
@@ -533,8 +578,8 @@ async function executeToolCall(name: string, input: unknown, timezone: string): 
     );
   }
   if (name === "schedule_reminder") {
-    const parsed = input as { title?: string; notify_at_iso?: string } | undefined;
-    return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "", timezone);
+    const parsed = input as { title?: string; notify_at_iso?: string; group?: string } | undefined;
+    return executeScheduleReminder(parsed?.title ?? "", parsed?.notify_at_iso ?? "", timezone, parsed?.group);
   }
   if (name === "get_ipo_filing") {
     const parsed = input as { company_or_ticker?: string } | undefined;
@@ -563,7 +608,8 @@ export async function generateReply(
   }
 
   const reminders = isGoogleConfigured() ? await listReminders().catch(() => []) : [];
-  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context, reminders, timezone)}`;
+  const reminderGroups = await getReminderGroups().catch(() => []);
+  const system = `${PERSONA_PROMPT}\n\n${formatContextBlock(context, reminders, timezone, reminderGroups)}`;
   const messages: ApiMessage[] = coalesce([...history, { role: "user", content: userMessage }]);
 
   const MAX_TOOL_ITERATIONS = 3;

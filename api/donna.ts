@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
-import { resolveTimezone, localDateKey } from "../src/util/time.js";
+import { resolveTimezone, localDateKey, dayBounds } from "../src/util/time.js";
 import { getDailyContext } from "../src/chat/dailyContext.js";
 import { getNewslettersForDay } from "../src/gmail/index.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
@@ -10,9 +10,12 @@ import { getContacts } from "../src/contacts/store.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
+import { getReminderGroups, getGroupLinksForTasks } from "../src/reminders/groups.js";
 import { getRecentIpoFilings } from "../src/ipos/store.js";
 import { isPlaidConfigured } from "../src/finance/plaidClient.js";
 import { getAllAccounts } from "../src/finance/accounts.js";
+import { getRecentTransactions } from "../src/finance/transactionsStore.js";
+import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
@@ -86,7 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 
-  const [context, newsletters, reminders, recentUploads, contacts, classFolders, ipoFilings, financeAccounts] =
+  const [context, newsletters, reminders, recentUploads, contacts, classFolders, ipoFilings, financeAccounts, financeTransactions] =
     await Promise.all([
       getDailyContext(day),
       getNewslettersForDay(day).catch(() => []),
@@ -96,11 +99,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       getClassFolders().catch(() => []),
       getRecentIpoFilings(3).catch(() => []),
       isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([]),
+      isPlaidConfigured() ? getRecentTransactions(3).catch(() => []) : Promise.resolve([]),
     ]);
   const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
   const reminderNotifications = await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(
     () => new Map()
   );
+  const reminderGroups = await getReminderGroups().catch(() => []);
+  const groupLinks = await getGroupLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+
+  // Fresh 2-day fetch for the Home Calendar card's mini today/tomorrow
+  // view — the day's cached DailyContext only ever carries today's
+  // events. Calendar reads are a plain ICS pull (no OAuth), so this is
+  // gated by a try/catch rather than isGoogleConfigured(), matching
+  // donna-calendar.ts's own pattern.
+  let todayEvents: CalendarEvent[] = [];
+  let tomorrowEvents: CalendarEvent[] = [];
+  try {
+    const todayBounds = dayBounds(new Date(), timezone);
+    const tomorrowBounds = dayBounds(new Date(todayBounds.end.getTime() + 1), timezone);
+    const { events } = await getEventsInRange(timezone, todayBounds.start, tomorrowBounds.end);
+    todayEvents = events.filter((e) => e.start < todayBounds.end);
+    tomorrowEvents = events.filter((e) => e.start >= todayBounds.end);
+  } catch {
+    // Calendar ICS feed not configured or unreachable — cards just show empty.
+  }
 
   const html = buildDonnaHtml({
     context,
@@ -115,6 +138,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     classLinks,
     ipoFilings,
     financeAccounts,
+    financeTransactions,
+    todayEvents,
+    tomorrowEvents,
+    reminderGroups,
+    groupLinks,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

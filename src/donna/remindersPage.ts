@@ -2,6 +2,7 @@ import type { NavVisibility } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
+import type { ReminderGroup } from "../reminders/groups.js";
 import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
@@ -44,6 +45,19 @@ function leadTimeParts(dueIso: string, earlyIso: string): { value: number; unit:
   return { value: minutes, unit: "minutes" };
 }
 
+// Reminders with no due date sort last — they're not time-sensitive, so
+// they shouldn't crowd out what's actually coming up soonest.
+function sortRemindersByDue(reminders: Reminder[], notifications: Map<string, ReminderNotification>): Reminder[] {
+  return [...reminders].sort((a, b) => {
+    const dueA = effectiveDue(a, notifications.get(a.id));
+    const dueB = effectiveDue(b, notifications.get(b.id));
+    if (!dueA && !dueB) return 0;
+    if (!dueA) return 1;
+    if (!dueB) return -1;
+    return new Date(dueA).getTime() - new Date(dueB).getTime();
+  });
+}
+
 function renderClassSelect(classFolders: ClassFolder[], selectedClassId?: number): string {
   const options = classFolders
     .map(
@@ -54,6 +68,17 @@ function renderClassSelect(classFolders: ClassFolder[], selectedClassId?: number
   return `
     <select name="classId">
       <option value="">No class</option>
+      ${options}
+    </select>`;
+}
+
+function renderGroupSelect(groups: ReminderGroup[], selectedGroupId?: number): string {
+  const options = groups
+    .map((g) => `<option value="${g.id}" ${selectedGroupId === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`)
+    .join("");
+  return `
+    <select name="groupId">
+      <option value="">No group</option>
       ${options}
     </select>`;
 }
@@ -78,7 +103,8 @@ function renderReminderRow(
   r: Reminder,
   timezone: string,
   notifications: Map<string, ReminderNotification>,
-  earlyNotifications: Map<string, ReminderNotification>
+  earlyNotifications: Map<string, ReminderNotification>,
+  group: ReminderGroup | undefined
 ): string {
   const due = effectiveDue(r, notifications.get(r.id));
   const dueDate = due ? new Date(due) : null;
@@ -88,6 +114,9 @@ function renderReminderRow(
   const rowClass = overdue ? "reminder-row-overdue" : isToday ? "reminder-row-today" : "";
   const dueBadge = due
     ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
+    : "";
+  const groupPill = group
+    ? `<span class="reminder-due" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
     : "";
 
   const early = earlyNotifications.get(r.id);
@@ -105,12 +134,15 @@ function renderReminderRow(
         <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
         <div class="interaction-meta">
           ${dueBadge}
+          ${groupPill}
           ${earlyHint}
         </div>
       </div>
       <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
     </div>`;
 }
+
+export type ReminderSortMode = "due" | "group";
 
 export interface RemindersPageData {
   reminders: Reminder[];
@@ -121,15 +153,19 @@ export interface RemindersPageData {
   editingNotification?: ReminderNotification | null;
   editingEarlyNotification?: ReminderNotification | null;
   editingClassId?: number | null;
+  editingGroupId?: number | null;
   notifications: Map<string, ReminderNotification>;
   earlyNotifications: Map<string, ReminderNotification>;
   classFolders: ClassFolder[];
   classLinks: Map<string, number>;
+  reminderGroups: ReminderGroup[];
+  groupLinks: Map<string, number>;
+  sortMode: ReminderSortMode;
   navVisibility: NavVisibility;
   navOrder: string[];
 }
 
-function renderAddForm(classFolders: ClassFolder[]): string {
+function renderAddForm(classFolders: ClassFolder[], reminderGroups: ReminderGroup[]): string {
   return `
     <form method="POST" action="/donna/reminders" class="reminder-add-form">
       <input type="hidden" name="action" value="add" />
@@ -142,7 +178,10 @@ function renderAddForm(classFolders: ClassFolder[]): string {
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(0)">Today</button>
         <button type="button" class="btn-secondary btn-small" onclick="setQuickDate(1)">Tomorrow</button>
       </div>
-      ${classFolders.length > 0 ? renderClassSelect(classFolders) : ""}
+      <div class="reminder-add-row2">
+        ${classFolders.length > 0 ? renderClassSelect(classFolders) : ""}
+        ${renderGroupSelect(reminderGroups)}
+      </div>
       <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
       ${renderEarlyLeadRow()}
       <textarea name="notes" placeholder="Notes (optional)"></textarea>
@@ -156,7 +195,9 @@ function renderEditForm(
   notification: ReminderNotification | null | undefined,
   earlyNotification: ReminderNotification | null | undefined,
   classFolders: ClassFolder[],
-  editingClassId: number | null | undefined
+  editingClassId: number | null | undefined,
+  reminderGroups: ReminderGroup[],
+  editingGroupId: number | null | undefined
 ): string {
   const due = effectiveDue(r, notification ?? undefined);
   const parts = due ? toLocalDateTimeParts(due, timezone) : { date: "", time: "" };
@@ -179,7 +220,10 @@ function renderEditForm(
         <label class="hint" style="margin:0;">Time</label>
         <input type="time" name="dueTime" value="${escapeHtml(timeValue)}" />
       </div>
-      ${classFolders.length > 0 ? renderClassSelect(classFolders, editingClassId ?? undefined) : ""}
+      <div class="reminder-add-row2">
+        ${classFolders.length > 0 ? renderClassSelect(classFolders, editingClassId ?? undefined) : ""}
+        ${renderGroupSelect(reminderGroups, editingGroupId ?? undefined)}
+      </div>
       <div class="hint">Set a time and Donna will text you a reminder then, not just show the due date.</div>
       ${renderEarlyLeadRow(leadCurrent)}
 
@@ -200,43 +244,57 @@ function renderEditForm(
     </form>`;
 }
 
-// Groups reminders by linked class (in classFolders order), with an
-// "Other" section for anything unlinked — only bothers with the grouped
-// layout at all once at least one class exists, otherwise it's just
-// noise for a plain reminder list.
-function renderGroupedReminders(
+function renderReminderList(
   reminders: Reminder[],
   timezone: string,
   notifications: Map<string, ReminderNotification>,
   earlyNotifications: Map<string, ReminderNotification>,
-  classFolders: ClassFolder[],
-  classLinks: Map<string, number>
+  reminderGroups: ReminderGroup[],
+  groupLinks: Map<string, number>,
+  sortMode: ReminderSortMode
 ): string {
-  if (classFolders.length === 0) {
-    return reminders.map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications)).join("\n");
+  const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
+
+  if (sortMode === "due") {
+    const sorted = sortRemindersByDue(reminders, notifications);
+    return sorted
+      .map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications, groupById.get(groupLinks.get(r.id) ?? -1)))
+      .join("\n");
   }
 
-  const groups = classFolders.map((c) => ({
-    label: c.className,
-    reminders: reminders.filter((r) => classLinks.get(r.id) === c.id),
+  // Group view: one section per reminder group (in creation order), each
+  // internally sorted by due date, plus an "Ungrouped" section for
+  // anything with no group.
+  const sections = reminderGroups.map((g) => ({
+    group: g,
+    reminders: sortRemindersByDue(
+      reminders.filter((r) => groupLinks.get(r.id) === g.id),
+      notifications
+    ),
   }));
-  const otherReminders = reminders.filter((r) => !classLinks.has(r.id));
-  if (otherReminders.length > 0) {
-    groups.push({ label: "Other", reminders: otherReminders });
+  const ungrouped = sortRemindersByDue(
+    reminders.filter((r) => !groupLinks.has(r.id)),
+    notifications
+  );
+  if (ungrouped.length > 0 || sections.length === 0) {
+    sections.push({ group: null as unknown as ReminderGroup, reminders: ungrouped });
   }
 
-  return groups
-    .map(
-      (g) => `
-    <div class="reminder-group">
-      <div class="reminder-group-label">${escapeHtml(g.label)}</div>
+  return sections
+    .map(({ group, reminders: groupReminders }) => {
+      const borderStyle = group ? `border-left: 3px solid ${escapeHtml(group.color)}; padding-left: 10px;` : "";
+      return `
+    <div class="reminder-group" style="${borderStyle}">
+      <div class="reminder-group-label">${group ? escapeHtml(group.name) : "Ungrouped"}</div>
       ${
-        g.reminders.length === 0
-          ? `<p class="empty">No deadlines.</p>`
-          : g.reminders.map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications)).join("\n")
+        groupReminders.length === 0
+          ? `<p class="empty">No reminders.</p>`
+          : groupReminders
+              .map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications, group ?? undefined))
+              .join("\n")
       }
-    </div>`
-    )
+    </div>`;
+    })
     .join("\n");
 }
 
@@ -250,10 +308,13 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     editingNotification,
     editingEarlyNotification,
     editingClassId,
+    editingGroupId,
     notifications,
     earlyNotifications,
     classFolders,
-    classLinks,
+    reminderGroups,
+    groupLinks,
+    sortMode,
     navVisibility,
     navOrder,
   } = data;
@@ -266,31 +327,62 @@ export function buildRemindersHtml(data: RemindersPageData): string {
         <h1 class="page-title">Edit reminder</h1>
       </div>
       <div class="card">
-        ${renderEditForm(editing, timezone, editingNotification, editingEarlyNotification, classFolders, editingClassId)}
+        ${renderEditForm(
+          editing,
+          timezone,
+          editingNotification,
+          editingEarlyNotification,
+          classFolders,
+          editingClassId,
+          reminderGroups,
+          editingGroupId
+        )}
       </div>`;
   } else {
     const listHtml = !googleConfigured
       ? `<p class="empty">Not connected yet — finish Google setup in Settings to use reminders.</p>`
       : reminders.length === 0
         ? `<p class="empty">No reminders. Nice.</p>`
-        : renderGroupedReminders(reminders, timezone, notifications, earlyNotifications, classFolders, classLinks);
+        : renderReminderList(reminders, timezone, notifications, earlyNotifications, reminderGroups, groupLinks, sortMode);
 
     body = `
-      <div class="section">
-        <h1 class="page-title">Reminders</h1>
-        <p class="page-sub">${reminders.length} open</p>
+      <div class="section" style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
+        <div>
+          <h1 class="page-title">Reminders</h1>
+          <p class="page-sub">${reminders.length} open</p>
+        </div>
+        ${googleConfigured ? `<button type="button" class="btn-fab-inline" onclick="openAddReminderModal()" aria-label="Add reminder">+</button>` : ""}
       </div>
       ${error ? `<p class="hint" style="color:var(--danger);margin-bottom:16px;">${escapeHtml(error)}</p>` : ""}
-      <div class="card">
+      <div class="home-tabs">
+        <a class="home-tab-btn ${sortMode === "due" ? "home-tab-btn-active" : ""}" href="/donna/reminders?sort=due">By due date</a>
+        <a class="home-tab-btn ${sortMode === "group" ? "home-tab-btn-active" : ""}" href="/donna/reminders?sort=group">By group</a>
+      </div>
+      <div class="card" style="margin-top: var(--sp-3);">
         ${listHtml}
-        ${googleConfigured ? renderAddForm(classFolders) : ""}
       </div>`;
   }
+
+  const modalHtml = googleConfigured
+    ? `
+    <div class="modal-scrim" id="add-reminder-scrim">
+      <div class="modal-panel" id="add-reminder-panel" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <span>Add reminder</span>
+          <button class="modal-close" id="add-reminder-close" aria-label="Close">&#x2715;</button>
+        </div>
+        <div class="modal-body">
+          ${renderAddForm(classFolders, reminderGroups)}
+        </div>
+      </div>
+    </div>`
+    : "";
 
   return renderLayout({
     title: "Donna Reminders",
     activeTab: "reminders",
     bodyHtml: body,
+    extraBodyHtml: modalHtml,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility,
@@ -306,4 +398,21 @@ const CLIENT_SCRIPT = `
     const input = document.getElementById("reminder-due-date");
     if (input) input.value = iso;
   }
+
+  function openAddReminderModal() {
+    const scrim = document.getElementById("add-reminder-scrim");
+    if (scrim) scrim.classList.add("open");
+  }
+
+  function closeAddReminderModal() {
+    const scrim = document.getElementById("add-reminder-scrim");
+    if (scrim) scrim.classList.remove("open");
+  }
+
+  (function () {
+    const scrim = document.getElementById("add-reminder-scrim");
+    const closeBtn = document.getElementById("add-reminder-close");
+    if (scrim) scrim.addEventListener("click", closeAddReminderModal);
+    if (closeBtn) closeBtn.addEventListener("click", closeAddReminderModal);
+  })();
 `;

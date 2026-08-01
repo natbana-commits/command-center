@@ -4,6 +4,7 @@ import { loadSettings, saveSettings } from "../src/config.js";
 import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
+import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
 import { requireAuth } from "../src/auth/session.js";
 
@@ -61,6 +62,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteWatchlistEntry(id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "add-reminder-group") {
+        const name = body.name?.trim();
+        const color = body.color?.trim();
+        if (name && color) {
+          await addReminderGroup(name, color);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "delete-reminder-group") {
+        const id = Number(body.id);
+        if (Number.isFinite(id)) {
+          await deleteReminderGroup(id);
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -139,15 +159,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders, watchlistEntries] = await Promise.all([
+  const [settings, classFolders, watchlistEntries, reminderGroups] = await Promise.all([
     loadSettings(),
     getClassFolders(),
     getWatchlistEntries(),
+    getReminderGroups(),
   ]);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
 
-  const html = buildSettingsHtml(settings, classFolders, watchlistEntries, saved, error);
+  const html = buildSettingsHtml(settings, classFolders, watchlistEntries, reminderGroups, saved, error);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }

@@ -18,10 +18,20 @@ import {
   getEarlyNotificationsForTasks,
 } from "../src/reminders/notifications.js";
 import { linkReminderToClass, clearClassLink, getClassIdForTask, getClassLinksForTasks } from "../src/reminders/classLinks.js";
-import { buildRemindersHtml } from "../src/donna/remindersPage.js";
+import {
+  linkReminderToGroup,
+  clearGroupLink,
+  getGroupIdForTask,
+  getGroupLinksForTasks,
+  getReminderGroups,
+} from "../src/reminders/groups.js";
+import { buildRemindersHtml, type ReminderSortMode } from "../src/donna/remindersPage.js";
 import { requireAuth } from "../src/auth/session.js";
 
-function parseClassId(raw: string | undefined): number | undefined {
+// Both classId and groupId are optional numeric-string form fields — blank
+// means "no class"/"no group" respectively, distinct concepts kept
+// independent of each other (a reminder can have both, either, or neither).
+function parseOptionalId(raw: string | undefined): number | undefined {
   if (!raw) return undefined;
   const id = Number(raw);
   return Number.isFinite(id) ? id : undefined;
@@ -88,9 +98,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             await scheduleNotification(created.id, dueIso, title);
             await scheduleEarlyIfRequested(created.id, dueIso, title, body);
           }
-          const classId = parseClassId(body.classId);
+          const classId = parseOptionalId(body.classId);
           if (classId !== undefined) {
             await linkReminderToClass(created.id, classId);
+          }
+          const groupId = parseOptionalId(body.groupId);
+          if (groupId !== undefined) {
+            await linkReminderToGroup(created.id, groupId);
           }
         }
       } else if (action === "complete") {
@@ -118,9 +132,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           // Same clear-then-reset approach for the class link.
           await clearClassLink(id);
-          const classId = parseClassId(body.classId);
+          const classId = parseOptionalId(body.classId);
           if (classId !== undefined) {
             await linkReminderToClass(id, classId);
+          }
+
+          // Same clear-then-reset approach for the group link.
+          await clearGroupLink(id);
+          const groupId = parseOptionalId(body.groupId);
+          if (groupId !== undefined) {
+            await linkReminderToGroup(id, groupId);
           }
         }
       } else if (action === "delete") {
@@ -128,6 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (id) {
           await clearPendingNotificationsForTask(id);
           await clearClassLink(id);
+          await clearGroupLink(id);
           await deleteReminder(id);
         }
       }
@@ -142,6 +164,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const googleConfigured = isGoogleConfigured();
   const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
   const classFolders = await getClassFolders();
+  const reminderGroups = await getReminderGroups();
+  const sortMode: ReminderSortMode = req.query.sort === "group" ? "group" : "due";
 
   const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
   const editing = editId && googleConfigured ? await getReminder(editId).catch(() => null) : null;
@@ -152,6 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? (await getEarlyNotificationsForTasks([editing.id]).catch(() => new Map())).get(editing.id) ?? null
     : null;
   const editingClassId = editing ? await getClassIdForTask(editing.id).catch(() => null) : null;
+  const editingGroupId = editing ? await getGroupIdForTask(editing.id).catch(() => null) : null;
 
   const reminders = editing ? [] : await listRemindersSafe();
   const notifications = editing
@@ -163,6 +188,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const classLinks = editing
     ? new Map<string, number>()
     : await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+  const groupLinks = editing
+    ? new Map<string, number>()
+    : await getGroupLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
 
   const html = buildRemindersHtml({
     reminders,
@@ -173,10 +201,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     editingNotification,
     editingEarlyNotification,
     editingClassId,
+    editingGroupId,
     notifications,
     earlyNotifications,
     classFolders,
     classLinks,
+    reminderGroups,
+    groupLinks,
+    sortMode,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });

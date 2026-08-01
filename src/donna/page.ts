@@ -5,22 +5,35 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { StoredNewsletter } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
+import type { ReminderGroup } from "../reminders/groups.js";
 import type { Upload } from "../storage/uploads.js";
 import type { IpoFiling } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
+import type { PlaidTransaction } from "../finance/transactionsStore.js";
+import type { CalendarEvent } from "../calendar.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet } from "./icons.js";
+import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet, iconChevronDown } from "./icons.js";
 import { renderSourceBadge } from "./sourceBadge.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
 
-function formatEventTime(iso: string, timezone: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", {
-    timeZone: timezone,
-    hour: "numeric",
-    minute: "2-digit",
-  });
+// Nav destination each Home card links to on click — reuses the same
+// hrefs nav.ts's MIDDLE_TAB_META already defines, kept here as a plain
+// map rather than importing that module to avoid coupling Home's card
+// rendering to the full nav-tab type surface for just seven strings.
+const CARD_HREFS: Record<HomeWidgetId, string> = {
+  "recent-activity": "/donna/files",
+  upcoming: "/donna/calendar",
+  reminders: "/donna/reminders",
+  contacts: "/donna/contacts",
+  files: "/donna/files",
+  ipos: "/donna/ipos",
+  finances: "/donna/finances",
+};
+
+function formatMoney(amount: number, currency: string | null): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: currency ?? "USD" }).format(amount);
 }
 
 function formatFullDate(day: string, timezone: string): string {
@@ -44,16 +57,14 @@ function greetingWord(timezone: string): string {
   return "Good evening";
 }
 
-function renderCalendarCard(context: DailyContext | null): string {
-  if (!context || context.calendarEvents.length === 0) {
-    return `<p class="empty">Nothing on the calendar today.</p>`;
+function renderMiniDayEvents(events: CalendarEvent[], timezone: string): string {
+  if (events.length === 0) {
+    return `<p class="empty" style="margin:4px 0 0;">Nothing scheduled.</p>`;
   }
-  return context.calendarEvents
-    .slice(0, 4)
+  return events
+    .slice(0, 3)
     .map((e) => {
-      const timeLabel = e.end
-        ? `${formatEventTime(e.start, context.timezone)} – ${formatEventTime(e.end, context.timezone)}`
-        : formatEventTime(e.start, context.timezone);
+      const timeLabel = e.start.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
       return `
         <div class="agenda-event-row">
           <div class="agenda-event-time">${escapeHtml(timeLabel)}</div>
@@ -61,6 +72,20 @@ function renderCalendarCard(context: DailyContext | null): string {
         </div>`;
     })
     .join("\n");
+}
+
+// Mini today/tomorrow agenda — a fresh 2-day fetch (api/donna.ts), not the
+// day's cached DailyContext, which only ever carries *today's* events.
+function renderCalendarCard(todayEvents: CalendarEvent[], tomorrowEvents: CalendarEvent[], timezone: string): string {
+  return `
+    <div class="mini-day-group">
+      <div class="mini-day-label">Today</div>
+      ${renderMiniDayEvents(todayEvents, timezone)}
+    </div>
+    <div class="mini-day-group">
+      <div class="mini-day-label">Tomorrow</div>
+      ${renderMiniDayEvents(tomorrowEvents, timezone)}
+    </div>`;
 }
 
 function uploadLabel(u: Upload): string {
@@ -88,7 +113,9 @@ function renderRemindersCard(
   reminders: Reminder[],
   googleConfigured: boolean,
   notifications: Map<string, ReminderNotification>,
-  timezone: string
+  timezone: string,
+  reminderGroups: ReminderGroup[],
+  groupLinks: Map<string, number>
 ): string {
   if (!googleConfigured) {
     return `<p class="empty">Not connected yet — finish Google setup to use reminders.</p>`;
@@ -96,7 +123,16 @@ function renderRemindersCard(
   if (reminders.length === 0) {
     return `<p class="empty">No reminders.</p>`;
   }
-  return reminders
+  const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
+  return [...reminders]
+    .sort((a, b) => {
+      const dueA = effectiveDue(a, notifications.get(a.id));
+      const dueB = effectiveDue(b, notifications.get(b.id));
+      if (!dueA && !dueB) return 0;
+      if (!dueA) return 1;
+      if (!dueB) return -1;
+      return new Date(dueA).getTime() - new Date(dueB).getTime();
+    })
     .slice(0, 4)
     .map((r) => {
       const due = effectiveDue(r, notifications.get(r.id));
@@ -107,11 +143,18 @@ function renderRemindersCard(
       const dueBadge = due
         ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
         : "";
+      const group = groupById.get(groupLinks.get(r.id) ?? -1);
+      const groupPill = group
+        ? `<span class="reminder-due" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
+        : "";
       return `
         <div class="reminder-row ${rowClass}">
           <div class="reminder-body">
             <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
-            ${dueBadge}
+            <div class="interaction-meta">
+              ${dueBadge}
+              ${groupPill}
+            </div>
           </div>
         </div>`;
     })
@@ -184,16 +227,33 @@ function renderIposCard(filings: IpoFiling[]): string {
     .join("\n");
 }
 
-function renderFinancesCard(accounts: PlaidAccount[]): string {
+function renderFinancesCard(accounts: PlaidAccount[], transactions: PlaidTransaction[]): string {
   if (accounts.length === 0) {
     return `<p class="empty">No accounts linked yet.</p>`;
   }
   const totalCash = accounts
     .filter((a) => a.type === "depository")
     .reduce((sum, a) => sum + (a.currentBalance ?? 0), 0);
-  const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalCash);
+  const formatted = formatMoney(totalCash, "USD");
   const plural = accounts.length === 1 ? "" : "s";
-  return `<p class="hint" style="margin:0;">${escapeHtml(formatted)} total cash across ${accounts.length} account${plural}</p>`;
+
+  const txRows = transactions
+    .slice(0, 3)
+    .map((t) => {
+      // Plaid convention: positive amount = money out, negative = money in.
+      const isInflow = t.amount < 0;
+      const amountLabel = isInflow ? `+${formatMoney(-t.amount, t.isoCurrencyCode)}` : formatMoney(t.amount, t.isoCurrencyCode);
+      return `
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(t.merchantName ?? t.name)}</div>
+          <div class="agenda-event-time" style="${isInflow ? "color: var(--accent);" : ""}">${escapeHtml(amountLabel)}</div>
+        </div>`;
+    })
+    .join("\n");
+
+  return `
+    <p class="hint" style="margin:0 0 6px;">${escapeHtml(formatted)} total cash across ${accounts.length} account${plural}</p>
+    ${txRows || `<p class="empty" style="margin:0;">No transactions yet.</p>`}`;
 }
 
 // Older cached daily_context rows were stored before publishedAt existed —
@@ -299,12 +359,16 @@ export interface DonnaPageData {
   classLinks: Map<string, number>;
   ipoFilings: IpoFiling[];
   financeAccounts: PlaidAccount[];
+  financeTransactions: PlaidTransaction[];
+  todayEvents: CalendarEvent[];
+  tomorrowEvents: CalendarEvent[];
+  reminderGroups: ReminderGroup[];
+  groupLinks: Map<string, number>;
 }
 
 function renderCardRow(data: DonnaPageData, timezone: string): string {
   const {
     dashboardConfig,
-    context,
     reminders,
     reminderNotifications,
     recentUploads,
@@ -314,31 +378,42 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     classLinks,
     ipoFilings,
     financeAccounts,
+    financeTransactions,
+    todayEvents,
+    tomorrowEvents,
+    reminderGroups,
+    groupLinks,
   } = data;
 
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
     "recent-activity": { icon: iconFolder, title: "Recent Activity", content: renderRecentActivityCard(recentUploads) },
-    upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(context) },
+    upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(todayEvents, tomorrowEvents, timezone) },
     reminders: {
       icon: iconBell,
       title: "Reminders",
-      content: renderRemindersCard(reminders, googleConfigured, reminderNotifications, timezone),
+      content: renderRemindersCard(reminders, googleConfigured, reminderNotifications, timezone, reminderGroups, groupLinks),
     },
     contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
     files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
     ipos: { icon: iconTrendingUp, title: "IPOs", content: renderIposCard(ipoFilings) },
-    finances: { icon: iconWallet, title: "Finances", content: renderFinancesCard(financeAccounts) },
+    finances: { icon: iconWallet, title: "Finances", content: renderFinancesCard(financeAccounts, financeTransactions) },
   };
 
   return dashboardConfig.homeWidgets
     .filter((w) => w.visible && cardsById[w.id])
     .map((w) => {
       const card = cardsById[w.id];
+      const href = CARD_HREFS[w.id];
       return `
-      <div class="card">
-        <div class="card-icon">${card.icon}</div>
-        <div class="card-title">${escapeHtml(card.title)}</div>
-        ${card.content}
+      <div class="card card-clickable" data-widget-id="${w.id}" onclick="navigateCard(event, '${href}')">
+        <div class="card-header">
+          <div class="card-icon">${card.icon}</div>
+          <div class="card-title">${escapeHtml(card.title)}</div>
+          <button type="button" class="card-collapse-btn" onclick="toggleCardCollapse(event, '${w.id}')" aria-label="Collapse">${iconChevronDown}</button>
+        </div>
+        <div class="card-content">
+          ${card.content}
+        </div>
       </div>`;
     })
     .join("\n");
@@ -356,10 +431,6 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       ${dateLabel ? `<p class="page-sub">${escapeHtml(dateLabel)}</p>` : ""}
     </div>
 
-    <div class="card-row">
-      ${renderCardRow(data, timezone)}
-    </div>
-
     <div class="home-tabs">
       <button type="button" class="home-tab-btn ${newsDefault ? "home-tab-btn-active" : ""}" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
       <button type="button" class="home-tab-btn ${newsDefault ? "" : "home-tab-btn-active"}" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
@@ -371,7 +442,11 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 
     <section class="section home-tab-panel" id="newsletters-panel" style="${newsDefault ? "display:none;" : ""}">
       ${renderNewslettersSection(newsletters)}
-    </section>`;
+    </section>
+
+    <div class="card-row" style="margin-top: var(--sp-3);">
+      ${renderCardRow(data, timezone)}
+    </div>`;
 
   return renderLayout({
     title: "Donna",
@@ -389,6 +464,32 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 }
 
 const CLIENT_SCRIPT = `
+  function navigateCard(event, href) {
+    if (event.target.closest(".card-collapse-btn")) return;
+    if (href) window.location.href = href;
+  }
+
+  function toggleCardCollapse(event, widgetId) {
+    event.stopPropagation();
+    const card = event.currentTarget.closest(".card");
+    if (!card) return;
+    const collapsed = card.classList.toggle("card-collapsed");
+    try {
+      localStorage.setItem("home-card-collapsed:" + widgetId, collapsed ? "1" : "0");
+    } catch (err) {
+      // Private browsing / storage disabled — collapse still works for
+      // this page view, it just won't persist across reloads.
+    }
+  }
+
+  document.querySelectorAll(".card[data-widget-id]").forEach((card) => {
+    let collapsed = false;
+    try {
+      collapsed = localStorage.getItem("home-card-collapsed:" + card.dataset.widgetId) === "1";
+    } catch (err) {}
+    if (collapsed) card.classList.add("card-collapsed");
+  });
+
   function switchHomeTab(btn) {
     document.querySelectorAll(".home-tab-btn").forEach((b) => b.classList.remove("home-tab-btn-active"));
     btn.classList.add("home-tab-btn-active");

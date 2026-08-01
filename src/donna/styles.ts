@@ -267,13 +267,40 @@ export const BASE_STYLES = `
   @media (max-width: 860px) {
     .card-row { grid-template-columns: 1fr; }
   }
+  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {
     font-size: 13px;
     font-weight: 600;
     color: var(--text-secondary);
-    margin: 0 0 var(--sp-2);
+    margin: 0;
+    flex: 1;
+    min-width: 0;
   }
-  .card-icon { color: var(--text-muted); margin-bottom: 6px; }
+  .card-icon { color: var(--text-muted); flex: 0 0 auto; display: flex; }
+  .card-clickable { cursor: pointer; }
+  .card-clickable:hover { border-color: var(--accent); }
+  .card-collapse-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    flex: 0 0 auto;
+    display: flex;
+  }
+  .card-collapse-btn svg { transition: transform 0.15s ease; }
+  .card-collapsed .card-collapse-btn svg { transform: rotate(-90deg); }
+  .card-collapsed .card-content { display: none; }
+  .mini-day-group { margin-bottom: 8px; }
+  .mini-day-group:last-child { margin-bottom: 0; }
+  .mini-day-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
 
   .section { margin-bottom: var(--sp-4); }
 
@@ -565,6 +592,15 @@ export const BASE_STYLES = `
   .class-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .add-class-form { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .add-class-form input { flex: 1 1 160px; }
+  .add-class-form input[type="color"] { flex: 0 0 44px; padding: 2px; height: 38px; }
+  .group-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
 
   .upload-form {
     border: 1px solid var(--border);
@@ -761,4 +797,55 @@ export const BASE_STYLES = `
     cursor: pointer;
     flex: 0 0 auto;
   }
+
+  /* --- generic centered modal (reminders "add" portal, reusable elsewhere) --- */
+  .modal-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 1001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-2);
+  }
+  .modal-scrim.open { display: flex; }
+  .modal-panel {
+    background: var(--bg);
+    border-radius: 12px;
+    width: 420px;
+    max-width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    background: var(--ink);
+    color: #fff;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--display);
+    font-weight: 700;
+    border-radius: 12px 12px 0 0;
+    position: sticky;
+    top: 0;
+  }
+  .modal-close { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+  .modal-body { padding: var(--sp-3); }
+
+  .btn-fab-inline {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .btn-fab-inline:hover { background: var(--accent-hover); }
 `;

@@ -1,6 +1,7 @@
 import type { HomeWidgetId, NavVisibility, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
+import type { ReminderGroup } from "../reminders/groups.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
@@ -28,6 +29,26 @@ function renderClassRows(classFolders: ClassFolder[]): string {
           <form method="POST" action="/api/donna-settings">
             <input type="hidden" name="action" value="delete-class" />
             <input type="hidden" name="id" value="${cls.id}" />
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </div>`
+    )
+    .join("\n");
+}
+
+function renderReminderGroupRows(groups: ReminderGroup[]): string {
+  if (groups.length === 0) {
+    return `<p class="empty">No reminder groups yet.</p>`;
+  }
+
+  return groups
+    .map(
+      (g) => `
+        <div class="class-row">
+          <span><span class="group-swatch" style="background:${escapeHtml(g.color)};"></span>${escapeHtml(g.name)}</span>
+          <form method="POST" action="/api/donna-settings">
+            <input type="hidden" name="action" value="delete-reminder-group" />
+            <input type="hidden" name="id" value="${g.id}" />
             <button class="btn btn-danger" type="submit">Remove</button>
           </form>
         </div>`
@@ -90,6 +111,7 @@ export function buildSettingsHtml(
   settings: Settings,
   classFolders: ClassFolder[],
   watchlistEntries: WatchlistEntry[],
+  reminderGroups: ReminderGroup[],
   saved: boolean,
   error?: string
 ): string {
@@ -216,6 +238,19 @@ export function buildSettingsHtml(
         <button class="btn" type="submit">Add</button>
       </form>
       <div class="hint">Paste a Drive folder's share link — Donna extracts the folder ID automatically.</div>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Reminder Groups</h1>
+      ${renderReminderGroupRows(reminderGroups)}
+
+      <form class="add-class-form" method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="add-reminder-group" />
+        <input type="text" name="name" placeholder="Group name, e.g. Work" required />
+        <input type="color" name="color" value="#b86b45" />
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>
     </section>`;
 
   return renderLayout({

@@ -331,3 +331,29 @@ create table if not exists flashcards (
 );
 
 create index if not exists flashcards_class_id_idx on flashcards (class_id);
+
+-- User-defined reminder categories (School/Life/Personal/etc), each with a
+-- color for visual grouping on the Reminders page. Independent of
+-- class_folders/reminder_class_links — a reminder can have both a class
+-- link and a group at the same time, unrelated to each other.
+create table if not exists reminder_groups (
+  id bigint generated always as identity primary key,
+  name text not null unique,
+  color text not null,
+  created_at timestamptz not null default now()
+);
+
+insert into reminder_groups (name, color)
+values ('School', '#4a7a96'), ('Life', '#7a9d54'), ('Personal', '#b86b45')
+on conflict (name) do nothing;
+
+-- One group per reminder, same one-per-task shape as reminder_class_links
+-- (unique index on google_task_id, not just an index).
+create table if not exists reminder_group_links (
+  id bigint generated always as identity primary key,
+  google_task_id text not null,
+  group_id bigint not null references reminder_groups (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists reminder_group_links_task_id_idx on reminder_group_links (google_task_id);
+create index if not exists reminder_group_links_group_id_idx on reminder_group_links (group_id);
