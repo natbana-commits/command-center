@@ -78,6 +78,7 @@ export function buildChatTabHtml(data: ChatTabPageData): string {
 }
 
 const CLIENT_SCRIPT = (modeJson: string) => `
+(function () {
   const chatTabMode = ${modeJson};
 
   function appendChatTabBubble(role, text) {
@@ -117,4 +118,5 @@ const CLIENT_SCRIPT = (modeJson: string) => `
   chatTabInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") chatTabSendBtn.click();
   });
+})();
 `;

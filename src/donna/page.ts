@@ -282,12 +282,24 @@ function renderMarketsCard(quotes: Quote[]): string {
     .join("\n");
 }
 
-function daysAwayLabel(dateKey: string): string {
+function daysAwayBadge(dateKey: string): { big: string; small: string } {
   const days = Math.round((new Date(`${dateKey}T00:00:00Z`).getTime() - new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`).getTime()) / 86_400_000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  return `In ${days} days`;
+  if (days === 0) return { big: "Today", small: "" };
+  if (days === 1) return { big: "1", small: "day" };
+  return { big: String(days), small: "days" };
 }
+
+// Fixed per-category colors (not theme-derived) — same "user/data picks
+// the color, not the theme" approach as reminder groups' custom color
+// swatches, since these four categories are a closed, hand-seeded set
+// (see supabase/schema.sql's economic_events insert) rather than
+// open-ended user data.
+const ECON_CATEGORY_COLORS: Record<string, string> = {
+  FOMC: "#b86b45",
+  CPI: "#4f7cac",
+  NFP: "#6a8f5c",
+  GDP: "#8a6bb8",
+};
 
 function renderEconEventsCard(events: EconomicEvent[]): string {
   if (events.length === 0) {
@@ -296,10 +308,19 @@ function renderEconEventsCard(events: EconomicEvent[]): string {
   return events
     .map((e) => {
       const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const badge = daysAwayBadge(e.eventDate);
+      const color = ECON_CATEGORY_COLORS[e.category] ?? "var(--olive)";
       return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(e.eventName)}<span class="hint"> · ${escapeHtml(dateLabel)}</span></div>
-          <div class="agenda-event-time">${escapeHtml(daysAwayLabel(e.eventDate))}</div>
+        <div class="econ-event-row">
+          <div class="econ-event-days-badge" style="border-color:${escapeHtml(color)}66;">
+            <span class="econ-event-days-number"${badge.big.length > 2 ? ' style="font-size:14px;"' : ""}>${escapeHtml(badge.big)}</span>
+            ${badge.small ? `<span class="econ-event-days-unit">${escapeHtml(badge.small)}</span>` : ""}
+          </div>
+          <div class="econ-event-body">
+            <span class="econ-event-pill" style="color:${escapeHtml(color)}; background:${escapeHtml(color)}1a;">${escapeHtml(e.category)}</span>
+            <div class="econ-event-title">${escapeHtml(e.eventName)}</div>
+            <span class="hint" style="margin:0;">${escapeHtml(dateLabel)}</span>
+          </div>
         </div>`;
     })
     .join("\n");
@@ -544,6 +565,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 }
 
 const CLIENT_SCRIPT = `
+(function () {
   function navigateCard(event, href) {
     if (event.target.closest(".card-collapse-btn")) return;
     if (href) window.location.href = href;
@@ -576,6 +598,15 @@ const CLIENT_SCRIPT = `
     document.querySelectorAll(".home-tab-panel").forEach((p) => { p.style.display = "none"; });
     document.getElementById(btn.dataset.panel).style.display = "";
   }
+
+  // Referenced by inline onclick="" attributes in the HTML this script
+  // ships alongside — those look up identifiers on the global scope, so
+  // wrapping this whole script in an IIFE (done above, to make it safe to
+  // re-run after a swapped navigation) means these three need an explicit
+  // window assignment or the buttons calling them would break.
+  window.navigateCard = navigateCard;
+  window.toggleCardCollapse = toggleCardCollapse;
+  window.switchHomeTab = switchHomeTab;
 
   let askButton = null;
 
@@ -643,4 +674,5 @@ const CLIENT_SCRIPT = `
       popup.classList.add("hidden");
     }
   });
+})();
 `;

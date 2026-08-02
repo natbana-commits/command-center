@@ -1,4 +1,4 @@
-import type { HomeWidgetId, NavVisibility, Settings } from "../config.js";
+import type { HomeWidgetId, FinanceWidgetId, NavVisibility, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
 import type { ReminderGroup } from "../reminders/groups.js";
@@ -17,6 +17,15 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   finances: "Finances",
   markets: "Markets",
   "econ-events": "Upcoming Econ Events",
+};
+
+const FINANCE_WIDGET_LABELS: Record<FinanceWidgetId, string> = {
+  "net-worth": "Net Worth",
+  "spending-over-time": "Spending Over Time",
+  "spending-by-category": "Spending by Category",
+  accounts: "Accounts",
+  "recurring-charges": "Recurring Charges",
+  transactions: "Recent Transactions",
 };
 
 function renderClassRows(classFolders: ClassFolder[]): string {
@@ -130,6 +139,24 @@ function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: 
     </div>`;
 }
 
+// Same reorderable-row pattern as renderWidgetRow, on distinct action
+// names (move-fin-up/down vs move-up/down) and checkbox prefix
+// (fin-widget- vs widget-) so the same Dashboard form can tell a
+// Finance-widget click apart from a Home-widget click.
+function renderFinanceWidgetRow(widget: { id: FinanceWidgetId; visible: boolean }, index: number, total: number): string {
+  return `
+    <div class="widget-row">
+      <label class="widget-row-label">
+        <input type="checkbox" name="fin-widget-${widget.id}" ${widget.visible ? "checked" : ""} />
+        ${escapeHtml(FINANCE_WIDGET_LABELS[widget.id] ?? widget.id)}
+      </label>
+      <div class="widget-row-controls">
+        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-fin-up:${widget.id}" aria-label="Move up">↑</button>` : ""}
+        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-fin-down:${widget.id}" aria-label="Move down">↓</button>` : ""}
+      </div>
+    </div>`;
+}
+
 export function buildSettingsHtml(
   settings: Settings,
   classFolders: ClassFolder[],
@@ -177,6 +204,14 @@ export function buildSettingsHtml(
             .map((w, i) => renderWidgetRow(w, i, settings.dashboardConfig.homeWidgets.length))
             .join("\n")}
           <div class="hint">Uncheck a card to hide it from Home, or use the arrows to reorder.</div>
+        </div>
+
+        <div class="field">
+          <label>Finance page widgets</label>
+          ${settings.dashboardConfig.financeWidgets
+            .map((w, i) => renderFinanceWidgetRow(w, i, settings.dashboardConfig.financeWidgets.length))
+            .join("\n")}
+          <div class="hint">Uncheck a widget to hide it from the Finances page, or use the arrows to reorder.</div>
         </div>
 
         <div class="field">

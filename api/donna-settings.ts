@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { HomeWidgetId, NavVisibility } from "../src/config.js";
+import type { HomeWidgetId, FinanceWidgetId, NavVisibility } from "../src/config.js";
 import { loadSettings, saveSettings } from "../src/config.js";
 import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
 import { parseDriveFolderId } from "../src/drive/list.js";
@@ -120,10 +120,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // visibility/tab changes made in the same view.
       const [actionType, targetId] = action?.split(":") ?? [];
       const isWidgetReorder = actionType === "move-up" || actionType === "move-down";
+      const isFinanceWidgetReorder = actionType === "move-fin-up" || actionType === "move-fin-down";
       const isNavReorder = actionType === "move-nav-up" || actionType === "move-nav-down";
-      if (actionType === "save-dashboard-settings" || isWidgetReorder || isNavReorder) {
+      if (actionType === "save-dashboard-settings" || isWidgetReorder || isFinanceWidgetReorder || isNavReorder) {
         const current = await loadSettings();
         const widgetOrder = current.dashboardConfig.homeWidgets.map((w) => w.id);
+        const financeWidgetOrder = current.dashboardConfig.financeWidgets.map((w) => w.id);
         const navOrder = [...current.dashboardConfig.navOrder];
 
         if (isWidgetReorder) {
@@ -131,6 +133,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const swapWith = actionType === "move-up" ? idx - 1 : idx + 1;
           if (idx !== -1 && swapWith >= 0 && swapWith < widgetOrder.length) {
             [widgetOrder[idx], widgetOrder[swapWith]] = [widgetOrder[swapWith], widgetOrder[idx]];
+          }
+        }
+
+        if (isFinanceWidgetReorder) {
+          const idx = financeWidgetOrder.indexOf(targetId as FinanceWidgetId);
+          const swapWith = actionType === "move-fin-up" ? idx - 1 : idx + 1;
+          if (idx !== -1 && swapWith >= 0 && swapWith < financeWidgetOrder.length) {
+            [financeWidgetOrder[idx], financeWidgetOrder[swapWith]] = [financeWidgetOrder[swapWith], financeWidgetOrder[idx]];
           }
         }
 
@@ -149,6 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await saveSettings({
           dashboardConfig: {
             homeWidgets: widgetOrder.map((id) => ({ id, visible: body[`widget-${id}`] === "on" })),
+            financeWidgets: financeWidgetOrder.map((id) => ({ id, visible: body[`fin-widget-${id}`] === "on" })),
             defaultHomeTab: body.defaultHomeTab === "newsletters" ? "newsletters" : "news",
             navVisibility,
             navOrder,

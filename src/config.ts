@@ -11,6 +11,14 @@ export type HomeWidgetId =
   | "markets"
   | "econ-events";
 
+export type FinanceWidgetId =
+  | "net-worth"
+  | "spending-over-time"
+  | "spending-by-category"
+  | "accounts"
+  | "recurring-charges"
+  | "transactions";
+
 // The single source of truth for which "middle" nav tabs exist (every
 // tab except Home/Settings, which stay pinned first/last and aren't
 // individually hideable or reorderable). NavVisibility is derived from
@@ -38,6 +46,7 @@ export type NavVisibility = Record<NavTabId, boolean>;
 // list use `visibleTabs()` in nav.ts.
 export interface DashboardConfig {
   homeWidgets: { id: HomeWidgetId; visible: boolean }[];
+  financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
   defaultHomeTab: "news" | "newsletters";
   navVisibility: NavVisibility;
   navOrder: string[];
@@ -76,6 +85,17 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     // whenever he wants them (econ-events, which needs no setup at all).
     { id: "markets", visible: false },
     { id: "econ-events", visible: false },
+  ],
+  // Unlike homeWidgets above, all default visible — this ask was
+  // explicitly for *more* visible richness on the Finances page itself
+  // (not a shared, crowded Home page), prune-able from Settings after.
+  financeWidgets: [
+    { id: "net-worth", visible: true },
+    { id: "spending-over-time", visible: true },
+    { id: "spending-by-category", visible: true },
+    { id: "accounts", visible: true },
+    { id: "recurring-charges", visible: true },
+    { id: "transactions", visible: true },
   ],
   defaultHomeTab: "news",
   navVisibility: Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility,
@@ -130,6 +150,13 @@ export async function loadSettings(): Promise<Settings> {
     (w) => !storedWidgets.some((sw: { id: HomeWidgetId }) => sw.id === w.id)
   );
 
+  // Same self-healing idea for financeWidgets — a stored row saved before
+  // this field existed at all just won't have it.
+  const storedFinanceWidgets = data.dashboard_config?.financeWidgets ?? DEFAULT_DASHBOARD_CONFIG.financeWidgets;
+  const missingFinanceWidgets = DEFAULT_DASHBOARD_CONFIG.financeWidgets.filter(
+    (w) => !storedFinanceWidgets.some((sw: { id: FinanceWidgetId }) => sw.id === w.id)
+  );
+
   // Same self-healing idea for navOrder: a stored row from before a tab
   // existed (or before navOrder existed at all) just won't list it —
   // append anything missing so a newly added tab still shows in nav.
@@ -140,6 +167,7 @@ export async function loadSettings(): Promise<Settings> {
     ...DEFAULT_DASHBOARD_CONFIG,
     ...data.dashboard_config,
     homeWidgets: [...storedWidgets, ...missingWidgets],
+    financeWidgets: [...storedFinanceWidgets, ...missingFinanceWidgets],
     navVisibility: { ...DEFAULT_DASHBOARD_CONFIG.navVisibility, ...data.dashboard_config?.navVisibility },
     navOrder: [...storedNavOrder, ...missingNavTabs],
   };

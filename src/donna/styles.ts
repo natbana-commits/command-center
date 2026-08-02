@@ -519,6 +519,72 @@ export const BASE_STYLES = `
   .agenda-event-title { font-size: 14px; color: var(--ink); }
   .agenda-event-detail { font-size: 12px; color: var(--text-muted); }
 
+  /* --- econ events widget --- */
+  .econ-event-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 0; }
+  .econ-event-row + .econ-event-row { border-top: 1px solid var(--border); }
+  .econ-event-days-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+  }
+  .econ-event-days-number { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .econ-event-days-unit { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
+  .econ-event-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .econ-event-title { font-size: 14px; color: var(--ink); }
+  .econ-event-pill {
+    display: inline-block;
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+
+  /* --- finances page --- */
+  .finance-row { display: flex; align-items: center; gap: var(--sp-2); padding: 10px 0; }
+  .finance-row + .finance-row { border-top: 1px solid var(--border); }
+  .finance-row-icon {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+  }
+  .finance-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .finance-row-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .finance-row-meta { font-size: 12px; color: var(--text-muted); }
+  .finance-row-amount {
+    flex: 0 0 auto;
+    text-align: right;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .finance-row-amount-inflow { color: var(--accent); }
+  .finance-row-date { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+
   /* --- reminders page --- */
   .reminder-row {
     display: flex;
@@ -529,9 +595,15 @@ export const BASE_STYLES = `
     border-radius: 8px;
     border-left: 3px solid var(--taupe);
     background: var(--card);
+    transition: opacity 0.15s ease;
   }
   .reminder-row-overdue { border-left-color: var(--danger); }
   .reminder-row-today { border-left-color: var(--accent); }
+  .reminder-row-completing { opacity: 0.4; }
+  .reminder-row-completing .reminder-title { text-decoration: line-through; }
+  @media (prefers-reduced-motion: reduce) {
+    .reminder-row { transition: none; }
+  }
   .reminder-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex: 0 0 auto; }
   .reminder-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .reminder-title { font-size: 14px; }

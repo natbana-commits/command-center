@@ -187,36 +187,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const googleConfigured = isGoogleConfigured();
   const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
-  const classFolders = await getClassFolders();
-  const reminderGroups = await getReminderGroups();
+  const [classFolders, reminderGroups] = await Promise.all([getClassFolders(), getReminderGroups()]);
   const sortMode: ReminderSortMode = req.query.sort === "group" ? "group" : "due";
 
   const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
   const editing = editId && googleConfigured ? await getReminder(editId).catch(() => null) : null;
-  const editingNotification = editing
-    ? (await getPendingNotificationsForTasks([editing.id]).catch(() => new Map())).get(editing.id) ?? null
-    : null;
-  const editingEarlyNotification = editing
-    ? (await getEarlyNotificationsForTasks([editing.id]).catch(() => new Map())).get(editing.id) ?? null
-    : null;
-  const editingClassId = editing ? await getClassIdForTask(editing.id).catch(() => null) : null;
-  const editingGroupId = editing ? await getGroupIdForTask(editing.id).catch(() => null) : null;
+
+  const [editingNotificationMap, editingEarlyNotificationMap, editingClassId, editingGroupId] = editing
+    ? await Promise.all([
+        getPendingNotificationsForTasks([editing.id]).catch(() => new Map()),
+        getEarlyNotificationsForTasks([editing.id]).catch(() => new Map()),
+        getClassIdForTask(editing.id).catch(() => null),
+        getGroupIdForTask(editing.id).catch(() => null),
+      ])
+    : [new Map(), new Map(), null, null];
+  const editingNotification = editing ? editingNotificationMap.get(editing.id) ?? null : null;
+  const editingEarlyNotification = editing ? editingEarlyNotificationMap.get(editing.id) ?? null : null;
 
   const reminders = editing ? [] : await listRemindersSafe();
-  const notifications = editing
-    ? new Map()
-    : await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(() => new Map());
-  const earlyNotifications = editing
-    ? new Map()
-    : await getEarlyNotificationsForTasks(reminders.map((r) => r.id)).catch(() => new Map());
-  const classLinks = editing
-    ? new Map<string, number>()
-    : await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
-  const groupLinks = editing
-    ? new Map<string, number>()
-    : await getGroupLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
-
-  const habits = editing ? [] : await getHabits().catch(() => []);
+  const taskIds = reminders.map((r) => r.id);
+  const [notifications, earlyNotifications, classLinks, groupLinks, habits] = editing
+    ? [new Map(), new Map(), new Map<string, number>(), new Map<string, number>(), []]
+    : await Promise.all([
+        getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
+        getEarlyNotificationsForTasks(taskIds).catch(() => new Map()),
+        getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+        getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+        getHabits().catch(() => []),
+      ]);
   const habitCompletions = editing
     ? new Map<number, Set<string>>()
     : await getCompletedDatesForHabits(habits.map((h) => h.id)).catch(() => new Map<number, Set<string>>());

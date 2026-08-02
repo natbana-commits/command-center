@@ -130,14 +130,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     getWatchlistEntries().catch(() => []),
     getUpcomingEconomicEvents().catch(() => []),
   ]);
-  const watchlistQuotes = await getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []);
-  const communityFeedItems = await getCommunityFeedItems().catch(() => []);
-  const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
-  const reminderNotifications = await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(
-    () => new Map()
-  );
-  const reminderGroups = await getReminderGroups().catch(() => []);
-  const groupLinks = await getGroupLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+  const taskIds = reminders.map((r) => r.id);
+  const [watchlistQuotes, communityFeedItems, classLinks, reminderNotifications, reminderGroups, groupLinks] =
+    await Promise.all([
+      getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
+      getCommunityFeedItems().catch(() => []),
+      getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+      getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
+      getReminderGroups().catch(() => []),
+      getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+    ]);
 
   // Fresh 2-day fetch for the Home Calendar card's mini today/tomorrow
   // view — the day's cached DailyContext only ever carries today's

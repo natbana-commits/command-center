@@ -1,12 +1,13 @@
-import type { NavVisibility } from "../config.js";
+import type { NavVisibility, FinanceWidgetId } from "../config.js";
 import type { PlaidItem } from "../finance/items.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import type { NetWorthPoint } from "../finance/balanceHistory.js";
 import type { RecurringCharge } from "../finance/recurringCharges.js";
+import type { SpendingPoint, CategorySpend } from "../finance/spendingAnalytics.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
-import { renderLineChart } from "./charts.js";
+import { renderLineChart, renderBarChart } from "./charts.js";
 
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
@@ -21,13 +22,32 @@ function formatTransactionDate(dateStr: string): string {
   return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// A small fixed palette for the row-icon "avatar" badges (accounts,
+// merchants) — picked by a stable hash of the name so the same
+// account/merchant always gets the same color across renders, purely a
+// visual differentiator rather than meaningful categorization (unlike the
+// econ-events category colors, which are keyed to a real fixed category).
+const AVATAR_COLORS = ["#b86b45", "#4f7cac", "#6a8f5c", "#8a6bb8", "#c9a227", "#c1485c"];
+function avatarColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+function avatarInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
+
 function renderAccountRow(account: PlaidAccount): string {
-  const subtypeLabel = account.subtype ? ` · ${account.subtype}` : "";
+  const subtypeLabel = account.subtype ? `${account.subtype}` : "";
   const maskLabel = account.mask ? ` ••${account.mask}` : "";
   return `
-    <div class="agenda-event-row">
-      <div class="agenda-event-title">${escapeHtml(account.name)}${escapeHtml(maskLabel)}<span class="hint">${escapeHtml(subtypeLabel)}</span></div>
-      <div class="agenda-event-time">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</div>
+    <div class="finance-row">
+      <div class="finance-row-icon" style="background:${avatarColor(account.name)};">${escapeHtml(avatarInitial(account.name))}</div>
+      <div class="finance-row-body">
+        <div class="finance-row-title">${escapeHtml(account.name)}${escapeHtml(maskLabel)}</div>
+        ${subtypeLabel ? `<div class="finance-row-meta">${escapeHtml(subtypeLabel)}</div>` : ""}
+      </div>
+      <div class="finance-row-amount">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</div>
     </div>`;
 }
 
@@ -56,13 +76,19 @@ function renderTransactionRow(t: PlaidTransaction, accountName: string): string 
   // literal negative sign, which would read backwards to a user.
   const isInflow = t.amount < 0;
   const displayAmount = isInflow ? `+${formatMoney(-t.amount, t.isoCurrencyCode)}` : formatMoney(t.amount, t.isoCurrencyCode);
+  const merchant = t.merchantName ?? t.name;
+  const metaParts = [accountName, t.pending ? "pending" : "", t.category ?? ""].filter(Boolean);
   return `
-    <div class="agenda-event-row">
-      <div class="agenda-event-title">
-        ${escapeHtml(t.merchantName ?? t.name)}
-        <span class="hint">${escapeHtml(accountName)}${t.pending ? " · pending" : ""}${t.category ? ` · ${escapeHtml(t.category)}` : ""}</span>
+    <div class="finance-row">
+      <div class="finance-row-icon" style="background:${avatarColor(merchant)};">${escapeHtml(avatarInitial(merchant))}</div>
+      <div class="finance-row-body">
+        <div class="finance-row-title">${escapeHtml(merchant)}</div>
+        <div class="finance-row-meta">${escapeHtml(metaParts.join(" · "))}</div>
       </div>
-      <div class="agenda-event-time" style="${isInflow ? "color: var(--accent);" : ""}">${escapeHtml(displayAmount)} · ${escapeHtml(formatTransactionDate(t.transactionDate))}</div>
+      <div class="finance-row-amount${isInflow ? " finance-row-amount-inflow" : ""}">
+        ${escapeHtml(displayAmount)}
+        <span class="finance-row-date">${escapeHtml(formatTransactionDate(t.transactionDate))}</span>
+      </div>
     </div>`;
 }
 
@@ -85,14 +111,37 @@ function renderNetWorthSection(history: NetWorthPoint[]): string {
     ${renderLineChart(history.map((h) => ({ label: h.date, value: h.netWorth })))}`;
 }
 
+function renderSpendingHistorySection(history: SpendingPoint[]): string {
+  if (history.length === 0) {
+    return `<p class="empty">No spending yet in this window.</p>`;
+  }
+  const total = history.reduce((sum, p) => sum + p.amount, 0);
+  return `
+    <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
+    <p class="hint" style="margin: 0 0 12px;">Total spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
+    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.amount })))}`;
+}
+
+function renderSpendingByCategorySection(categories: CategorySpend[]): string {
+  if (categories.length === 0) {
+    return `<p class="empty">No categorized spending yet in the last 30 days.</p>`;
+  }
+  const top = categories.slice(0, 8);
+  return renderBarChart(
+    top.map((c) => ({ label: c.category, value: c.amount })),
+    { formatValue: (v) => formatMoney(v, "USD") }
+  );
+}
+
 function renderRecurringChargeRow(charge: RecurringCharge): string {
   return `
-    <div class="agenda-event-row">
-      <div class="agenda-event-title">
-        ${escapeHtml(charge.label)}
-        <span class="hint">${charge.occurrences} charges · last ${escapeHtml(formatTransactionDate(charge.lastChargeDate))}</span>
+    <div class="finance-row">
+      <div class="finance-row-icon" style="background:${avatarColor(charge.label)};">${escapeHtml(avatarInitial(charge.label))}</div>
+      <div class="finance-row-body">
+        <div class="finance-row-title">${escapeHtml(charge.label)}</div>
+        <div class="finance-row-meta">${charge.occurrences} charges · last ${escapeHtml(formatTransactionDate(charge.lastChargeDate))}</div>
       </div>
-      <div class="agenda-event-time">${escapeHtml(formatMoney(charge.averageAmount, "USD"))}/mo</div>
+      <div class="finance-row-amount">${escapeHtml(formatMoney(charge.averageAmount, "USD"))}/mo</div>
     </div>`;
 }
 
@@ -103,13 +152,27 @@ export interface FinancesPageData {
   transactions: PlaidTransaction[];
   netWorthHistory: NetWorthPoint[];
   recurringCharges: RecurringCharge[];
+  spendingHistory: SpendingPoint[];
+  spendingByCategory: CategorySpend[];
+  financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
   navVisibility: NavVisibility;
   navOrder: string[];
 }
 
 export function buildFinancesHtml(data: FinancesPageData): string {
-  const { plaidConfigured, items, accounts, transactions, netWorthHistory, recurringCharges, navVisibility, navOrder } =
-    data;
+  const {
+    plaidConfigured,
+    items,
+    accounts,
+    transactions,
+    netWorthHistory,
+    recurringCharges,
+    spendingHistory,
+    spendingByCategory,
+    financeWidgets,
+    navVisibility,
+    navOrder,
+  } = data;
 
   const accountsByItem = new Map<string, PlaidAccount[]>();
   for (const account of accounts) {
@@ -145,6 +208,47 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       }
     </div>`;
 
+  const sectionsById: Record<FinanceWidgetId, { title: string; content: string } | null> = {
+    "net-worth": accounts.length === 0 ? null : { title: "Net Worth", content: renderNetWorthSection(netWorthHistory) },
+    "spending-over-time": accounts.length === 0 ? null : { title: "Spending Over Time", content: renderSpendingHistorySection(spendingHistory) },
+    "spending-by-category": accounts.length === 0 ? null : { title: "Spending by Category", content: renderSpendingByCategorySection(spendingByCategory) },
+    accounts: {
+      title: "Accounts",
+      content: `${summaryCard}${
+        items.length === 0
+          ? `<p class="empty">No accounts linked yet.</p>`
+          : items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")
+      }`,
+    },
+    "recurring-charges":
+      recurringCharges.length === 0
+        ? null
+        : { title: "Recurring Charges", content: `<div class="card">${recurringCharges.map(renderRecurringChargeRow).join("\n")}</div>` },
+    transactions: {
+      title: "Recent Transactions",
+      content: `<div class="card">${
+        transactions.length === 0
+          ? `<p class="empty">No transactions yet.</p>`
+          : transactions.map((t) => renderTransactionRow(t, accountNameById.get(t.accountId) ?? "Account")).join("\n")
+      }</div>`,
+    },
+  };
+
+  const widgetSections = financeWidgets
+    .filter((w) => w.visible && sectionsById[w.id])
+    .map((w) => {
+      const section = sectionsById[w.id]!;
+      // Accounts (the summary cards + item cards) already renders its own
+      // .card elements, unlike the chart widgets which need one wrapped
+      // around their content — matching each existing section's prior markup.
+      const wrapped = w.id === "accounts" ? section.content : `<div class="card">${section.content}</div>`;
+      return `<div class="section" style="margin-top: var(--sp-3);">
+        <h1 class="section-title">${escapeHtml(section.title)}</h1>
+        ${wrapped}
+      </div>`;
+    })
+    .join("\n");
+
   const body = !plaidConfigured
     ? `
     <div class="section">
@@ -160,49 +264,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
 
     <button type="button" class="btn" id="link-account-btn" onclick="openPlaidLink()">+ Link an account</button>
 
-    <div class="section" style="margin-top: var(--sp-3);">
-      ${summaryCard}
-      ${
-        items.length === 0
-          ? `<p class="empty">No accounts linked yet.</p>`
-          : items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")
-      }
-    </div>
-
-    ${
-      accounts.length === 0
-        ? ""
-        : `<div class="section" style="margin-top: var(--sp-3);">
-      <h1 class="section-title">Net Worth</h1>
-      <div class="card">
-        ${renderNetWorthSection(netWorthHistory)}
-      </div>
-    </div>`
-    }
-
-    ${
-      recurringCharges.length === 0
-        ? ""
-        : `<div class="section" style="margin-top: var(--sp-3);">
-      <h1 class="section-title">Recurring Charges</h1>
-      <div class="card">
-        ${recurringCharges.map(renderRecurringChargeRow).join("\n")}
-      </div>
-    </div>`
-    }
-
-    <div class="section" style="margin-top: var(--sp-3);">
-      <h1 class="section-title">Recent Transactions</h1>
-      <div class="card">
-        ${
-          transactions.length === 0
-            ? `<p class="empty">No transactions yet.</p>`
-            : transactions
-                .map((t) => renderTransactionRow(t, accountNameById.get(t.accountId) ?? "Account"))
-                .join("\n")
-        }
-      </div>
-    </div>`;
+    ${widgetSections}`;
 
   return renderLayout({
     title: "Donna — Finances",

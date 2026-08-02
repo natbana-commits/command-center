@@ -130,7 +130,7 @@ function renderReminderRow(
       <form method="POST" action="/donna/reminders" style="display:contents;">
         <input type="hidden" name="action" value="complete" />
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
-        <input type="checkbox" onchange="this.form.requestSubmit()" aria-label="Mark done" />
+        <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
       </form>
       <div class="reminder-body">
         <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
@@ -151,7 +151,7 @@ function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): 
       <form method="POST" action="/donna/reminders" style="display:contents;">
         <input type="hidden" name="action" value="toggle-habit" />
         <input type="hidden" name="id" value="${habit.id}" />
-        <input type="checkbox" ${completedToday ? "checked" : ""} onchange="this.form.requestSubmit()" aria-label="Mark done today" />
+        <input type="checkbox" ${completedToday ? "checked" : ""} onchange="this.closest('.reminder-row').classList.toggle('reminder-row-completing', this.checked); this.form.requestSubmit()" aria-label="Mark done today" />
       </form>
       <div class="reminder-body">
         <span class="reminder-title">${escapeHtml(habit.title)}</span>

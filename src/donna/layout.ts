@@ -239,6 +239,161 @@ const COMMAND_PALETTE_SCRIPT = `
 })();
 `;
 
+// Client-side page-swap router. Every nav here would otherwise be a full
+// document reload (server-rendered pages, no client router) — this
+// intercepts same-origin /donna/* link clicks and form submits, fetches
+// just the target page, and swaps three regions (sidebar nav, bottom nav,
+// and the page-content wrapper below) instead of reloading the whole
+// document. The sidebar/theme-toggle/palette-trigger/chat-FAB never get
+// touched, so their state (open conversation, theme, palette) survives
+// navigation. Falls back to a real `window.location.href` navigation on
+// any fetch failure — this is a pure enhancement, never the only way a
+// page is reachable (a hard refresh on any URL always works standalone).
+const ROUTER_SCRIPT = `
+(function () {
+  const pageContent = document.getElementById("page-content");
+  const sidebarNav = document.getElementById("sidebar-nav-region");
+  const bottomNav = document.getElementById("bottom-nav-region");
+  const progressBar = document.getElementById("nav-progress-bar");
+  if (!pageContent) return;
+
+  const prefetched = new Set();
+
+  function isInternalHref(href) {
+    if (!href) return false;
+    try {
+      const url = new URL(href, window.location.href);
+      return url.origin === window.location.origin && url.pathname.indexOf("/donna") === 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function stopProgress() {
+    if (progressBar) progressBar.classList.remove("active");
+  }
+
+  // Scripts inserted via innerHTML never execute — recreate each one so
+  // it actually runs (this is what re-runs a page's own client script,
+  // and the Plaid SDK's <script src="..."> tag, after every swap).
+  function runScripts(container) {
+    const scripts = container.querySelectorAll("script");
+    Array.prototype.forEach.call(scripts, function (old) {
+      const fresh = document.createElement("script");
+      Array.prototype.forEach.call(old.attributes, function (attr) {
+        fresh.setAttribute(attr.name, attr.value);
+      });
+      fresh.textContent = old.textContent;
+      old.replaceWith(fresh);
+    });
+  }
+
+  function swapFrom(doc) {
+    document.title = doc.title;
+    const newPageContent = doc.getElementById("page-content");
+    const newSidebarNav = doc.getElementById("sidebar-nav-region");
+    const newBottomNav = doc.getElementById("bottom-nav-region");
+    if (newPageContent) pageContent.innerHTML = newPageContent.innerHTML;
+    if (sidebarNav && newSidebarNav) sidebarNav.innerHTML = newSidebarNav.innerHTML;
+    if (bottomNav && newBottomNav) bottomNav.innerHTML = newBottomNav.innerHTML;
+    runScripts(pageContent);
+    window.scrollTo(0, 0);
+    stopProgress();
+  }
+
+  async function navigate(url, options, push) {
+    if (progressBar) progressBar.classList.add("active");
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error("bad status " + res.status);
+      const text = await res.text();
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      if (push) history.pushState({ swapped: true }, "", res.url || url);
+      swapFrom(doc);
+    } catch (err) {
+      // Fall back to a real navigation — never leave the click/submit
+      // silently doing nothing.
+      window.location.href = url;
+    }
+  }
+
+  document.addEventListener("click", function (e) {
+    const link = e.target && e.target.closest && e.target.closest("a[href]");
+    if (!link) return;
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    if (link.target === "_blank" || link.hasAttribute("download")) return;
+    if (!isInternalHref(link.getAttribute("href"))) return;
+    e.preventDefault();
+    navigate(link.href, { method: "GET" }, true);
+  });
+
+  document.addEventListener("submit", function (e) {
+    const form = e.target;
+    if (!form || form.tagName !== "FORM" || e.defaultPrevented) return;
+    let url;
+    try {
+      // getAttribute, not form.action/form.method — every form in this app
+      // has a hidden <input name="action"> for its own action dispatch,
+      // which shadows the form element's built-in .action/.method IDL
+      // properties (a real HTML gotcha: a named form control takes
+      // precedence over the same-named built-in property). .getAttribute
+      // always reads the literal HTML attribute, unaffected by that.
+      url = new URL(form.getAttribute("action") || window.location.href, window.location.href);
+    } catch (err) {
+      return;
+    }
+    if (url.origin !== window.location.origin) return;
+    e.preventDefault();
+    const method = (form.getAttribute("method") || "GET").toUpperCase();
+    const formData = new FormData(form);
+    // A real native form submit includes the clicked submit button's own
+    // name/value pair (e.g. <button name="action" value="move-up:...">) —
+    // several forms in this app (Settings' Dashboard section) rely on
+    // that instead of a hidden <input name="action">. new FormData(form)
+    // alone does NOT include it (only new FormData(form, submitter) does,
+    // or reading it manually via the submit event's .submitter) — without
+    // this, every reorder/save click on those forms would silently POST
+    // with no action at all.
+    if (e.submitter && e.submitter.name) {
+      formData.append(e.submitter.name, e.submitter.value);
+    }
+    const params = new URLSearchParams(formData);
+    if (method === "GET") {
+      navigate(url.pathname + "?" + params.toString(), { method: "GET" }, true);
+    } else {
+      // URLSearchParams, not raw FormData — no form in this app declares
+      // enctype="multipart/form-data", so every one of them relies on the
+      // browser's native default encoding (application/x-www-form-
+      // urlencoded). Sending a raw FormData body here would switch that
+      // to multipart, which Vercel's built-in body parser (@vercel/node's
+      // req.body) doesn't parse, silently dropping every field.
+      navigate(url.pathname + url.search, { method: method, body: params }, true);
+    }
+  });
+
+  window.addEventListener("popstate", function () {
+    navigate(window.location.href, { method: "GET" }, false);
+  });
+
+  // Hover prefetch: warms the browser's own HTTP cache before the click
+  // lands. mouseenter doesn't bubble, but capture-phase listeners still
+  // see it on descendants, so this delegates from one document listener
+  // rather than needing a listener per link.
+  document.addEventListener(
+    "mouseenter",
+    function (e) {
+      const link = e.target && e.target.closest && e.target.closest("a[href]");
+      if (!link) return;
+      const href = link.getAttribute("href");
+      if (!isInternalHref(href) || prefetched.has(href)) return;
+      prefetched.add(href);
+      fetch(link.href, { method: "GET" }).catch(function () {});
+    },
+    true
+  );
+})();
+`;
+
 function renderChatFabMarkup(): string {
   return `
   <div class="chat-scrim" id="chat-scrim"></div>
@@ -433,7 +588,7 @@ ${BASE_STYLES}
       <button type="button" class="palette-trigger-btn" onclick="window.__paletteOpen && window.__paletteOpen()">
         <span>Search…</span><span class="palette-trigger-kbd">&#x2318;K</span>
       </button>
-      <nav class="sidebar-nav">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
+      <nav class="sidebar-nav" id="sidebar-nav-region">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
@@ -443,14 +598,17 @@ ${BASE_STYLES}
     </aside>
 
     <main class="main-content">
-      ${bodyHtml}
+      <div id="page-content">
+        ${bodyHtml}
+        ${extraBodyHtml}
+        <script>${pageScript}</script>
+      </div>
     </main>
   </div>
 
-  <nav class="bottom-nav">${renderBottomNav(activeTab, navVisibility, navOrder)}</nav>
+  <nav class="bottom-nav" id="bottom-nav-region">${renderBottomNav(activeTab, navVisibility, navOrder)}</nav>
 
   ${renderCommandPaletteMarkup()}
-  ${extraBodyHtml}
   ${showChatFab ? renderChatFabMarkup() : ""}
 
   <script>
@@ -458,7 +616,7 @@ ${PROGRESS_BAR_SCRIPT}
 ${NAV_SHEET_SCRIPT}
 ${THEME_TOGGLE_SCRIPT}
 ${COMMAND_PALETTE_SCRIPT}
-${pageScript}
+${ROUTER_SCRIPT}
 ${showChatFab ? CHAT_FAB_SCRIPT : ""}
   </script>
 </body>

@@ -10,6 +10,7 @@ import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/syn
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
 import { getNetWorthHistory } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
+import { getSpendingHistory, getSpendingByCategory } from "../src/finance/spendingAnalytics.js";
 import { buildFinancesHtml } from "../src/donna/financesPage.js";
 
 // Plaid's webhook signature covers the exact raw request bytes, and
@@ -176,6 +177,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     transactions,
     netWorthHistory,
     recurringCharges: detectRecurringCharges(recurringChargeTransactions),
+    // Same 300-row pull already fetched above for recurring-charge
+    // detection — plenty of history for both a 90-day spending trend and
+    // a 30-day category breakdown without a second Supabase query.
+    spendingHistory: getSpendingHistory(recurringChargeTransactions),
+    spendingByCategory: getSpendingByCategory(recurringChargeTransactions),
+    financeWidgets: settings.dashboardConfig.financeWidgets,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });
