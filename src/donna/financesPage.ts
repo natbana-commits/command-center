@@ -2,8 +2,11 @@ import type { NavVisibility } from "../config.js";
 import type { PlaidItem } from "../finance/items.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
+import type { NetWorthPoint } from "../finance/balanceHistory.js";
+import type { RecurringCharge } from "../finance/recurringCharges.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { renderLineChart } from "./charts.js";
 
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
@@ -63,17 +66,50 @@ function renderTransactionRow(t: PlaidTransaction, accountName: string): string 
     </div>`;
 }
 
+function renderNetWorthSection(history: NetWorthPoint[]): string {
+  if (history.length === 0) {
+    return `<p class="empty">No history yet — net worth is snapshotted once a day, so the chart fills in starting today.</p>`;
+  }
+
+  const latest = history[history.length - 1];
+  const first = history[0];
+  const change = latest.netWorth - first.netWorth;
+  const changeLabel =
+    history.length > 1
+      ? `${change >= 0 ? "+" : ""}${formatMoney(change, "USD")} since ${formatTransactionDate(first.date)}`
+      : "";
+
+  return `
+    <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(latest.netWorth, "USD"))}</p>
+    ${changeLabel ? `<p class="hint" style="margin: 0 0 12px;">${escapeHtml(changeLabel)}</p>` : ""}
+    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.netWorth })))}`;
+}
+
+function renderRecurringChargeRow(charge: RecurringCharge): string {
+  return `
+    <div class="agenda-event-row">
+      <div class="agenda-event-title">
+        ${escapeHtml(charge.label)}
+        <span class="hint">${charge.occurrences} charges · last ${escapeHtml(formatTransactionDate(charge.lastChargeDate))}</span>
+      </div>
+      <div class="agenda-event-time">${escapeHtml(formatMoney(charge.averageAmount, "USD"))}/mo</div>
+    </div>`;
+}
+
 export interface FinancesPageData {
   plaidConfigured: boolean;
   items: PlaidItem[];
   accounts: PlaidAccount[];
   transactions: PlaidTransaction[];
+  netWorthHistory: NetWorthPoint[];
+  recurringCharges: RecurringCharge[];
   navVisibility: NavVisibility;
   navOrder: string[];
 }
 
 export function buildFinancesHtml(data: FinancesPageData): string {
-  const { plaidConfigured, items, accounts, transactions, navVisibility, navOrder } = data;
+  const { plaidConfigured, items, accounts, transactions, netWorthHistory, recurringCharges, navVisibility, navOrder } =
+    data;
 
   const accountsByItem = new Map<string, PlaidAccount[]>();
   for (const account of accounts) {
@@ -132,6 +168,28 @@ export function buildFinancesHtml(data: FinancesPageData): string {
           : items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")
       }
     </div>
+
+    ${
+      accounts.length === 0
+        ? ""
+        : `<div class="section" style="margin-top: var(--sp-3);">
+      <h1 class="section-title">Net Worth</h1>
+      <div class="card">
+        ${renderNetWorthSection(netWorthHistory)}
+      </div>
+    </div>`
+    }
+
+    ${
+      recurringCharges.length === 0
+        ? ""
+        : `<div class="section" style="margin-top: var(--sp-3);">
+      <h1 class="section-title">Recurring Charges</h1>
+      <div class="card">
+        ${recurringCharges.map(renderRecurringChargeRow).join("\n")}
+      </div>
+    </div>`
+    }
 
     <div class="section" style="margin-top: var(--sp-3);">
       <h1 class="section-title">Recent Transactions</h1>

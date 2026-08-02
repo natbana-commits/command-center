@@ -8,6 +8,8 @@ import { getAllAccounts } from "../src/finance/accounts.js";
 import { getRecentTransactions } from "../src/finance/transactionsStore.js";
 import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/sync.js";
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
+import { getNetWorthHistory } from "../src/finance/balanceHistory.js";
+import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
 import { buildFinancesHtml } from "../src/donna/financesPage.js";
 
 // Plaid's webhook signature covers the exact raw request bytes, and
@@ -154,15 +156,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const plaidConfigured = isPlaidConfigured();
   const settings = await loadSettings();
-  const [items, accounts, transactions] = plaidConfigured
-    ? await Promise.all([getAllItems(), getAllAccounts(), getRecentTransactions(50)])
-    : [[], [], []];
+  const [items, accounts, transactions, netWorthHistory, recurringChargeTransactions] = plaidConfigured
+    ? await Promise.all([
+        getAllItems(),
+        getAllAccounts(),
+        getRecentTransactions(50),
+        getNetWorthHistory().catch(() => []),
+        // A separate, deeper pull than the 50 shown in "Recent Transactions" —
+        // detecting a monthly pattern needs several months of history, not
+        // just what's displayed.
+        getRecentTransactions(300).catch(() => []),
+      ])
+    : [[], [], [], [], []];
 
   const html = buildFinancesHtml({
     plaidConfigured,
     items,
     accounts,
     transactions,
+    netWorthHistory,
+    recurringCharges: detectRecurringCharges(recurringChargeTransactions),
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });

@@ -2,6 +2,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sendTelegramMessage } from "../src/telegram.js";
 import { buildBriefMessages } from "../src/formatBrief.js";
 import { getDueNotifications, markNotificationSent } from "../src/reminders/notifications.js";
+import { getDueHabitNudges, markHabitNotified } from "../src/habits/store.js";
+import { loadSettings } from "../src/config.js";
+import { localDateKey, resolveTimezone } from "../src/util/time.js";
 
 // Merged with the old api/reminder-check.ts to stay under Vercel Hobby's
 // 12-function cap — both are bare secret-gated background jobs with no
@@ -34,6 +37,26 @@ async function handleReminderCheck(res: VercelResponse) {
       // the send itself is what failed.
       console.error(`Failed to deliver/mark notification ${notification.id}:`, err);
     }
+  }
+
+  // Habit nudges ride the same poll — a completely separate concept from
+  // reminder_notifications (no due time, no one-shot delivery), so they're
+  // fetched and marked independently rather than folded into `due` above.
+  try {
+    const settings = await loadSettings();
+    const timezone = resolveTimezone(settings.timezone);
+    const dueHabits = await getDueHabitNudges(timezone);
+    const todayKey = localDateKey(new Date(), timezone);
+    for (const habit of dueHabits) {
+      try {
+        await sendTelegramMessage(`Did you do: ${habit.title} today?`);
+        await markHabitNotified(habit.id, todayKey);
+      } catch (err) {
+        console.error(`Failed to deliver/mark habit nudge ${habit.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to check due habit nudges:", err);
   }
 
   res.status(200).json({ sent, total: due.length });

@@ -9,7 +9,8 @@ import { storePendingStories } from "./news/pending.js";
 import { getWatchlistEntries } from "./news/watchlist.js";
 import { storeDailyContext, pruneOldDailyContext } from "./chat/dailyContext.js";
 import { pruneOldChatMessages } from "./chat/history.js";
-import { localDateKey } from "./util/time.js";
+import { localDateKey, localWeekdayIndex } from "./util/time.js";
+import { buildWeeklyDigestMessages } from "./weeklyDigest.js";
 import { fetchAndStoreNewsletters, pruneOldNewsletters } from "./gmail/index.js";
 import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
@@ -17,6 +18,9 @@ import { pruneOldReminderNotifications } from "./reminders/notifications.js";
 import { pruneOldLoginAttempts } from "./auth/loginAttempts.js";
 import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
 import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
+import { isPlaidConfigured } from "./finance/plaidClient.js";
+import { snapshotAccountBalances } from "./finance/balanceHistory.js";
+import { getEconomicEventsInWindow } from "./markets/economicEvents.js";
 
 export interface BriefMessage {
   text: string;
@@ -56,6 +60,9 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldNewsletters();
   await pruneOldReminderNotifications();
   await pruneOldLoginAttempts();
+  if (isPlaidConfigured()) {
+    await snapshotAccountBalances().catch((err) => console.error("Balance snapshot failed:", err));
+  }
 
   const headlineCount = settings.briefConfig.headlineCount;
   // Watchlist matches sort first regardless of relevance, so they land in
@@ -121,6 +128,20 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
       .map(({ company, filing }) => `📄 Update on ${company.companyName}: new filing (${filing.filedDate})`)
       .join("\n");
     messages.push({ text: `${lines}\nSee the IPOs page: https://command-center-navy-pi.vercel.app/donna/ipos` });
+  }
+
+  const tomorrowKey = localDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000), calendarResult.timezone);
+  const todayEconEvents = await getEconomicEventsInWindow(day, tomorrowKey).catch(() => []);
+  if (todayEconEvents.length > 0) {
+    const lines = todayEconEvents.map((e) => `📊 ${e.eventName} — ${e.eventDate === day ? "today" : "tomorrow"}`);
+    messages.push({ text: lines.join("\n") });
+  }
+
+  if (
+    settings.briefConfig.weeklyDigestEnabled &&
+    localWeekdayIndex(new Date(), calendarResult.timezone) === settings.briefConfig.weeklyDigestDay
+  ) {
+    messages.push(...(await buildWeeklyDigestMessages(calendarResult.timezone)));
   }
 
   return messages;

@@ -5,6 +5,11 @@ import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
+import {
+  getCommunityFeedSources,
+  addCommunityFeedSource,
+  deleteCommunityFeedSource,
+} from "../src/news/communityFeeds.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
 import { requireAuth } from "../src/auth/session.js";
 
@@ -62,6 +67,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteWatchlistEntry(id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "add-community-feed-source") {
+        const url = body.url?.trim();
+        const label = body.label?.trim();
+        if (url && label) {
+          await addCommunityFeedSource(url, label);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "delete-community-feed-source") {
+        const id = Number(body.id);
+        if (Number.isFinite(id)) {
+          await deleteCommunityFeedSource(id);
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -137,6 +161,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "save-brief-settings") {
         const rawCount = Number(body.headlineCount);
         const headlineCount = Number.isFinite(rawCount) ? Math.min(8, Math.max(1, Math.round(rawCount))) : 4;
+        const rawDay = Number(body.weeklyDigestDay);
+        const weeklyDigestDay = Number.isFinite(rawDay) ? Math.min(6, Math.max(0, Math.round(rawDay))) : 0;
 
         await saveSettings({
           briefConfig: {
@@ -145,6 +171,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             reminders: body.reminders === "on",
             ipos: body.ipos === "on",
             headlineCount,
+            weeklyDigestEnabled: body.weeklyDigestEnabled === "on",
+            weeklyDigestDay,
           },
         });
         res.redirect(303, "/donna/settings?saved=1");
@@ -159,16 +187,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders, watchlistEntries, reminderGroups] = await Promise.all([
+  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources] = await Promise.all([
     loadSettings(),
     getClassFolders(),
     getWatchlistEntries(),
     getReminderGroups(),
+    getCommunityFeedSources(),
   ]);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
 
-  const html = buildSettingsHtml(settings, classFolders, watchlistEntries, reminderGroups, saved, error);
+  const html = buildSettingsHtml(
+    settings,
+    classFolders,
+    watchlistEntries,
+    reminderGroups,
+    communityFeedSources,
+    saved,
+    error
+  );
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);
 }

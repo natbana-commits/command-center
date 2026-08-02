@@ -368,3 +368,121 @@ create table if not exists login_attempts (
   attempted_at timestamptz not null default now()
 );
 create index if not exists login_attempts_ip_idx on login_attempts (ip_address, attempted_at desc);
+
+-- Habit tracker: a proactive daily Telegram nudge at notify_time (local
+-- time-of-day, stored as plain "HH:MM" text rather than a `time` column so
+-- src/habits/store.ts can compare it against a locally-formatted string
+-- without a timezone-aware SQL comparison). last_notified_date guards
+-- against re-sending the same day's nudge on every reminder-check poll.
+create table if not exists habits (
+  id bigint generated always as identity primary key,
+  title text not null,
+  notify_time text not null,
+  active boolean not null default true,
+  last_notified_date date,
+  created_at timestamptz not null default now()
+);
+
+-- One row per day a habit was checked off; the unique constraint is what
+-- makes toggling idempotent (re-checking the same day is a delete, not a
+-- second insert) and is what streak calculation counts consecutive days
+-- over.
+create table if not exists habit_completions (
+  id bigint generated always as identity primary key,
+  habit_id bigint not null references habits (id) on delete cascade,
+  completed_date date not null,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists habit_completions_habit_date_idx on habit_completions (habit_id, completed_date);
+
+-- One row per linked account per day, taken by the daily morning-brief cron
+-- (src/finance/balanceHistory.ts) — the only place account balance history
+-- accumulates, since plaid_accounts itself is overwritten in place on every
+-- sync. is_liability is snapshotted alongside the balance (rather than
+-- joined against plaid_accounts.type at query time) so net-worth history
+-- stays correct even if an account is later unlinked.
+create table if not exists account_balance_history (
+  id bigint generated always as identity primary key,
+  account_id text not null,
+  balance numeric not null,
+  is_liability boolean not null default false,
+  snapshot_date date not null,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists account_balance_history_account_date_idx on account_balance_history (account_id, snapshot_date);
+
+-- Manually-seeded economic calendar (src/markets/economicEvents.ts) —
+-- deliberately NOT backed by a live API: FOMC/CPI/NFP/GDP dates are
+-- published by the Fed/BLS/BEA many months in advance, so a scraper or
+-- paid data feed would be solving a problem that doesn't exist. Seeded
+-- once below from the real, current official calendars (federalreserve.gov,
+-- bls.gov, bea.gov) as of 2026-08-01 — refresh annually from those same
+-- sources (flagged on the Info page as a yearly maintenance step).
+create table if not exists economic_events (
+  id bigint generated always as identity primary key,
+  event_name text not null,
+  event_date date not null,
+  category text not null,
+  source_note text,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists economic_events_name_date_idx on economic_events (event_name, event_date);
+create index if not exists economic_events_date_idx on economic_events (event_date);
+
+insert into economic_events (event_name, event_date, category, source_note) values
+  ('FOMC Meeting', '2026-09-16', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2026-10-28', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2026-12-09', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-01-27', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-03-17', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-04-28', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-06-09', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-07-28', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-09-15', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-10-27', 'FOMC', 'federalreserve.gov'),
+  ('FOMC Meeting', '2027-12-08', 'FOMC', 'federalreserve.gov'),
+  ('CPI Release', '2026-08-12', 'CPI', 'bls.gov'),
+  ('CPI Release', '2026-09-11', 'CPI', 'bls.gov'),
+  ('CPI Release', '2026-10-14', 'CPI', 'bls.gov'),
+  ('CPI Release', '2026-11-10', 'CPI', 'bls.gov'),
+  ('CPI Release', '2026-12-10', 'CPI', 'bls.gov'),
+  ('Jobs Report (NFP)', '2026-08-07', 'NFP', 'bls.gov'),
+  ('Jobs Report (NFP)', '2026-09-04', 'NFP', 'bls.gov'),
+  ('Jobs Report (NFP)', '2026-10-02', 'NFP', 'bls.gov'),
+  ('Jobs Report (NFP)', '2026-11-06', 'NFP', 'bls.gov'),
+  ('Jobs Report (NFP)', '2026-12-04', 'NFP', 'bls.gov'),
+  ('GDP (Advance Estimate), Q3 2026', '2026-10-29', 'GDP', 'bea.gov'),
+  ('GDP (Second Estimate), Q3 2026', '2026-11-25', 'GDP', 'bea.gov'),
+  ('GDP (Third Estimate), Q3 2026', '2026-12-23', 'GDP', 'bea.gov')
+on conflict (event_name, event_date) do nothing;
+
+-- Client-side study timer (src/school/studySessions.ts) — only a
+-- COMPLETED session (5+ minutes, per the client script) ever reaches this
+-- table; an in-progress or abandoned timer is never persisted, since the
+-- timer itself is deliberately client-side-only state.
+create table if not exists study_sessions (
+  id bigint generated always as identity primary key,
+  class_id bigint not null references class_folders (id) on delete cascade,
+  duration_minutes integer not null,
+  completed_at timestamptz not null default now()
+);
+create index if not exists study_sessions_class_idx on study_sessions (class_id, completed_at desc);
+
+-- Community feed widget sources (src/news/communityFeeds.ts) — plain RSS,
+-- no Claude summarization (keeps this at ~zero marginal API cost), managed
+-- from Settings with the same list+add-form pattern as Watchlist/Classes.
+-- Seeded with 3 reasonable finance-recruiting-adjacent defaults; edit or
+-- replace them any time.
+create table if not exists community_feed_sources (
+  id bigint generated always as identity primary key,
+  url text not null,
+  label text not null,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists community_feed_sources_url_idx on community_feed_sources (url);
+
+insert into community_feed_sources (url, label) values
+  ('https://www.reddit.com/r/FinancialCareers/.rss', 'r/FinancialCareers'),
+  ('https://www.reddit.com/r/investing/.rss', 'r/investing'),
+  ('https://www.reddit.com/r/SecurityAnalysis/.rss', 'r/SecurityAnalysis')
+on conflict (url) do nothing;

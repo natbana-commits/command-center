@@ -56,6 +56,12 @@ export const BASE_STYLES = `
     --taupe: #c8c0b5;
     --olive: #b8b29b;
     --danger: #b8442e;
+    /* Fixed dark surface for header bars/badges that pair with hardcoded
+       white text (modal/chat headers, the logo mark, the ask popup) —
+       deliberately NOT overridden in the dark theme below, since these
+       are meant to stay a dark bar in both themes rather than invert
+       along with --ink (which flips to a light color for body text). */
+    --ink-fixed: #1f1f1f;
     --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --display: "Merriweather", Georgia, "Times New Roman", serif;
     --mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
@@ -65,6 +71,41 @@ export const BASE_STYLES = `
     --sp-4: 32px;
     --sp-6: 48px;
     --sp-8: 64px;
+  }
+  /* Dark palette: applied automatically when the OS prefers dark and
+     Nathan hasn't explicitly picked light, or always when he's toggled
+     dark explicitly (data-theme, set by THEME_TOGGLE_SCRIPT below). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #18160f;
+      --sidebar-bg: #100f0a;
+      --card: #221f18;
+      --border: #38332a;
+      --ink: #f1ede4;
+      --text-secondary: #b7b0a3;
+      --text-muted: #7e776a;
+      --accent: #dd9367;
+      --accent-hover: #e8a578;
+      --taupe: #4c4638;
+      --olive: #7d7a5e;
+      --danger: #e2725a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #18160f;
+    --sidebar-bg: #100f0a;
+    --card: #221f18;
+    --border: #38332a;
+    --ink: #f1ede4;
+    --text-secondary: #b7b0a3;
+    --text-muted: #7e776a;
+    --accent: #dd9367;
+    --accent-hover: #e8a578;
+    --taupe: #4c4638;
+    --olive: #7d7a5e;
+    --danger: #e2725a;
   }
   * { box-sizing: border-box; }
   body {
@@ -102,7 +143,7 @@ export const BASE_STYLES = `
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    background: var(--ink);
+    background: var(--ink-fixed);
     color: #fff;
     display: flex;
     align-items: center;
@@ -138,7 +179,7 @@ export const BASE_STYLES = `
   .sidebar-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
   .sidebar-link:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
   .sidebar-link-active {
-    background: #fff;
+    background: var(--card);
     color: var(--ink);
     border: 1px solid var(--border);
   }
@@ -158,8 +199,16 @@ export const BASE_STYLES = `
     flex: 0 0 auto;
   }
   .sidebar-user-name { font-size: 14px; font-weight: 500; color: var(--ink); }
-  .sidebar-user-logout {
+  .theme-toggle-btn {
     margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    line-height: 1;
+  }
+  .sidebar-user-logout {
     color: var(--text-muted);
     text-decoration: none;
     font-size: 11px;
@@ -185,7 +234,7 @@ export const BASE_STYLES = `
       bottom: 0;
       left: 0;
       right: 0;
-      background: #fff;
+      background: var(--card);
       border-top: 1px solid var(--border);
       justify-content: space-around;
       padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
@@ -215,7 +264,7 @@ export const BASE_STYLES = `
       left: 12px;
       right: 12px;
       bottom: calc(66px + env(safe-area-inset-bottom));
-      background: #fff;
+      background: var(--card);
       border: 1px solid var(--border);
       border-radius: 12px;
       box-shadow: 0 -8px 24px rgba(0,0,0,0.12);
@@ -513,7 +562,8 @@ export const BASE_STYLES = `
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
-    background: #fff;
+    background: var(--card);
+    color: var(--ink);
     align-self: flex-start;
   }
 
@@ -570,7 +620,7 @@ export const BASE_STYLES = `
   }
   .file-table-controls { display: flex; gap: 10px; margin-bottom: var(--sp-2); flex-wrap: wrap; }
   .file-table-controls input[type="text"],
-  .file-table-controls select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: var(--sans); background: #fff; }
+  .file-table-controls select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; font-family: var(--sans); background: var(--card); color: var(--ink); }
   .file-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .file-table th, .file-table td { text-align: left; padding: 10px; border-bottom: 1px solid var(--border); }
   .file-table th {
@@ -611,7 +661,7 @@ export const BASE_STYLES = `
     flex-direction: column;
     gap: 10px;
   }
-  .upload-form select, .upload-form input[type="file"] { padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: var(--sans); background: #fff; }
+  .upload-form select, .upload-form input[type="file"] { padding: 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: var(--sans); background: var(--card); color: var(--ink); }
   .upload-item { border-bottom: 1px solid var(--border); padding: 10px 0; }
   .upload-item:last-child { border-bottom: none; }
   .upload-status { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
@@ -638,7 +688,7 @@ export const BASE_STYLES = `
   .ask-popup {
     position: fixed;
     max-width: 320px;
-    background: var(--ink);
+    background: var(--ink-fixed);
     color: #fff;
     padding: 12px 14px;
     border-radius: 10px;
@@ -669,7 +719,8 @@ export const BASE_STYLES = `
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
-    background: #fff;
+    background: var(--card);
+    color: var(--ink);
   }
   .field input[type="text"], .field select, .field textarea { width: 100%; }
   .field input.input-mono { font-family: var(--mono); }
@@ -715,9 +766,9 @@ export const BASE_STYLES = `
     text-decoration: none;
   }
   .btn:hover { background: var(--accent-hover); }
-  .btn-secondary { background: #fff; color: var(--ink); border: 1px solid var(--border); }
+  .btn-secondary { background: var(--card); color: var(--ink); border: 1px solid var(--border); }
   .btn-secondary:hover { background: var(--sidebar-bg); }
-  .btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--border); }
+  .btn-danger { background: var(--card); color: var(--danger); border: 1px solid var(--border); }
   .btn-danger:hover { background: #fbeeec; }
   .btn-block { width: 100%; justify-content: center; }
 
@@ -767,7 +818,7 @@ export const BASE_STYLES = `
   }
   .chat-overlay-panel.open { right: 0; }
   .chat-overlay-header {
-    background: var(--ink);
+    background: var(--ink-fixed);
     color: #fff;
     padding: 14px 16px;
     display: flex;
@@ -820,7 +871,7 @@ export const BASE_STYLES = `
     box-shadow: 0 10px 40px rgba(0,0,0,0.2);
   }
   .modal-header {
-    background: var(--ink);
+    background: var(--ink-fixed);
     color: #fff;
     padding: 14px 16px;
     display: flex;
@@ -834,6 +885,41 @@ export const BASE_STYLES = `
   }
   .modal-close { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
   .modal-body { padding: var(--sp-3); }
+
+  /* --- command palette --- */
+  .palette-trigger-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: var(--sp-2);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-family: var(--sans);
+    cursor: pointer;
+  }
+  .palette-trigger-btn:hover { border-color: var(--accent); }
+  .palette-trigger-kbd { margin-left: auto; font-family: var(--mono); font-size: 11px; }
+  .palette-panel { width: 560px; max-width: 100%; max-height: 70vh; padding: 0; }
+  .palette-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+    font-size: 16px;
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 12px 12px 0 0;
+    font-family: var(--sans);
+  }
+  .palette-input:focus { outline: none; }
+  .palette-results { max-height: 50vh; overflow-y: auto; padding: 8px; }
+  .palette-row-active { background: var(--sidebar-bg); }
 
   .btn-fab-inline {
     width: 36px;

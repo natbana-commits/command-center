@@ -58,6 +58,11 @@ const SECTIONS: InfoSection[] = [
       "Donna's the same assistant everywhere — Telegram, the floating chat bubble on every page, and the dedicated Chat tab, which adds a mode switcher across the top: General (full tool access — reminders, email search, calendar, IPO lookups) or any class you've set up (auto-loaded Drive context, its own separate history, a one-click \"Generate practice problems\"). The floating bubble is always General mode and shares that same conversation with the Chat tab's General mode, so switching between them mid-conversation is seamless.",
   },
   {
+    title: "Markets & Economic Calendar",
+    description:
+      "The Markets card (off by default — turn it on in Settings) shows a live price and day change for each ticker on your Watchlist, via Finnhub's free tier — set FINNHUB_API_KEY to use it. The Upcoming Econ Events card needs no setup: it's a small manually-seeded calendar of FOMC meetings and CPI/jobs/GDP release dates, sourced from the Fed/BLS/BEA's own published schedules rather than a live feed (those dates are published many months ahead, so there's nothing to poll). It only covers what was seeded on 2026-08-01 — refresh it once a year with the next year's official schedule.",
+  },
+  {
     title: "Dashboard & Morning text",
     description:
       "Settings is where everything gets tuned: show, hide, or reorder the Home cards; pick which tab (News or Newsletters) opens by default; hide any sidebar page you don't use; choose exactly which sections (news, calendar, reminders) get texted each morning and how many headlines; and manage your company/ticker Watchlist.",

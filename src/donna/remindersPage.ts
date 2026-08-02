@@ -3,8 +3,10 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import type { ReminderGroup } from "../reminders/groups.js";
+import type { Habit } from "../habits/store.js";
+import { computeStreak } from "../habits/store.js";
 import { escapeHtml } from "../util/html.js";
-import { toLocalDateTimeParts, withTimeSuffix } from "../util/time.js";
+import { toLocalDateTimeParts, withTimeSuffix, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 
 // Google's Tasks API silently discards the time-of-day on `due` (always
@@ -142,6 +144,60 @@ function renderReminderRow(
     </div>`;
 }
 
+function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): string {
+  const streakLabel = streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} streak` : "No streak yet";
+  return `
+    <div class="reminder-row">
+      <form method="POST" action="/donna/reminders" style="display:contents;">
+        <input type="hidden" name="action" value="toggle-habit" />
+        <input type="hidden" name="id" value="${habit.id}" />
+        <input type="checkbox" ${completedToday ? "checked" : ""} onchange="this.form.requestSubmit()" aria-label="Mark done today" />
+      </form>
+      <div class="reminder-body">
+        <span class="reminder-title">${escapeHtml(habit.title)}</span>
+        <div class="interaction-meta">
+          <span class="reminder-due">${streakLabel}</span>
+          <span class="hint" style="margin:0;">Nudge at ${escapeHtml(habit.notifyTime)}</span>
+        </div>
+      </div>
+      <form method="POST" action="/donna/reminders" style="display:contents;">
+        <input type="hidden" name="action" value="delete-habit" />
+        <input type="hidden" name="id" value="${habit.id}" />
+        <button class="reminder-edit-link" type="submit" style="background:none; border:none; cursor:pointer; font:inherit;">Delete</button>
+      </form>
+    </div>`;
+}
+
+function renderAddHabitForm(): string {
+  return `
+    <form method="POST" action="/donna/reminders" class="reminder-add-row2" style="margin-top: var(--sp-2);">
+      <input type="hidden" name="action" value="add-habit" />
+      <input type="text" name="title" placeholder="New habit…" required style="flex: 1 1 160px;" />
+      <label class="hint" style="margin:0;">Nudge at</label>
+      <input type="time" name="notifyTime" value="20:00" required />
+      <button class="btn btn-small" type="submit">Add</button>
+    </form>`;
+}
+
+function renderHabitsSection(habits: Habit[], completions: Map<number, Set<string>>, todayKey: string): string {
+  const rows =
+    habits.length === 0
+      ? `<p class="empty">No habits yet.</p>`
+      : habits
+          .map((h) => {
+            const dates = completions.get(h.id) ?? new Set<string>();
+            return renderHabitRow(h, dates.has(todayKey), computeStreak(dates, todayKey));
+          })
+          .join("\n");
+
+  return `
+    <div class="card" style="margin-top: var(--sp-3);">
+      <div class="card-header"><h2 class="section-title" style="margin:0;">Habits</h2></div>
+      ${rows}
+      ${renderAddHabitForm()}
+    </div>`;
+}
+
 export type ReminderSortMode = "due" | "group";
 
 export interface RemindersPageData {
@@ -161,6 +217,8 @@ export interface RemindersPageData {
   reminderGroups: ReminderGroup[];
   groupLinks: Map<string, number>;
   sortMode: ReminderSortMode;
+  habits: Habit[];
+  habitCompletions: Map<number, Set<string>>;
   navVisibility: NavVisibility;
   navOrder: string[];
 }
@@ -315,6 +373,8 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     reminderGroups,
     groupLinks,
     sortMode,
+    habits,
+    habitCompletions,
     navVisibility,
     navOrder,
   } = data;
@@ -360,7 +420,8 @@ export function buildRemindersHtml(data: RemindersPageData): string {
       </div>
       <div class="card" style="margin-top: var(--sp-3);">
         ${listHtml}
-      </div>`;
+      </div>
+      ${renderHabitsSection(habits, habitCompletions, localDateKey(new Date(), timezone))}`;
   }
 
   const modalHtml = googleConfigured

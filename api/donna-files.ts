@@ -10,6 +10,8 @@ import { buildFilesHtml } from "../src/donna/filesPage.js";
 import { buildSchoolHtml } from "../src/donna/schoolPage.js";
 import { getFlashcardsForClass, createFlashcards, reviewFlashcard } from "../src/school/flashcards.js";
 import { generateFlashcardsFromTranscript } from "../src/school/generateFlashcards.js";
+import { logStudySession, getStudyStats } from "../src/school/studySessions.js";
+import { resolveTimezone } from "../src/util/time.js";
 import { requireAuth } from "../src/auth/session.js";
 
 // School is folded into this file (rather than a new one) to stay under
@@ -51,6 +53,16 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      if (action === "log-study-session") {
+        const classId = Number(body.classId);
+        const durationMinutes = Number(body.durationMinutes);
+        if (Number.isFinite(classId) && Number.isFinite(durationMinutes) && durationMinutes > 0) {
+          await logStudySession(classId, Math.round(durationMinutes));
+        }
+        res.redirect(303, `/donna/school?classId=${classId}`);
+        return;
+      }
+
       res.status(400).json({ error: "Unknown action" });
     } catch (err) {
       console.error("School action failed:", err);
@@ -69,6 +81,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
       uploads: [],
       dueFlashcards: [],
       otherFlashcards: [],
+      studyStats: { streakDays: 0, weeklyMinutes: 0 },
       navVisibility: settings.dashboardConfig.navVisibility,
       navOrder: settings.dashboardConfig.navOrder,
     });
@@ -80,9 +93,10 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
   const requestedClassId = typeof req.query.classId === "string" ? Number(req.query.classId) : undefined;
   const activeClass = classFolders.find((c) => c.id === requestedClassId) ?? classFolders[0];
 
-  const [uploads, allFlashcards] = await Promise.all([
+  const [uploads, allFlashcards, studyStats] = await Promise.all([
     getUploadsForClass(activeClass.id).catch(() => []),
     getFlashcardsForClass(activeClass.id).catch(() => []),
+    getStudyStats(activeClass.id, resolveTimezone(settings.timezone)).catch(() => ({ streakDays: 0, weeklyMinutes: 0 })),
   ]);
 
   const now = Date.now();
@@ -95,6 +109,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
     uploads,
     dueFlashcards,
     otherFlashcards,
+    studyStats,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });

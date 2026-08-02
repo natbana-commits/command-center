@@ -11,10 +11,15 @@ import type { IpoFiling } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import type { CalendarEvent } from "../calendar.js";
+import type { Quote } from "../markets/quotes.js";
+import type { EconomicEvent } from "../markets/economicEvents.js";
+import type { CommunityFeedItem } from "../news/communityFeeds.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet, iconChevronDown } from "./icons.js";
+const iconMarkets = iconTrendingUp;
+const iconEconEvents = iconCalendar;
 import { renderSourceBadge } from "./sourceBadge.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
 
@@ -30,6 +35,8 @@ const CARD_HREFS: Record<HomeWidgetId, string> = {
   files: "/donna/files",
   ipos: "/donna/ipos",
   finances: "/donna/finances",
+  markets: "/donna/settings",
+  "econ-events": "/donna/calendar",
 };
 
 function formatMoney(amount: number, currency: string | null): string {
@@ -256,6 +263,48 @@ function renderFinancesCard(accounts: PlaidAccount[], transactions: PlaidTransac
     ${txRows || `<p class="empty" style="margin:0;">No transactions yet.</p>`}`;
 }
 
+function renderMarketsCard(quotes: Quote[]): string {
+  if (quotes.length === 0) {
+    return `<p class="empty">No quotes yet — add tickers to your Watchlist in Settings.</p>`;
+  }
+  return quotes
+    .map((q) => {
+      const up = q.changePercent >= 0;
+      const changeLabel = `${up ? "+" : ""}${q.changePercent.toFixed(2)}%`;
+      return `
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(q.symbol)}</div>
+          <div class="agenda-event-time" style="${up ? "color: var(--accent);" : "color: var(--danger);"}">
+            ${escapeHtml(formatMoney(q.price, "USD"))} · ${escapeHtml(changeLabel)}
+          </div>
+        </div>`;
+    })
+    .join("\n");
+}
+
+function daysAwayLabel(dateKey: string): string {
+  const days = Math.round((new Date(`${dateKey}T00:00:00Z`).getTime() - new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`).getTime()) / 86_400_000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  return `In ${days} days`;
+}
+
+function renderEconEventsCard(events: EconomicEvent[]): string {
+  if (events.length === 0) {
+    return `<p class="empty">No upcoming events seeded.</p>`;
+  }
+  return events
+    .map((e) => {
+      const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return `
+        <div class="agenda-event-row">
+          <div class="agenda-event-title">${escapeHtml(e.eventName)}<span class="hint"> · ${escapeHtml(dateLabel)}</span></div>
+          <div class="agenda-event-time">${escapeHtml(daysAwayLabel(e.eventDate))}</div>
+        </div>`;
+    })
+    .join("\n");
+}
+
 // Older cached daily_context rows were stored before publishedAt existed —
 // fall back to the brief's own day so the meta row never renders blank.
 function formatStoryDate(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
@@ -346,6 +395,25 @@ function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
   return newsletters.map(renderNewsletterRow).join("\n");
 }
 
+function renderCommunityRow(item: CommunityFeedItem): string {
+  return `
+    <div class="news-row">
+      <div class="news-row-main">
+        <div class="news-row-meta">
+          <span>${escapeHtml(item.source)}</span><span>·</span><span>${escapeHtml(formatRelativeTime(item.publishedAt))}</span>
+        </div>
+        <a class="news-row-headline" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>
+      </div>
+    </div>`;
+}
+
+function renderCommunitySection(items: CommunityFeedItem[]): string {
+  if (items.length === 0) {
+    return `<p class="empty">No community sources configured yet — add some from Settings.</p>`;
+  }
+  return items.map(renderCommunityRow).join("\n");
+}
+
 export interface DonnaPageData {
   context: DailyContext | null;
   newsletters: StoredNewsletter[];
@@ -364,6 +432,9 @@ export interface DonnaPageData {
   tomorrowEvents: CalendarEvent[];
   reminderGroups: ReminderGroup[];
   groupLinks: Map<string, number>;
+  watchlistQuotes: Quote[];
+  upcomingEconEvents: EconomicEvent[];
+  communityFeedItems: CommunityFeedItem[];
 }
 
 function renderCardRow(data: DonnaPageData, timezone: string): string {
@@ -383,6 +454,8 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     tomorrowEvents,
     reminderGroups,
     groupLinks,
+    watchlistQuotes,
+    upcomingEconEvents,
   } = data;
 
   const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
@@ -397,6 +470,8 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
     ipos: { icon: iconTrendingUp, title: "IPOs", content: renderIposCard(ipoFilings) },
     finances: { icon: iconWallet, title: "Finances", content: renderFinancesCard(financeAccounts, financeTransactions) },
+    markets: { icon: iconMarkets, title: "Markets", content: renderMarketsCard(watchlistQuotes) },
+    "econ-events": { icon: iconEconEvents, title: "Upcoming Econ Events", content: renderEconEventsCard(upcomingEconEvents) },
   };
 
   return dashboardConfig.homeWidgets
@@ -420,7 +495,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, dashboardConfig } = data;
+  const { context, newsletters, dashboardConfig, communityFeedItems } = data;
   const timezone = context?.timezone ?? "America/New_York";
   const dateLabel = context ? formatFullDate(context.day, timezone) : "";
   const newsDefault = dashboardConfig.defaultHomeTab !== "newsletters";
@@ -434,6 +509,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     <div class="home-tabs">
       <button type="button" class="home-tab-btn ${newsDefault ? "home-tab-btn-active" : ""}" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
       <button type="button" class="home-tab-btn ${newsDefault ? "" : "home-tab-btn-active"}" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
+      <button type="button" class="home-tab-btn" data-panel="community-panel" onclick="switchHomeTab(this)">Community</button>
     </div>
 
     <section class="section home-tab-panel" id="news-panel" style="${newsDefault ? "" : "display:none;"}">
@@ -442,6 +518,10 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 
     <section class="section home-tab-panel" id="newsletters-panel" style="${newsDefault ? "display:none;" : ""}">
       ${renderNewslettersSection(newsletters)}
+    </section>
+
+    <section class="section home-tab-panel" id="community-panel" style="display:none;">
+      ${renderCommunitySection(communityFeedItems)}
     </section>
 
     <div class="card-row" style="margin-top: var(--sp-3);">

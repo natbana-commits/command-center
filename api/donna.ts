@@ -16,6 +16,10 @@ import { isPlaidConfigured } from "../src/finance/plaidClient.js";
 import { getAllAccounts } from "../src/finance/accounts.js";
 import { getRecentTransactions } from "../src/finance/transactionsStore.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
+import { getWatchlistEntries } from "../src/news/watchlist.js";
+import { getWatchlistQuotes } from "../src/markets/quotes.js";
+import { getUpcomingEconomicEvents } from "../src/markets/economicEvents.js";
+import { getCommunityFeedItems } from "../src/news/communityFeeds.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
@@ -101,18 +105,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 
-  const [context, newsletters, reminders, recentUploads, contacts, classFolders, ipoFilings, financeAccounts, financeTransactions] =
-    await Promise.all([
-      getDailyContext(day),
-      getNewslettersForDay(day).catch(() => []),
-      listRemindersSafe(),
-      getRecentUploads(3).catch(() => []),
-      getContacts().catch(() => []),
-      getClassFolders().catch(() => []),
-      getRecentIpoFilings(3).catch(() => []),
-      isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([]),
-      isPlaidConfigured() ? getRecentTransactions(3).catch(() => []) : Promise.resolve([]),
-    ]);
+  const [
+    context,
+    newsletters,
+    reminders,
+    recentUploads,
+    contacts,
+    classFolders,
+    ipoFilings,
+    financeAccounts,
+    financeTransactions,
+    watchlistEntries,
+    upcomingEconEvents,
+  ] = await Promise.all([
+    getDailyContext(day),
+    getNewslettersForDay(day).catch(() => []),
+    listRemindersSafe(),
+    getRecentUploads(3).catch(() => []),
+    getContacts().catch(() => []),
+    getClassFolders().catch(() => []),
+    getRecentIpoFilings(3).catch(() => []),
+    isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([]),
+    isPlaidConfigured() ? getRecentTransactions(3).catch(() => []) : Promise.resolve([]),
+    getWatchlistEntries().catch(() => []),
+    getUpcomingEconomicEvents().catch(() => []),
+  ]);
+  const watchlistQuotes = await getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []);
+  const communityFeedItems = await getCommunityFeedItems().catch(() => []);
   const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
   const reminderNotifications = await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(
     () => new Map()
@@ -155,6 +174,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     tomorrowEvents,
     reminderGroups,
     groupLinks,
+    watchlistQuotes,
+    upcomingEconEvents,
+    communityFeedItems,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

@@ -79,6 +79,38 @@ export function resolveTimezone(configured: string): string {
   return configured === "auto" ? "America/New_York" : configured;
 }
 
+const WEEKDAY_INDEX: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+// 0 (Sunday) through 6 (Saturday), matching briefConfig.weeklyDigestDay —
+// computed from the IANA timezone name rather than Date.getDay(), which
+// only ever reflects the server's own local time (UTC on Vercel).
+export function localWeekdayIndex(now: Date, timeZone: string): number {
+  const short = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now);
+  return WEEKDAY_INDEX[short] ?? now.getUTCDay();
+}
+
+export function addDaysToDateKey(dateKey: string, days: number): string {
+  const d = new Date(`${dateKey}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// Consecutive days ending today (if today's already in the set) or
+// yesterday (if today isn't in the set yet but the streak up to yesterday
+// is unbroken — "you haven't missed it YET today" reads better than
+// zeroing out a streak the moment the clock passes midnight and before
+// there's been a chance to check it off/log it). Shared by habit streaks
+// and study-session streaks — same semantics either way.
+export function consecutiveDayStreak(dateKeys: Set<string>, todayKey: string): number {
+  let cursor = dateKeys.has(todayKey) ? todayKey : addDaysToDateKey(todayKey, -1);
+  let streak = 0;
+  while (dateKeys.has(cursor)) {
+    streak += 1;
+    cursor = addDaysToDateKey(cursor, -1);
+  }
+  return streak;
+}
+
 export function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const diffMinutes = Math.round(diffMs / 60000);

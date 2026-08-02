@@ -2,6 +2,7 @@ import type { HomeWidgetId, NavVisibility, Settings } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
 import type { ReminderGroup } from "../reminders/groups.js";
+import type { CommunityFeedSource } from "../news/communityFeeds.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
@@ -14,6 +15,8 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   files: "Files",
   ipos: "IPOs",
   finances: "Finances",
+  markets: "Markets",
+  "econ-events": "Upcoming Econ Events",
 };
 
 function renderClassRows(classFolders: ClassFolder[]): string {
@@ -76,6 +79,26 @@ function renderWatchlistRows(entries: WatchlistEntry[]): string {
     .join("\n");
 }
 
+function renderCommunityFeedRows(sources: CommunityFeedSource[]): string {
+  if (sources.length === 0) {
+    return `<p class="empty">No community sources yet.</p>`;
+  }
+
+  return sources
+    .map(
+      (s) => `
+        <div class="class-row">
+          <span>${escapeHtml(s.label)}</span>
+          <form method="POST" action="/api/donna-settings">
+            <input type="hidden" name="action" value="delete-community-feed-source" />
+            <input type="hidden" name="id" value="${s.id}" />
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </div>`
+    )
+    .join("\n");
+}
+
 // Same reorderable-row pattern as renderWidgetRow, on distinct action
 // names (move-nav-up/down vs move-up/down) so the single dashboard form
 // can tell a nav-reorder click apart from a widget-reorder click.
@@ -112,6 +135,7 @@ export function buildSettingsHtml(
   classFolders: ClassFolder[],
   watchlistEntries: WatchlistEntry[],
   reminderGroups: ReminderGroup[],
+  communityFeedSources: CommunityFeedSource[],
   saved: boolean,
   error?: string
 ): string {
@@ -211,6 +235,23 @@ export function buildSettingsHtml(
           <input class="input-mono" type="number" id="headlineCount" name="headlineCount" min="1" max="8" value="${settings.briefConfig.headlineCount}" style="width: 80px;" />
         </div>
 
+        <div class="field">
+          <label class="widget-row-label">
+            <input type="checkbox" name="weeklyDigestEnabled" ${settings.briefConfig.weeklyDigestEnabled ? "checked" : ""} />
+            Weekly digest
+          </label>
+          <div class="hint">An extra "week ahead" text alongside the regular morning brief — upcoming calendar events and reminders due that week.</div>
+          <label for="weeklyDigestDay" style="margin-top: 8px;">Send on</label>
+          <select id="weeklyDigestDay" name="weeklyDigestDay">
+            ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+              .map(
+                (day, i) =>
+                  `<option value="${i}" ${settings.briefConfig.weeklyDigestDay === i ? "selected" : ""}>${day}</option>`
+              )
+              .join("\n")}
+          </select>
+        </div>
+
         <button class="btn" type="submit">Save</button>
       </form>
     </section>
@@ -225,6 +266,19 @@ export function buildSettingsHtml(
         <button class="btn" type="submit">Add</button>
       </form>
       <div class="hint">A watchlist mention gets priority in the daily news picks and a badge in the feed.</div>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Community Feeds</h1>
+      ${renderCommunityFeedRows(communityFeedSources)}
+
+      <form class="add-class-form" method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="add-community-feed-source" />
+        <input type="text" name="label" placeholder="Label, e.g. r/investing" required />
+        <input type="text" name="url" placeholder="RSS feed URL" required style="flex: 2 1 220px;" />
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="hint">Raw RSS sources for Home's Community tab — no curation, just a chronological list.</div>
     </section>
 
     <section class="section card" style="margin-top: 16px;">

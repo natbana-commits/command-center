@@ -1,6 +1,15 @@
 import { getSupabaseClient, withSupabaseRetry } from "./supabaseClient.js";
 
-export type HomeWidgetId = "recent-activity" | "upcoming" | "reminders" | "contacts" | "files" | "ipos" | "finances";
+export type HomeWidgetId =
+  | "recent-activity"
+  | "upcoming"
+  | "reminders"
+  | "contacts"
+  | "files"
+  | "ipos"
+  | "finances"
+  | "markets"
+  | "econ-events";
 
 // The single source of truth for which "middle" nav tabs exist (every
 // tab except Home/Settings, which stay pinned first/last and aren't
@@ -40,6 +49,9 @@ export interface BriefConfig {
   reminders: boolean;
   ipos: boolean;
   headlineCount: number;
+  weeklyDigestEnabled: boolean;
+  /** 0 = Sunday, ... 6 = Saturday, in the configured timezone. */
+  weeklyDigestDay: number;
 }
 
 export interface Settings {
@@ -58,6 +70,12 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "files", visible: true },
     { id: "ipos", visible: true },
     { id: "finances", visible: true },
+    // Off by default — Home was just decrowded, so a brand new widget
+    // shouldn't silently re-add to the pile. Nathan can turn these on
+    // himself from Settings once Finnhub is configured (markets) or
+    // whenever he wants them (econ-events, which needs no setup at all).
+    { id: "markets", visible: false },
+    { id: "econ-events", visible: false },
   ],
   defaultHomeTab: "news",
   navVisibility: Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility,
@@ -70,6 +88,11 @@ const DEFAULT_BRIEF_CONFIG: BriefConfig = {
   reminders: true,
   ipos: true,
   headlineCount: 4,
+  // Opt-in: an entirely new message Nathan hasn't asked to receive yet,
+  // unlike the other briefConfig fields above which gate pre-existing
+  // daily-brief behavior.
+  weeklyDigestEnabled: false,
+  weeklyDigestDay: 0,
 };
 
 const DEFAULT_SETTINGS: Settings = {

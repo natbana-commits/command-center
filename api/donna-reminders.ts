@@ -25,8 +25,16 @@ import {
   getGroupLinksForTasks,
   getReminderGroups,
 } from "../src/reminders/groups.js";
+import {
+  getHabits,
+  addHabit,
+  deleteHabit,
+  toggleHabitCompletion,
+  getCompletedDatesForHabits,
+} from "../src/habits/store.js";
 import { buildRemindersHtml, type ReminderSortMode } from "../src/donna/remindersPage.js";
 import { requireAuth } from "../src/auth/session.js";
+import { localDateKey } from "../src/util/time.js";
 
 // Both classId and groupId are optional numeric-string form fields — blank
 // means "no class"/"no group" respectively, distinct concepts kept
@@ -152,6 +160,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await clearGroupLink(id);
           await deleteReminder(id);
         }
+      } else if (action === "add-habit") {
+        const title = body.title?.trim();
+        const notifyTime = body.notifyTime;
+        if (title && notifyTime) {
+          await addHabit(title, notifyTime);
+        }
+      } else if (action === "toggle-habit") {
+        const id = parseOptionalId(body.id);
+        if (id !== undefined) {
+          await toggleHabitCompletion(id, localDateKey(new Date(), timezone));
+        }
+      } else if (action === "delete-habit") {
+        const id = parseOptionalId(body.id);
+        if (id !== undefined) {
+          await deleteHabit(id);
+        }
       }
       res.redirect(303, "/donna/reminders");
     } catch (err) {
@@ -192,6 +216,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? new Map<string, number>()
     : await getGroupLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
 
+  const habits = editing ? [] : await getHabits().catch(() => []);
+  const habitCompletions = editing
+    ? new Map<number, Set<string>>()
+    : await getCompletedDatesForHabits(habits.map((h) => h.id)).catch(() => new Map<number, Set<string>>());
+
   const html = buildRemindersHtml({
     reminders,
     googleConfigured,
@@ -209,6 +238,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     reminderGroups,
     groupLinks,
     sortMode,
+    habits,
+    habitCompletions,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });

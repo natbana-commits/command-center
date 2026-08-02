@@ -9,7 +9,26 @@ import { getClassFileContext } from "../src/drive/classContext.js";
 import { getSchoolChatHistory, appendSchoolChatMessage } from "../src/school/chatHistory.js";
 import { generateSchoolReply } from "../src/school/respond.js";
 import { buildChatTabHtml, type ChatMode } from "../src/donna/chatTabPage.js";
+import { globalSearch } from "../src/search/globalSearch.js";
 import { requireAuth } from "../src/auth/session.js";
+
+// The command palette's dynamic-results lookup — folded in here (rather
+// than a new file) for the same Vercel Hobby 12-function reason as the
+// Chat tab above, via the same "?page=" query-param branching.
+async function handleGlobalSearch(req: VercelRequest, res: VercelResponse) {
+  const query = typeof req.query.q === "string" ? req.query.q : "";
+  if (!query.trim()) {
+    res.status(200).json({ results: [] });
+    return;
+  }
+  try {
+    const results = await globalSearch(query);
+    res.status(200).json({ results });
+  } catch (err) {
+    console.error("Global search failed:", err);
+    res.status(200).json({ results: [] });
+  }
+}
 
 // The dedicated Chat tab (?page=chat) is folded into this same file —
 // it shares the floating FAB's General-mode backend (same day-scoped
@@ -92,6 +111,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.query.page === "chat") {
     await handleChatTabPage(req, res);
+    return;
+  }
+
+  if (req.query.page === "search") {
+    await handleGlobalSearch(req, res);
     return;
   }
 
