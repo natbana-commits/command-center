@@ -308,6 +308,12 @@ export function buildSettingsHtml(
       <form class="settings-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="save-brief-settings" />
         <div class="field">
+          <label for="sendTime">Send time</label>
+          <input class="input-mono" type="time" id="sendTime" name="sendTime" value="${escapeHtml(settings.briefConfig.sendTime)}" style="width: 120px;" />
+          <div class="hint">In your timezone above. Checked every 5 minutes, so it may land up to that long after this time.</div>
+        </div>
+
+        <div class="field">
           <label class="widget-row-label">
             <input type="checkbox" name="news" ${settings.briefConfig.news ? "checked" : ""} />
             News headlines

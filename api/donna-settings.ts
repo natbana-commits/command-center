@@ -197,6 +197,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const headlineCount = Number.isFinite(rawCount) ? Math.min(8, Math.max(1, Math.round(rawCount))) : 4;
         const rawDay = Number(body.weeklyDigestDay);
         const weeklyDigestDay = Number.isFinite(rawDay) ? Math.min(6, Math.max(0, Math.round(rawDay))) : 0;
+        // <input type="time"> always submits "HH:MM" — this guard only
+        // matters against a hand-crafted request bypassing the form.
+        const sendTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(body.sendTime ?? "") ? body.sendTime : "06:00";
 
         await saveSettings({
           briefConfig: {
@@ -207,6 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             headlineCount,
             weeklyDigestEnabled: body.weeklyDigestEnabled === "on",
             weeklyDigestDay,
+            sendTime,
           },
         });
         res.redirect(303, "/donna/settings?saved=1");

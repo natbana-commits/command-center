@@ -36,7 +36,7 @@ RELEVANCE SCORING (be strict — most stories should be 6-8, not 9-10):
 For each selected story, the "url" field MUST exactly match a url from the provided list — never alter or guess it.
 
 Each object MUST follow this exact schema:
-{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"First paragraph with key facts and context.\\n\\nSecond paragraph on implications and market backdrop, informed by your own knowledge of the company/sector beyond the snippet.","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","blurb":"one short, casual, FACTUAL sentence (under 15 words) naming the actual company/deal — a plain-English one-liner of what happened, not vague like the teaser, and not a press-release headline restatement","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8,"watchlistMatch":false}
+{"headline":"concise factual headline","category":"ECM IPOs & Deals","summary":"3-4 sentences in ONE paragraph (no line breaks) covering the key facts, context, and why it matters for deal timing or investor appetite","ecmTag":"one sentence on how this affects IPO timing, deal pricing, or investor appetite","teaser":"a short, casual phrase (under 8 words, no period) hinting at the topic without naming the company/ticker/deal — write like a text to a friend, not a press release","blurb":"one short, casual, FACTUAL sentence (under 15 words) naming the actual company/deal — a plain-English one-liner of what happened, not vague like the teaser, and not a press-release headline restatement","source":"WSJ","url":"https://... (must exactly match a url from the provided list)","relevance":8,"watchlistMatch":false}
 
 CRITICAL: Return ONLY the JSON array. No text before [. No text after ].`;
 
@@ -68,7 +68,13 @@ export async function curateStories(items: FeedItem[], watchlistLabels: string[]
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 10000,
+      // Trimmed from 10000 alongside the shorter one-paragraph summary
+      // above. NOT trimmed further than this — measured usage is ~4300
+      // tokens (817 of which is invisible "thinking" overhead that
+      // doesn't scale down with a shorter prompt), so an 8000 ceiling
+      // leaves real headroom without risking a truncated, unparseable
+      // response (confirmed via stop_reason "max_tokens" at a 4000 cap).
+      max_tokens: 8000,
       system: SYSTEM_PROMPT + watchlistInstruction(watchlistLabels),
       messages: [
         {
@@ -141,5 +147,10 @@ function extractStories(text: string): NewsStory[] {
     }
   }
 
-  throw new Error("Could not parse a story array from Claude's response");
+  // Include a snippet of what actually came back — this has failed
+  // intermittently on an otherwise-well-formed-looking response, and the
+  // caller (formatBrief.ts) already treats this as recoverable (no news
+  // today, rest of the brief still sends), so the only real cost of a
+  // bare error here is making a rare failure impossible to diagnose.
+  throw new Error(`Could not parse a story array from Claude's response. First 300 chars: ${cleaned.slice(0, 300)}`);
 }

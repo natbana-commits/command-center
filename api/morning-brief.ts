@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sendTelegramMessage } from "../src/telegram.js";
-import { buildBriefMessages } from "../src/formatBrief.js";
+import {
+  buildFastBriefMessages,
+  buildNewsFollowupMessages,
+  checkAndSendScheduledBrief,
+} from "../src/formatBrief.js";
 import { getDueNotifications, markNotificationSent } from "../src/reminders/notifications.js";
 import { getDueHabitNudges, markHabitNotified } from "../src/habits/store.js";
 import { loadSettings } from "../src/config.js";
@@ -10,9 +14,17 @@ import { localDateKey, resolveTimezone } from "../src/util/time.js";
 // 12-function cap — both are bare secret-gated background jobs with no
 // user-facing /donna/* URL, so branching on which secret the incoming
 // Authorization header matches (rather than an explicit field) is
-// invisible to both callers: Vercel's own cron trigger for this path,
-// and .github/workflows/reminder-check.yml's poller, which still hits
-// /api/reminder-check directly — see vercel.json's rewrite for that.
+// invisible to both callers: .github/workflows/reminder-check.yml's
+// 5-minute poller, which hits /api/reminder-check directly (see
+// vercel.json's rewrite for that), and a manual CRON_SECRET-gated
+// request for testing/force-sending the brief directly.
+//
+// The daily brief itself no longer has its own fixed vercel.json cron
+// entry — checkAndSendScheduledBrief rides this same 5-minute poll,
+// checking settings.briefConfig.sendTime (configurable from Settings,
+// takes effect on the next poll, no redeploy) against the current time
+// in the configured timezone. That also sidesteps the DST drift a fixed
+// UTC cron schedule would otherwise have twice a year.
 async function handleReminderCheck(res: VercelResponse) {
   let due;
   try {
@@ -59,15 +71,24 @@ async function handleReminderCheck(res: VercelResponse) {
     console.error("Failed to check due habit nudges:", err);
   }
 
+  // A failure here shouldn't fail the reminder-check response itself —
+  // the next poll (5 minutes later) just tries again.
+  await checkAndSendScheduledBrief(sendTelegramMessage).catch((err) =>
+    console.error("Scheduled brief check failed:", err)
+  );
+
   res.status(200).json({ sent, total: due.length });
 }
 
-async function handleMorningBrief(res: VercelResponse) {
-  const messages = await buildBriefMessages();
+// Manual escape hatch — force-send either pass directly (CRON_SECRET,
+// not the 5-minute poller's secret), bypassing the sendTime/state gate
+// entirely. Useful for testing; not used by the automatic schedule.
+async function handleManualBrief(res: VercelResponse, phase: string | undefined) {
+  const messages = phase === "news" ? await buildNewsFollowupMessages() : await buildFastBriefMessages();
   for (const message of messages) {
     await sendTelegramMessage(message.text, message.parseMode);
   }
-  res.status(200).send("Message sent");
+  res.status(200).send(messages.length > 0 ? "Message sent" : "Nothing to send");
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -81,5 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(401).send("Unauthorized");
     return;
   }
-  await handleMorningBrief(res);
+  const phase = typeof req.query.phase === "string" ? req.query.phase : undefined;
+  await handleManualBrief(res, phase);
 }

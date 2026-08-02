@@ -61,6 +61,8 @@ export interface BriefConfig {
   weeklyDigestEnabled: boolean;
   /** 0 = Sunday, ... 6 = Saturday, in the configured timezone. */
   weeklyDigestDay: number;
+  /** "HH:MM" 24-hour, in the configured timezone — when the daily brief goes out. */
+  sendTime: string;
 }
 
 export interface Settings {
@@ -113,6 +115,7 @@ const DEFAULT_BRIEF_CONFIG: BriefConfig = {
   // daily-brief behavior.
   weeklyDigestEnabled: false,
   weeklyDigestDay: 0,
+  sendTime: "06:00",
 };
 
 const DEFAULT_SETTINGS: Settings = {

@@ -1,6 +1,12 @@
-const FRONT_MATTER_CHARS = 50000;
-const SECTION_WINDOW_CHARS = 12000;
-const MAX_DIGEST_CHARS = 90000;
+// Trimmed from 50000/12000/90000 — a smaller input digest means less
+// prefill time per filing, which matters now that this whole check runs
+// under a hard wall-clock cap (see formatBrief.ts's IPO_CHECK_TIMEOUT_MS)
+// shared across up to MAX_PER_RUN concurrent filings. Still generous
+// enough to reliably cover the cover page, prospectus summary, and risk
+// factors on a typical S-1.
+const FRONT_MATTER_CHARS = 30000;
+const SECTION_WINDOW_CHARS = 8000;
+const MAX_DIGEST_CHARS = 55000;
 
 const TAIL_SECTION_ANCHORS = ["USE OF PROCEEDS", "CAPITALIZATION", "UNDERWRITING"];
 

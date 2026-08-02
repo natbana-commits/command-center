@@ -502,3 +502,12 @@ create table if not exists sessions (
   revoked boolean not null default false
 );
 create index if not exists sessions_expires_idx on sessions (expires_at);
+
+-- Dynamic brief scheduling state (src/chat/dailyContext.ts) — replaces a
+-- fixed vercel.json cron time (which can't read from Settings and drifts
+-- an hour twice a year across DST) with a check on every existing 5-
+-- minute GitHub Actions poll: "has today's configured send time passed,
+-- and have I not sent yet?" These two timestamps are that state, one row
+-- per day, doubling as the guard against sending either pass twice.
+alter table daily_context add column if not exists brief_sent_at timestamptz;
+alter table daily_context add column if not exists news_attempted_at timestamptz;
