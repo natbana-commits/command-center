@@ -199,8 +199,17 @@ export const BASE_STYLES = `
     flex: 0 0 auto;
   }
   .sidebar-user-name { font-size: 14px; font-weight: 500; color: var(--ink); }
-  .theme-toggle-btn {
+  .sidebar-user-icon-link {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    padding: 4px;
+  }
+  .sidebar-user-icon-link svg { width: 16px; height: 16px; }
+  .sidebar-user-icon-link:hover,
+  .sidebar-user-icon-link-active { color: var(--accent); }
+  .theme-toggle-btn {
     background: none;
     border: none;
     cursor: pointer;

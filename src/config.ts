@@ -30,7 +30,6 @@ export const NAV_TAB_IDS = [
   "calendar",
   "reminders",
   "contacts",
-  "info",
   "ipos",
   "finances",
   "school",

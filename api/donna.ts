@@ -23,7 +23,6 @@ import { getCommunityFeedItems } from "../src/news/communityFeeds.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
-import { buildInfoHtml } from "../src/donna/infoPage.js";
 import { isAuthenticated, requireAuth, createSession, destroySession, verifyPassword } from "../src/auth/session.js";
 import { isLoginLocked, recordFailedLogin, clearFailedLogins } from "../src/auth/loginAttempts.js";
 
@@ -72,17 +71,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!(await requireAuth(req, res))) return;
-
-  // Folded in from the old api/donna-info.ts (deleted) to free a Vercel
-  // Hobby function slot for api/donna-finances.ts — same "?page=" query-
-  // param branching used for login/logout above.
-  if (page === "info") {
-    const settings = await loadSettings();
-    const html = buildInfoHtml(settings.dashboardConfig.navVisibility, settings.dashboardConfig.navOrder);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.status(200).send(html);
-    return;
-  }
 
   if (req.method === "POST") {
     const text = (req.body?.text ?? "").toString().trim();

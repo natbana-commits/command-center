@@ -44,10 +44,6 @@ export const iconUser = svg(
 
 export const iconX = svg(`<path d="M18 6 6 18" /><path d="M6 6l12 12" />`);
 
-export const iconInfo = svg(
-  `<circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" />`
-);
-
 export const iconSend = svg(`<path d="M4 20 20 12 4 4v6l12 2-12 2Z" />`);
 
 export const iconMore = svg(

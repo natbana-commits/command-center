@@ -6,7 +6,6 @@ import {
   iconBell,
   iconSettings,
   iconUser,
-  iconInfo,
   iconMore,
   iconTrendingUp,
   iconWallet,
@@ -28,9 +27,14 @@ export type Tab = "home" | NavTabId | "settings";
 
 type NavEntry = { tab: Tab; label: string; href: string; icon: string };
 
-// Home and Settings are pinned — always shown, always first/last — so
-// they're not part of NavVisibility or the reorderable navOrder. Every
-// other tab is "middle": reorderable, and individually hideable.
+// Home is pinned, always shown, always first — not part of NavVisibility
+// or the reorderable navOrder. Settings used to be pinned last the same
+// way, but now lives as a small icon in the sidebar footer (see
+// layout.ts's .sidebar-user) instead of a full nav row — still not part
+// of NavVisibility/navOrder, just no longer rendered by visibleTabs()
+// below. It's kept here so renderBottomNav can still surface it in the
+// mobile "More" sheet. Every other tab is "middle": reorderable, and
+// individually hideable.
 const HOME_TAB: NavEntry = { tab: "home", label: "Home", href: "/donna", icon: iconHome };
 const SETTINGS_TAB: NavEntry = { tab: "settings", label: "Settings", href: "/donna/settings", icon: iconSettings };
 
@@ -42,7 +46,6 @@ const MIDDLE_TAB_META: Record<NavTabId, { label: string; href: string; icon: str
   calendar: { label: "Calendar", href: "/donna/calendar", icon: iconCalendar },
   reminders: { label: "Reminders", href: "/donna/reminders", icon: iconBell },
   contacts: { label: "Contacts", href: "/donna/contacts", icon: iconUser },
-  info: { label: "Info", href: "/donna/info", icon: iconInfo },
   ipos: { label: "IPOs", href: "/donna/ipos", icon: iconTrendingUp },
   finances: { label: "Finances", href: "/donna/finances", icon: iconWallet },
   school: { label: "School", href: "/donna/school", icon: iconGraduationCap },
@@ -69,7 +72,7 @@ function orderedMiddleTabs(navVisibility: NavVisibility, navOrder: string[]): Na
 }
 
 function visibleTabs(navVisibility: NavVisibility, navOrder: string[]): NavEntry[] {
-  return [HOME_TAB, ...orderedMiddleTabs(navVisibility, navOrder), SETTINGS_TAB];
+  return [HOME_TAB, ...orderedMiddleTabs(navVisibility, navOrder)];
 }
 
 function navLink(t: NavEntry, active: Tab, linkClass: string, activeClass: string): string {
@@ -84,16 +87,17 @@ export function renderSidebarNav(active: Tab, navVisibility: NavVisibility, navO
 
 // Mobile bottom bar has room for about 5 icons before it feels cramped —
 // Home + the first 3 (visible, ordered) middle tabs show directly; the
-// rest collapse into a "More" sheet. Settings is unconditionally part of
-// that overflow (it's appended to every tabs list, visibility or not),
-// so overflow always has at least one entry — the sheet/button below
-// always render, never just the primary bar alone. Scales fine as more
-// tabs get added later: the sheet just grows, the bar doesn't.
+// rest collapse into a "More" sheet, and Settings is unconditionally
+// part of that overflow (appended directly here, not part of
+// visibleTabs() any more), so overflow always has at least one entry —
+// the sheet/button below always render, never just the primary bar
+// alone. Scales fine as more tabs get added later: the sheet just
+// grows, the bar doesn't.
 export function renderBottomNav(active: Tab, navVisibility: NavVisibility, navOrder: string[]): string {
   const tabs = visibleTabs(navVisibility, navOrder);
-  const middle = tabs.slice(1, -1);
+  const middle = tabs.slice(1);
   const primary = [tabs[0], ...middle.slice(0, 3)];
-  const overflow = [...middle.slice(3), tabs[tabs.length - 1]];
+  const overflow = [...middle.slice(3), SETTINGS_TAB];
 
   const primaryHtml = primary.map((t) => navLink(t, active, "bottom-nav-link", "bottom-nav-link-active")).join("");
   const overflowActive = overflow.some((t) => t.tab === active);

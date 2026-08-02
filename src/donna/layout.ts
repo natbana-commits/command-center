@@ -2,6 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
+import { iconSettings } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -74,7 +75,6 @@ const PALETTE_PAGES = [
   { title: "School", href: "/donna/school" },
   { title: "Finances", href: "/donna/finances" },
   { title: "Contacts", href: "/donna/contacts" },
-  { title: "Info", href: "/donna/info" },
   { title: "Files", href: "/donna/files" },
   { title: "Settings", href: "/donna/settings" },
 ];
@@ -592,6 +592,7 @@ ${BASE_STYLES}
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
+        <a class="sidebar-user-icon-link${activeTab === "settings" ? " sidebar-user-icon-link-active" : ""}" href="/donna/settings" title="Settings" aria-label="Settings">${iconSettings}</a>
         <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">&#x1F319;</button>
         <a class="sidebar-user-logout" href="/donna/logout" title="Sign out">&#x2715;</a>
       </div>

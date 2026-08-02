@@ -12,7 +12,6 @@
     { "source": "/donna/calendar", "destination": "/api/donna-calendar" },
     { "source": "/donna/reminders", "destination": "/api/donna-reminders" },
     { "source": "/donna/contacts", "destination": "/api/donna-contacts" },
-    { "source": "/donna/info", "destination": "/api/donna?page=info" },
     { "source": "/donna/settings", "destination": "/api/donna-settings" },
     { "source": "/donna/ipos", "destination": "/api/donna-ipos" },
     { "source": "/donna/finances", "destination": "/api/donna-finances" },
