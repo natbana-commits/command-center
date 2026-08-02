@@ -11,10 +11,16 @@ import {
   deleteCommunityFeedSource,
 } from "../src/news/communityFeeds.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
-import { requireAuth } from "../src/auth/session.js";
+import {
+  requireAuth,
+  listActiveSessions,
+  getCurrentSessionId,
+  revokeSession,
+  revokeOtherSessions,
+} from "../src/auth/session.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
 
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
@@ -110,6 +116,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      if (action === "revoke-session") {
+        if (body.id) {
+          await revokeSession(body.id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "revoke-other-sessions") {
+        const currentSessionId = getCurrentSessionId(req);
+        if (currentSessionId) {
+          await revokeOtherSessions(currentSessionId);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
       // A single "Dashboard" form covers both saving and reordering — each
       // submit button carries its own `action` value ("save-dashboard-
       // settings", or "move-up:<widgetId>"/"move-down:<widgetId>" for
@@ -198,15 +221,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources] = await Promise.all([
-    loadSettings(),
-    getClassFolders(),
-    getWatchlistEntries(),
-    getReminderGroups(),
-    getCommunityFeedSources(),
-  ]);
+  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources, sessions] =
+    await Promise.all([
+      loadSettings(),
+      getClassFolders(),
+      getWatchlistEntries(),
+      getReminderGroups(),
+      getCommunityFeedSources(),
+      listActiveSessions(),
+    ]);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
+  const currentSessionId = getCurrentSessionId(req);
 
   const html = buildSettingsHtml(
     settings,
@@ -214,6 +240,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     watchlistEntries,
     reminderGroups,
     communityFeedSources,
+    sessions,
+    currentSessionId,
     saved,
     error
   );

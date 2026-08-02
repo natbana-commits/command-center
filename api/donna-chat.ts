@@ -107,7 +107,7 @@ async function handleChatTabPage(req: VercelRequest, res: VercelResponse) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
 
   if (req.query.page === "chat") {
     await handleChatTabPage(req, res);

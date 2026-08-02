@@ -16,6 +16,7 @@ import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
 import { pruneOldReminderNotifications } from "./reminders/notifications.js";
 import { pruneOldLoginAttempts } from "./auth/loginAttempts.js";
+import { pruneOldSessions } from "./auth/session.js";
 import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
 import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
 import { isPlaidConfigured } from "./finance/plaidClient.js";
@@ -60,6 +61,7 @@ export async function buildBriefMessages(): Promise<BriefMessage[]> {
   await pruneOldNewsletters();
   await pruneOldReminderNotifications();
   await pruneOldLoginAttempts();
+  await pruneOldSessions();
   if (isPlaidConfigured()) {
     await snapshotAccountBalances().catch((err) => console.error("Balance snapshot failed:", err));
   }

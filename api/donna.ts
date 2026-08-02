@@ -24,7 +24,7 @@ import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
 import { buildInfoHtml } from "../src/donna/infoPage.js";
-import { isAuthenticated, requireAuth, setSessionCookie, clearSessionCookie, verifyPassword } from "../src/auth/session.js";
+import { isAuthenticated, requireAuth, createSession, destroySession, verifyPassword } from "../src/auth/session.js";
 import { isLoginLocked, recordFailedLogin, clearFailedLogins } from "../src/auth/loginAttempts.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const password = ((req.body ?? {}).password ?? "").toString();
       if (verifyPassword(password)) {
         await clearFailedLogins(req).catch(() => {});
-        setSessionCookie(req, res);
+        await createSession(req, res);
         res.redirect(303, "/donna");
       } else {
         await recordFailedLogin(req).catch(() => {});
@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return;
     }
-    if (isAuthenticated(req)) {
+    if (await isAuthenticated(req)) {
       res.redirect(303, "/donna");
       return;
     }
@@ -66,12 +66,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (page === "logout") {
-    clearSessionCookie(req, res);
+    await destroySession(req, res);
     res.redirect(303, "/donna/login");
     return;
   }
 
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
 
   // Folded in from the old api/donna-info.ts (deleted) to free a Vercel
   // Hobby function slot for api/donna-finances.ts — same "?page=" query-

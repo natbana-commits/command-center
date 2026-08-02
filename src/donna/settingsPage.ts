@@ -3,6 +3,7 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { WatchlistEntry } from "../news/watchlist.js";
 import type { ReminderGroup } from "../reminders/groups.js";
 import type { CommunityFeedSource } from "../news/communityFeeds.js";
+import type { SessionInfo } from "../auth/session.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
@@ -108,6 +109,65 @@ function renderCommunityFeedRows(sources: CommunityFeedSource[]): string {
     .join("\n");
 }
 
+// Rough, best-effort device label from the raw User-Agent header — just
+// enough to tell sessions apart at a glance ("iPhone" vs "Mac"), not a
+// full UA parse.
+function describeUserAgent(ua: string | null): string {
+  if (!ua) return "Unknown device";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /Chrome\//.test(ua)
+      ? "Chrome"
+      : /Firefox\//.test(ua)
+        ? "Firefox"
+        : /Safari\//.test(ua)
+          ? "Safari"
+          : "Browser";
+  const device = /iPhone/.test(ua)
+    ? "iPhone"
+    : /iPad/.test(ua)
+      ? "iPad"
+      : /Android/.test(ua)
+        ? "Android"
+        : /Macintosh/.test(ua)
+          ? "Mac"
+          : /Windows/.test(ua)
+            ? "Windows"
+            : "device";
+  return `${browser} on ${device}`;
+}
+
+function formatSessionTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function renderSessionRow(session: SessionInfo, currentSessionId: string | null): string {
+  const isCurrent = session.id === currentSessionId;
+  return `
+    <div class="class-row">
+      <span>
+        ${escapeHtml(describeUserAgent(session.userAgent))}${isCurrent ? ` <span class="hint" style="margin:0;">(this device)</span>` : ""}
+        <span class="hint" style="display:block;">Last active ${escapeHtml(formatSessionTime(session.lastSeenAt))}</span>
+      </span>
+      ${
+        isCurrent
+          ? ""
+          : `<form method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="revoke-session" />
+        <input type="hidden" name="id" value="${escapeHtml(session.id)}" />
+        <button class="btn btn-danger" type="submit">Sign out</button>
+      </form>`
+      }
+    </div>`;
+}
+
+function renderSessionRows(sessions: SessionInfo[], currentSessionId: string | null): string {
+  if (sessions.length === 0) {
+    return `<p class="empty">No active sessions.</p>`;
+  }
+  return sessions.map((s) => renderSessionRow(s, currentSessionId)).join("\n");
+}
+
 // Same reorderable-row pattern as renderWidgetRow, on distinct action
 // names (move-nav-up/down vs move-up/down) so the single dashboard form
 // can tell a nav-reorder click apart from a widget-reorder click.
@@ -163,6 +223,8 @@ export function buildSettingsHtml(
   watchlistEntries: WatchlistEntry[],
   reminderGroups: ReminderGroup[],
   communityFeedSources: CommunityFeedSource[],
+  sessions: SessionInfo[],
+  currentSessionId: string | null,
   saved: boolean,
   error?: string
 ): string {
@@ -340,6 +402,21 @@ export function buildSettingsHtml(
         <button class="btn" type="submit">Add</button>
       </form>
       <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Sessions</h1>
+      ${renderSessionRows(sessions, currentSessionId)}
+
+      ${
+        sessions.length > 1
+          ? `<form method="POST" action="/api/donna-settings" style="margin-top: var(--sp-2);" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
+        <input type="hidden" name="action" value="revoke-other-sessions" />
+        <button class="btn btn-danger" type="submit">Sign out all other devices</button>
+      </form>`
+          : ""
+      }
+      <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device — it takes effect immediately, without changing your password.</div>
     </section>`;
 
   return renderLayout({

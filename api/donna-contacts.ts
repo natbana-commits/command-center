@@ -37,7 +37,7 @@ function resolveIsoDate(raw: string | undefined): string | undefined {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
 
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);

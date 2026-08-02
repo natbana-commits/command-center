@@ -6,7 +6,7 @@ import { buildIposHtml } from "../src/donna/iposPage.js";
 import { requireAuth } from "../src/auth/session.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!requireAuth(req, res)) return;
+  if (!(await requireAuth(req, res))) return;
 
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;

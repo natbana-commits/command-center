@@ -486,3 +486,19 @@ insert into community_feed_sources (url, label) values
   ('https://www.reddit.com/r/investing/.rss', 'r/investing'),
   ('https://www.reddit.com/r/SecurityAnalysis/.rss', 'r/SecurityAnalysis')
 on conflict (url) do nothing;
+
+-- Server-side session store (src/auth/session.ts) — replaces the earlier
+-- purely stateless HMAC-signed cookie, which had no way to revoke a
+-- single session (only rotating SESSION_SECRET, which logs out every
+-- device at once). The cookie now holds a signed reference to a row
+-- here, so a specific device's session (e.g. a lost phone) can be killed
+-- from Settings on any other device without affecting the rest.
+create table if not exists sessions (
+  id text primary key,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  last_seen_at timestamptz not null default now(),
+  user_agent text,
+  revoked boolean not null default false
+);
+create index if not exists sessions_expires_idx on sessions (expires_at);
