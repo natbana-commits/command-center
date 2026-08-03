@@ -200,12 +200,12 @@ export const BASE_STYLES = `
   }
   .sidebar-user-name { font-size: 14px; font-weight: 500; color: var(--ink); }
   .sidebar-user-icon-link {
-    margin-left: auto;
     display: flex;
     align-items: center;
     color: var(--text-muted);
     padding: 4px;
   }
+  .sidebar-user-icon-link:first-of-type { margin-left: auto; }
   .sidebar-user-icon-link svg { width: 16px; height: 16px; }
   .sidebar-user-icon-link:hover,
   .sidebar-user-icon-link-active { color: var(--accent); }

@@ -2,7 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
-import { iconSettings } from "./icons.js";
+import { iconInfo, iconSettings } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -308,7 +308,12 @@ const ROUTER_SCRIPT = `
       if (!res.ok) throw new Error("bad status " + res.status);
       const text = await res.text();
       const doc = new DOMParser().parseFromString(text, "text/html");
-      if (push) history.pushState({ swapped: true }, "", res.url || url);
+      if (push) {
+        let target = res.url || url;
+        const hashIndex = url.indexOf("#");
+        if (hashIndex !== -1 && target.indexOf("#") === -1) target += url.slice(hashIndex);
+        history.pushState({ swapped: true }, "", target);
+      }
       swapFrom(doc);
     } catch (err) {
       // Fall back to a real navigation — never leave the click/submit
@@ -592,6 +597,7 @@ ${BASE_STYLES}
       <div class="sidebar-user">
         <div class="sidebar-user-avatar"></div>
         <div class="sidebar-user-name">Nathan</div>
+        <a class="sidebar-user-icon-link" href="/donna/settings#how-this-works" title="How this works" aria-label="How this works">${iconInfo}</a>
         <a class="sidebar-user-icon-link${activeTab === "settings" ? " sidebar-user-icon-link-active" : ""}" href="/donna/settings" title="Settings" aria-label="Settings">${iconSettings}</a>
         <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">&#x1F319;</button>
         <a class="sidebar-user-logout" href="/donna/logout" title="Sign out">&#x2715;</a>

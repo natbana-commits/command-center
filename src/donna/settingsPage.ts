@@ -501,7 +501,7 @@ export function buildSettingsHtml(
     </section>
 
     <section class="section card" style="margin-top: 16px;">
-      <details>
+      <details id="how-this-works">
         <summary class="section-title" style="cursor:pointer;">How this works</summary>
         <div style="margin-top: var(--sp-2);">
           ${HOW_THIS_WORKS.map(renderHowThisWorksSection).join("\n")}
@@ -516,5 +516,22 @@ export function buildSettingsHtml(
     showChatFab: true,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
+    // The sidebar's info icon links here with a #how-this-works
+    // fragment — a hard load lands on it natively, but the client-side
+    // router's swap doesn't trigger the browser's own fragment-reveal
+    // behavior, so this handles both cases directly.
+    pageScript: SETTINGS_CLIENT_SCRIPT,
   });
 }
+
+const SETTINGS_CLIENT_SCRIPT = `
+(function () {
+  if (window.location.hash === "#how-this-works") {
+    const details = document.getElementById("how-this-works");
+    if (details) {
+      details.open = true;
+      details.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+})();
+`;
