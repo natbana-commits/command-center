@@ -22,7 +22,9 @@ interface TelegramUpdate {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = req.headers["x-telegram-bot-api-secret-token"];
-  if (secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+  // The empty-string check matters: without it, an unset TELEGRAM_WEBHOOK_SECRET
+  // would make both sides `undefined` and silently authenticate any request.
+  if (!process.env.TELEGRAM_WEBHOOK_SECRET || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
     res.status(401).send("Unauthorized");
     return;
   }

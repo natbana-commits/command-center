@@ -4,6 +4,7 @@ import { transcribeAudio, isOpenAiConfigured, FileTooLargeError } from "../src/t
 import { generateNotesFromTranscript } from "../src/transcription/notes.js";
 import { extractTextFromImage } from "../src/vision/ocr.js";
 import { requireAuth } from "../src/auth/session.js";
+import { isRateLimited } from "../src/auth/rateLimit.js";
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -88,12 +89,11 @@ async function handleComplete(req: VercelRequest, res: VercelResponse) {
       res.status(200).json({ status: "done", notes: text });
     }
   } catch (err) {
+    // FileTooLargeError's message is a deliberately crafted, safe,
+    // user-facing string (file size + limit) — everything else could be a
+    // raw error from OpenAI/OCR/Supabase, so it's logged but not returned.
     const message =
-      err instanceof FileTooLargeError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : String(err);
+      err instanceof FileTooLargeError ? err.message : "Something went wrong processing this upload — try again.";
     console.error(`Upload ${uploadId} processing failed:`, err);
     await updateUpload(uploadId, { status: "failed", error: message });
     res.status(200).json({ status: "failed", error: message });
@@ -105,6 +105,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  // Guards against a compromised session hammering the transcription/OCR
+  // APIs behind "complete" — 10 per 15min is generous for a real multi-file
+  // upload session.
+  if (await isRateLimited(req, "upload", 10, 15).catch(() => false)) {
+    res.status(429).json({ error: "Too many uploads — slow down a bit and try again shortly." });
     return;
   }
 

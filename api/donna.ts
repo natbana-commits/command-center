@@ -93,6 +93,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
 
+  // Fresh 2-day fetch for the Home Calendar card's mini today/tomorrow
+  // view — the day's cached DailyContext only ever carries today's
+  // events. Calendar reads are a plain ICS pull (no OAuth), so this is
+  // gated by a try/catch rather than isGoogleConfigured(), matching
+  // donna-calendar.ts's own pattern. Kicked off here (rather than after
+  // the Promise.all blocks below) since it depends on nothing but
+  // `timezone` — starting it immediately overlaps its latency with theirs
+  // instead of adding a third serial round-trip to the page load.
+  const calendarPromise: Promise<{ todayEvents: CalendarEvent[]; tomorrowEvents: CalendarEvent[] }> = (async () => {
+    try {
+      const todayBounds = dayBounds(new Date(), timezone);
+      const tomorrowBounds = dayBounds(new Date(todayBounds.end.getTime() + 1), timezone);
+      const { events } = await getEventsInRange(timezone, todayBounds.start, tomorrowBounds.end);
+      return {
+        todayEvents: events.filter((e) => e.start < todayBounds.end),
+        tomorrowEvents: events.filter((e) => e.start >= todayBounds.end),
+      };
+    } catch {
+      // Calendar ICS feed not configured or unreachable — cards just show empty.
+      return { todayEvents: [], tomorrowEvents: [] };
+    }
+  })();
+
   const [
     context,
     newsletters,
@@ -119,32 +142,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     getUpcomingEconomicEvents().catch(() => []),
   ]);
   const taskIds = reminders.map((r) => r.id);
-  const [watchlistQuotes, communityFeedItems, classLinks, reminderNotifications, reminderGroups, groupLinks] =
-    await Promise.all([
-      getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
-      getCommunityFeedItems().catch(() => []),
-      getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
-      getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
-      getReminderGroups().catch(() => []),
-      getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
-    ]);
-
-  // Fresh 2-day fetch for the Home Calendar card's mini today/tomorrow
-  // view — the day's cached DailyContext only ever carries today's
-  // events. Calendar reads are a plain ICS pull (no OAuth), so this is
-  // gated by a try/catch rather than isGoogleConfigured(), matching
-  // donna-calendar.ts's own pattern.
-  let todayEvents: CalendarEvent[] = [];
-  let tomorrowEvents: CalendarEvent[] = [];
-  try {
-    const todayBounds = dayBounds(new Date(), timezone);
-    const tomorrowBounds = dayBounds(new Date(todayBounds.end.getTime() + 1), timezone);
-    const { events } = await getEventsInRange(timezone, todayBounds.start, tomorrowBounds.end);
-    todayEvents = events.filter((e) => e.start < todayBounds.end);
-    tomorrowEvents = events.filter((e) => e.start >= todayBounds.end);
-  } catch {
-    // Calendar ICS feed not configured or unreachable — cards just show empty.
-  }
+  const [
+    watchlistQuotes,
+    communityFeedItems,
+    classLinks,
+    reminderNotifications,
+    reminderGroups,
+    groupLinks,
+    { todayEvents, tomorrowEvents },
+  ] = await Promise.all([
+    getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
+    getCommunityFeedItems().catch(() => []),
+    getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+    getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
+    getReminderGroups().catch(() => []),
+    getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
+    calendarPromise,
+  ]);
 
   const html = buildDonnaHtml({
     context,

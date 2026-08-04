@@ -11,6 +11,7 @@ import { generateSchoolReply } from "../src/school/respond.js";
 import { buildChatTabHtml, type ChatMode } from "../src/donna/chatTabPage.js";
 import { globalSearch } from "../src/search/globalSearch.js";
 import { requireAuth } from "../src/auth/session.js";
+import { isRateLimited } from "../src/auth/rateLimit.js";
 
 // The command palette's dynamic-results lookup — folded in here (rather
 // than a new file) for the same Vercel Hobby 12-function reason as the
@@ -108,6 +109,15 @@ async function handleChatTabPage(req: VercelRequest, res: VercelResponse) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!(await requireAuth(req, res))) return;
+
+  // Every POST here (bare FAB endpoint below, and ?page=chat's own POST
+  // branch in handleChatTabPage) calls a paid LLM — this guards against a
+  // compromised session hammering it, not normal use (20/min is generous
+  // for an actual back-and-forth conversation).
+  if (req.method === "POST" && (await isRateLimited(req, "chat", 20, 1).catch(() => false))) {
+    res.status(429).json({ error: "Too many messages — slow down a bit and try again shortly." });
+    return;
+  }
 
   if (req.query.page === "chat") {
     await handleChatTabPage(req, res);

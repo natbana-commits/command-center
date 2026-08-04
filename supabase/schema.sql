@@ -369,6 +369,18 @@ create table if not exists login_attempts (
 );
 create index if not exists login_attempts_ip_idx on login_attempts (ip_address, attempted_at desc);
 
+-- Generic per-IP rate limiting for authenticated endpoints that front
+-- expensive backends (chat/LLM, upload transcription+OCR) — see
+-- src/auth/rateLimit.ts. "bucket" separates independent limits per endpoint
+-- (e.g. "chat", "upload") sharing one table.
+create table if not exists rate_limit_hits (
+  id bigint generated always as identity primary key,
+  bucket text not null,
+  ip_address text not null,
+  occurred_at timestamptz not null default now()
+);
+create index if not exists rate_limit_hits_bucket_ip_idx on rate_limit_hits (bucket, ip_address, occurred_at desc);
+
 -- Habit tracker: a proactive daily Telegram nudge at notify_time (local
 -- time-of-day, stored as plain "HH:MM" text rather than a `time` column so
 -- src/habits/store.ts can compare it against a locally-formatted string

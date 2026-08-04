@@ -187,7 +187,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const googleConfigured = isGoogleConfigured();
   const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
-  const [classFolders, reminderGroups] = await Promise.all([getClassFolders(), getReminderGroups()]);
+  // Kicked off here but not awaited until buildRemindersHtml needs it below —
+  // it's independent of the editing/reminders chain that follows, so letting
+  // it run alongside that chain instead of blocking in front of it removes a
+  // full round-trip from the critical path.
+  const classDataPromise = Promise.all([getClassFolders(), getReminderGroups()]);
   const sortMode: ReminderSortMode = req.query.sort === "group" ? "group" : "due";
 
   const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
@@ -218,6 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const habitCompletions = editing
     ? new Map<number, Set<string>>()
     : await getCompletedDatesForHabits(habits.map((h) => h.id)).catch(() => new Map<number, Set<string>>());
+  const [classFolders, reminderGroups] = await classDataPromise;
 
   const html = buildRemindersHtml({
     reminders,

@@ -21,6 +21,7 @@ import { listRemindersSafe } from "./google/tasks.js";
 import { isGoogleConfigured } from "./google/auth.js";
 import { pruneOldReminderNotifications } from "./reminders/notifications.js";
 import { pruneOldLoginAttempts } from "./auth/loginAttempts.js";
+import { pruneOldRateLimitHits } from "./auth/rateLimit.js";
 import { pruneOldSessions } from "./auth/session.js";
 import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
 import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
@@ -96,6 +97,7 @@ export async function buildFastBriefMessages(): Promise<BriefMessage[]> {
     pruneOldNewsletters(),
     pruneOldReminderNotifications(),
     pruneOldLoginAttempts(),
+    pruneOldRateLimitHits(),
     pruneOldSessions(),
   ]);
 

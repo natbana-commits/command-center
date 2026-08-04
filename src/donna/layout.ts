@@ -450,22 +450,24 @@ const PROGRESS_BAR_SCRIPT = `
 })();
 `;
 
+// Delegated on document (rather than binding to the button/sheet directly)
+// because the client-side router replaces #bottom-nav-region's innerHTML on
+// every navigation — direct bindings would go stale after the first swap,
+// same reasoning as ROUTER_SCRIPT's own click handling.
 const NAV_SHEET_SCRIPT = `
 (function () {
-  const btn = document.getElementById("bottom-nav-more-btn");
-  const sheet = document.getElementById("bottom-nav-sheet");
-  if (!btn || !sheet) return;
-
-  function close() {
-    sheet.classList.remove("open");
-  }
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    sheet.classList.toggle("open");
-  });
   document.addEventListener("click", (e) => {
-    if (sheet.classList.contains("open") && !sheet.contains(e.target) && e.target !== btn) close();
+    const sheet = document.getElementById("bottom-nav-sheet");
+    if (!sheet) return;
+    const btn = e.target && e.target.closest && e.target.closest("#bottom-nav-more-btn");
+    if (btn) {
+      e.stopPropagation();
+      sheet.classList.toggle("open");
+      return;
+    }
+    if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
+      sheet.classList.remove("open");
+    }
   });
 })();
 `;
