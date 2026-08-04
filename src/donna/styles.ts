@@ -886,27 +886,69 @@ export const BASE_STYLES = `
   .chat-bubble-user { background: var(--accent); color: #fff; align-self: flex-end; }
   .chat-bubble-assistant { background: var(--sidebar-bg); color: var(--ink); align-self: flex-start; }
 
-  .chat-fab {
+  /* Docked launcher bar — replaces the old floating circular FAB. Sits at
+     the bottom of the content column (left-offset past the sidebar) on
+     desktop, full-width above the bottom nav on mobile; see the media
+     query below. The peek button is what's left showing when dismissed. */
+  .chat-dock-bar {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    font-size: 24px;
-    line-height: 1;
+    left: calc(240px + var(--sp-4));
+    right: var(--sp-4);
+    max-width: 900px;
+    bottom: var(--sp-3);
+    height: 48px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px 0 16px;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
     z-index: 1000;
+  }
+  .chat-dock-placeholder { flex: 1; font-size: 14px; color: var(--text-muted); }
+  .chat-dock-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 7px;
+    display: flex;
+    border-radius: 50%;
+  }
+  .chat-dock-dismiss:hover { background: var(--sidebar-bg); color: var(--ink); }
+  .chat-dock-dismiss svg { width: 14px; height: 14px; }
+  .chat-dock-peek {
+    position: fixed;
+    bottom: var(--sp-3);
+    right: var(--sp-4);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    z-index: 1000;
   }
   @media (max-width: 860px) {
-    .chat-fab { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    .chat-dock-bar {
+      left: var(--sp-2);
+      right: var(--sp-2);
+      max-width: none;
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
+    .chat-dock-peek {
+      right: var(--sp-2);
+      bottom: calc(76px + env(safe-area-inset-bottom));
+    }
   }
   .chat-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1001; display: none; }
   .chat-scrim.open { display: block; }

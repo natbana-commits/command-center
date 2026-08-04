@@ -2,7 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
-import { iconInfo, iconSettings } from "./icons.js";
+import { iconInfo, iconSettings, iconChat, iconX } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -399,6 +399,10 @@ const ROUTER_SCRIPT = `
 })();
 `;
 
+// Replaced the old floating circular FAB with a docked bar (no element
+// floats over page content anymore) — the bar opens the same overlay panel
+// below when clicked, and can be dismissed to a small peek handle (state
+// kept in localStorage, see CHAT_FAB_SCRIPT) for when it's in the way.
 function renderChatFabMarkup(): string {
   return `
   <div class="chat-scrim" id="chat-scrim"></div>
@@ -413,7 +417,12 @@ function renderChatFabMarkup(): string {
       <button id="chat-overlay-send" aria-label="Send">&#x27A4;</button>
     </div>
   </div>
-  <button class="chat-fab" id="chat-fab" aria-label="Open chat">&#x1F4AC;</button>`;
+  <div class="chat-dock-bar" id="chat-dock-bar" role="button" tabindex="0" aria-label="Open chat">
+    ${iconChat}
+    <span class="chat-dock-placeholder">Ask Donna anything…</span>
+    <button class="chat-dock-dismiss" id="chat-dock-dismiss" aria-label="Hide">${iconX}</button>
+  </div>
+  <button class="chat-dock-peek" id="chat-dock-peek" aria-label="Show chat" hidden>${iconChat}</button>`;
 }
 
 // Every page navigation here is a full server-rendered reload, so there's
@@ -474,15 +483,29 @@ const NAV_SHEET_SCRIPT = `
 
 const CHAT_FAB_SCRIPT = `
 (function () {
-  const fab = document.getElementById("chat-fab");
+  const dockBar = document.getElementById("chat-dock-bar");
+  const peek = document.getElementById("chat-dock-peek");
+  const dismissBtn = document.getElementById("chat-dock-dismiss");
   const scrim = document.getElementById("chat-scrim");
   const panel = document.getElementById("chat-overlay-panel");
   const closeBtn = document.getElementById("chat-overlay-close");
   const body = document.getElementById("chat-overlay-body");
   const input = document.getElementById("chat-overlay-input");
   const sendBtn = document.getElementById("chat-overlay-send");
-  if (!fab) return;
+  if (!dockBar) return;
   let loaded = false;
+
+  // Same elements the whole page load (this script runs once, never inside
+  // a client-routed swap — see ROUTER_SCRIPT's swap targets), so a plain
+  // localStorage flag read once at load is all "hideable" needs; no
+  // duplicate-listener guard required like the Settings/More-button fixes.
+  const HIDDEN_KEY = "donna-chat-dock-hidden";
+  function applyDockVisibility() {
+    const hidden = localStorage.getItem(HIDDEN_KEY) === "1";
+    dockBar.hidden = hidden;
+    peek.hidden = !hidden;
+  }
+  applyDockVisibility();
 
   function appendBubble(role, text) {
     const div = document.createElement("div");
@@ -552,7 +575,24 @@ const CHAT_FAB_SCRIPT = `
     }
   }
 
-  fab.addEventListener("click", open);
+  dockBar.addEventListener("click", open);
+  dockBar.addEventListener("keydown", (e) => {
+    // e.target guard: keydown bubbles from the nested dismiss button too,
+    // which would otherwise also open the panel right after dismissing it.
+    if (e.target === dockBar && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      open();
+    }
+  });
+  dismissBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    localStorage.setItem(HIDDEN_KEY, "1");
+    applyDockVisibility();
+  });
+  peek.addEventListener("click", () => {
+    localStorage.removeItem(HIDDEN_KEY);
+    applyDockVisibility();
+  });
   closeBtn.addEventListener("click", close);
   scrim.addEventListener("click", close);
   sendBtn.addEventListener("click", send);
