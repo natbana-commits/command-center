@@ -181,21 +181,16 @@ export const BASE_STYLES = `
     margin-top: auto;
     border-top: 1px solid var(--border);
   }
-  .sidebar-user-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--taupe);
-    flex: 0 0 auto;
-  }
-  .sidebar-user-name { font-size: 14px; font-weight: 500; color: var(--ink); }
   .sidebar-user-icon-link {
     display: flex;
     align-items: center;
     color: var(--text-muted);
     padding: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
   }
-  .sidebar-user-icon-link:first-of-type { margin-left: auto; }
   .sidebar-user-icon-link svg { width: 16px; height: 16px; }
   .sidebar-user-icon-link:hover,
   .sidebar-user-icon-link-active { color: var(--accent); }
@@ -538,19 +533,27 @@ export const BASE_STYLES = `
   .cal-day-events { display: flex; flex-direction: column; gap: 6px; }
   .cal-event-block {
     border-left: 3px solid var(--accent);
-    padding: 4px 6px;
+    padding: 6px 8px;
     border-radius: 4px;
     background: var(--sidebar-bg);
-    overflow: hidden;
   }
   .cal-event-time { display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
   .cal-event-title {
     display: block;
-    font-size: 12px;
+    font-size: 12.5px;
+    font-weight: 500;
     color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-top: 1px;
+    /* Wraps instead of truncating — the whole point of the wider grid is
+       to have room to actually read what's on the calendar. */
+    overflow-wrap: break-word;
+  }
+  .cal-event-location {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    overflow-wrap: break-word;
   }
   @media (max-width: 860px) {
     .cal-week-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); }
@@ -899,70 +902,6 @@ export const BASE_STYLES = `
   .chat-bubble-user { background: var(--accent); color: #fff; align-self: flex-end; }
   .chat-bubble-assistant { background: var(--sidebar-bg); color: var(--ink); align-self: flex-start; }
 
-  /* Docked launcher bar — replaces the old floating circular FAB. Sits at
-     the bottom of the content column (left-offset past the sidebar) on
-     desktop, full-width above the bottom nav on mobile; see the media
-     query below. The peek button is what's left showing when dismissed. */
-  .chat-dock-bar {
-    position: fixed;
-    left: calc(240px + var(--sp-4));
-    right: var(--sp-4);
-    max-width: 900px;
-    bottom: var(--sp-3);
-    height: 48px;
-    border-radius: 999px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 8px 0 16px;
-    cursor: pointer;
-    z-index: 1000;
-  }
-  .chat-dock-placeholder { flex: 1; font-size: 14px; color: var(--text-muted); }
-  .chat-dock-dismiss {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 7px;
-    display: flex;
-    border-radius: 50%;
-  }
-  .chat-dock-dismiss:hover { background: var(--sidebar-bg); color: var(--ink); }
-  .chat-dock-dismiss svg { width: 14px; height: 14px; }
-  .chat-dock-peek {
-    position: fixed;
-    bottom: var(--sp-3);
-    right: var(--sp-4);
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--card);
-    border: 1px solid var(--border);
-    color: var(--accent);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    z-index: 1000;
-  }
-  @media (max-width: 860px) {
-    .chat-dock-bar {
-      left: var(--sp-2);
-      right: var(--sp-2);
-      max-width: none;
-      bottom: calc(76px + env(safe-area-inset-bottom));
-    }
-    .chat-dock-peek {
-      right: var(--sp-2);
-      bottom: calc(76px + env(safe-area-inset-bottom));
-    }
-  }
   .chat-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1001; display: none; }
   .chat-scrim.open { display: block; }
   .chat-overlay-panel {

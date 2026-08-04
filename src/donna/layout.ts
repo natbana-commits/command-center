@@ -2,7 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
-import { iconInfo, iconSettings, iconChat, iconX } from "./icons.js";
+import { iconInfo, iconSettings, iconChat } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -430,10 +430,10 @@ const ROUTER_SCRIPT = `
 })();
 `;
 
-// Replaced the old floating circular FAB with a docked bar (no element
-// floats over page content anymore) — the bar opens the same overlay panel
-// below when clicked, and can be dismissed to a small peek handle (state
-// kept in localStorage, see CHAT_FAB_SCRIPT) for when it's in the way.
+// The trigger itself lives in the sidebar's icon cluster (next to
+// Info/Settings/theme-toggle, see the sidebar-user markup below) — this is
+// just the overlay panel it opens, kept as its own persistent (non-swapped)
+// region same as before.
 function renderChatFabMarkup(): string {
   return `
   <div class="chat-scrim" id="chat-scrim"></div>
@@ -447,13 +447,7 @@ function renderChatFabMarkup(): string {
       <input type="text" id="chat-overlay-input" placeholder="Ask Donna…" autocomplete="off" />
       <button id="chat-overlay-send" aria-label="Send">&#x27A4;</button>
     </div>
-  </div>
-  <div class="chat-dock-bar" id="chat-dock-bar" role="button" tabindex="0" aria-label="Open chat">
-    ${iconChat}
-    <span class="chat-dock-placeholder">Ask Donna anything…</span>
-    <button class="chat-dock-dismiss" id="chat-dock-dismiss" aria-label="Hide">${iconX}</button>
-  </div>
-  <button class="chat-dock-peek" id="chat-dock-peek" aria-label="Show chat" hidden>${iconChat}</button>`;
+  </div>`;
 }
 
 // Every page navigation here is a full server-rendered reload, so there's
@@ -514,29 +508,15 @@ const NAV_SHEET_SCRIPT = `
 
 const CHAT_FAB_SCRIPT = `
 (function () {
-  const dockBar = document.getElementById("chat-dock-bar");
-  const peek = document.getElementById("chat-dock-peek");
-  const dismissBtn = document.getElementById("chat-dock-dismiss");
+  const trigger = document.getElementById("chat-trigger-btn");
   const scrim = document.getElementById("chat-scrim");
   const panel = document.getElementById("chat-overlay-panel");
   const closeBtn = document.getElementById("chat-overlay-close");
   const body = document.getElementById("chat-overlay-body");
   const input = document.getElementById("chat-overlay-input");
   const sendBtn = document.getElementById("chat-overlay-send");
-  if (!dockBar) return;
+  if (!trigger) return;
   let loaded = false;
-
-  // Same elements the whole page load (this script runs once, never inside
-  // a client-routed swap — see ROUTER_SCRIPT's swap targets), so a plain
-  // localStorage flag read once at load is all "hideable" needs; no
-  // duplicate-listener guard required like the Settings/More-button fixes.
-  const HIDDEN_KEY = "donna-chat-dock-hidden";
-  function applyDockVisibility() {
-    const hidden = localStorage.getItem(HIDDEN_KEY) === "1";
-    dockBar.hidden = hidden;
-    peek.hidden = !hidden;
-  }
-  applyDockVisibility();
 
   function appendBubble(role, text) {
     const div = document.createElement("div");
@@ -606,24 +586,7 @@ const CHAT_FAB_SCRIPT = `
     }
   }
 
-  dockBar.addEventListener("click", open);
-  dockBar.addEventListener("keydown", (e) => {
-    // e.target guard: keydown bubbles from the nested dismiss button too,
-    // which would otherwise also open the panel right after dismissing it.
-    if (e.target === dockBar && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      open();
-    }
-  });
-  dismissBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    localStorage.setItem(HIDDEN_KEY, "1");
-    applyDockVisibility();
-  });
-  peek.addEventListener("click", () => {
-    localStorage.removeItem(HIDDEN_KEY);
-    applyDockVisibility();
-  });
+  trigger.addEventListener("click", open);
   closeBtn.addEventListener("click", close);
   scrim.addEventListener("click", close);
   sendBtn.addEventListener("click", send);
@@ -668,8 +631,7 @@ ${BASE_STYLES}
       </button>
       <nav class="sidebar-nav" id="sidebar-nav-region">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
       <div class="sidebar-user">
-        <div class="sidebar-user-avatar"></div>
-        <div class="sidebar-user-name">Nathan</div>
+        <button type="button" class="sidebar-user-icon-link" id="chat-trigger-btn" title="Ask Donna" aria-label="Ask Donna">${iconChat}</button>
         <a class="sidebar-user-icon-link" href="/donna/settings#how-this-works" title="How this works" aria-label="How this works">${iconInfo}</a>
         <a class="sidebar-user-icon-link${activeTab === "settings" ? " sidebar-user-icon-link-active" : ""}" href="/donna/settings" title="Settings" aria-label="Settings">${iconSettings}</a>
         <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">&#x1F319;</button>

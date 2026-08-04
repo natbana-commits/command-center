@@ -26,11 +26,15 @@ function formatEventTime(iso: string | Date, timezone: string): string {
 }
 
 function renderEventBlock(e: CalendarEvent, timezone: string): string {
-  const timeLabel = formatEventTime(e.start, timezone);
+  const timeLabel = e.end
+    ? `${formatEventTime(e.start, timezone)} – ${formatEventTime(e.end, timezone)}`
+    : formatEventTime(e.start, timezone);
+  const locationHtml = e.location ? `<span class="cal-event-location">${escapeHtml(e.location)}</span>` : "";
   return `
-    <div class="cal-event-block" title="${escapeHtml(e.summary)}${e.location ? ` — ${escapeHtml(e.location)}` : ""}">
+    <div class="cal-event-block">
       <span class="cal-event-time">${escapeHtml(timeLabel)}</span>
       <span class="cal-event-title">${escapeHtml(e.summary)}</span>
+      ${locationHtml}
     </div>`;
 }
 
