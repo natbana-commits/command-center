@@ -220,6 +220,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
       classFolders: [],
       activeClass: null,
       uploads: [],
+      driveFiles: [],
       dueFlashcards: [],
       otherFlashcards: [],
       studyStats: { streakDays: 0, weeklyMinutes: 0 },
@@ -234,8 +235,10 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
   const requestedClassId = typeof req.query.classId === "string" ? Number(req.query.classId) : undefined;
   const activeClass = classFolders.find((c) => c.id === requestedClassId) ?? classFolders[0];
 
-  const [uploads, allFlashcards, studyStats] = await Promise.all([
+  const googleConfigured = isGoogleConfigured();
+  const [uploads, driveFiles, allFlashcards, studyStats] = await Promise.all([
     getUploadsForClass(activeClass.id).catch(() => []),
+    googleConfigured ? listFilesInFolder(activeClass.driveFolderId).catch(() => []) : Promise.resolve([]),
     getFlashcardsForClass(activeClass.id).catch(() => []),
     getStudyStats(activeClass.id, resolveTimezone(settings.timezone)).catch(() => ({ streakDays: 0, weeklyMinutes: 0 })),
   ]);
@@ -248,6 +251,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
     classFolders,
     activeClass,
     uploads,
+    driveFiles,
     dueFlashcards,
     otherFlashcards,
     studyStats,

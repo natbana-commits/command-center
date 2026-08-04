@@ -1,11 +1,13 @@
 import type { NavVisibility } from "../config.js";
 import type { ClassFolder } from "../drive/classFolders.js";
+import type { DriveFile } from "../drive/list.js";
 import type { Upload } from "../storage/uploads.js";
 import type { Flashcard } from "../school/flashcards.js";
 import type { StudyStats } from "../school/studySessions.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { renderPageEditLink } from "./editLink.js";
+import { buildLibraryRows, renderLibraryTable, FILE_TABLE_SCRIPT } from "./filesPage.js";
 
 function renderClassTabs(classFolders: ClassFolder[], activeClassId: number): string {
   return classFolders
@@ -82,6 +84,7 @@ export interface SchoolPageData {
   classFolders: ClassFolder[];
   activeClass: ClassFolder | null;
   uploads: Upload[];
+  driveFiles: DriveFile[];
   dueFlashcards: Flashcard[];
   otherFlashcards: Flashcard[];
   studyStats: StudyStats;
@@ -90,7 +93,7 @@ export interface SchoolPageData {
 }
 
 export function buildSchoolHtml(data: SchoolPageData): string {
-  const { classFolders, activeClass, uploads, dueFlashcards, otherFlashcards, studyStats, navVisibility, navOrder } = data;
+  const { classFolders, activeClass, uploads, driveFiles, dueFlashcards, otherFlashcards, studyStats, navVisibility, navOrder } = data;
 
   if (classFolders.length === 0) {
     return renderLayout({
@@ -144,7 +147,13 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     </div>
 
     <div class="section" style="margin-top: var(--sp-3);">
+      <h1 class="section-title">Files</h1>
+      ${renderLibraryTable(buildLibraryRows([cls], { [cls.id]: driveFiles }, { [cls.id]: uploads }, []))}
+    </div>
+
+    <div class="section" style="margin-top: var(--sp-3);">
       <h1 class="section-title">Lecture Uploads</h1>
+      <p class="hint" style="margin-top:-8px; margin-bottom: var(--sp-2);">Transcribed lectures can generate flashcards below — everything else for ${escapeHtml(cls.className)} (including plain Drive files) is in Files above.</p>
       ${uploads.length === 0 ? `<p class="empty">No lecture uploads for ${escapeHtml(cls.className)} yet — upload one from the Files page.</p>` : uploads.map(renderUploadRow).join("\n")}
     </div>`;
 
@@ -155,7 +164,7 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     showChatFab: true,
     navVisibility,
     navOrder,
-    pageScript: STUDY_TIMER_SCRIPT,
+    pageScript: STUDY_TIMER_SCRIPT + FILE_TABLE_SCRIPT,
   });
 }
 

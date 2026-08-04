@@ -8,7 +8,10 @@ import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { renderPageEditLink } from "./editLink.js";
 
-interface LibraryRow {
+// Exported for schoolPage.ts, which shows the same combined Drive-files +
+// app-uploads listing scoped to just the active class instead of every
+// class — rather than re-deriving this shape in two places.
+export interface LibraryRow {
   title: string;
   className: string;
   dateIso: string;
@@ -43,7 +46,7 @@ function uploadToRow(u: Upload, className: string): LibraryRow {
   };
 }
 
-function buildLibraryRows(
+export function buildLibraryRows(
   classFolders: ClassFolder[],
   filesByClass: Record<number, DriveFile[]>,
   uploadsByClass: Record<number, Upload[]>,
@@ -75,7 +78,7 @@ function buildLibraryRows(
   return rows;
 }
 
-function renderLibraryTable(rows: LibraryRow[]): string {
+export function renderLibraryTable(rows: LibraryRow[]): string {
   if (rows.length === 0) {
     return `<p class="empty">Nothing in your library yet.</p>`;
   }
@@ -260,6 +263,69 @@ export function buildFilesHtml(data: FilesPageData): string {
   });
 }
 
+// The search/sort behavior behind renderLibraryTable's controls — exported
+// alongside it (see LibraryRow above) so schoolPage.ts's copy of the same
+// table is actually functional instead of rendering inert search/sort
+// controls with no script wired up to them.
+export const FILE_TABLE_SCRIPT = `
+  (function () {
+    const searchInput = document.getElementById("file-search");
+    const classFilter = document.getElementById("file-class-filter");
+    const tbody = document.getElementById("file-table-body");
+    if (!tbody) return;
+
+    function applyFilters() {
+      const query = (searchInput.value || "").toLowerCase().trim();
+      const cls = classFilter.value;
+      Array.from(tbody.rows).forEach((row) => {
+        const title = row.dataset.title || "";
+        const rowClass = row.dataset.class || "";
+        const matchesSearch = !query || title.includes(query) || rowClass.toLowerCase().includes(query);
+        const matchesClass = !cls || rowClass === cls;
+        row.style.display = matchesSearch && matchesClass ? "" : "none";
+      });
+    }
+
+    if (searchInput) searchInput.addEventListener("input", applyFilters);
+    if (classFilter) classFilter.addEventListener("change", applyFilters);
+
+    let sortKey = null;
+    let sortAsc = true;
+
+    function cellValue(row, key) {
+      if (key === "title") return row.cells[0].textContent.trim().toLowerCase();
+      if (key === "class") return row.cells[1].textContent.trim().toLowerCase();
+      if (key === "date") return row.cells[2].getAttribute("data-sort-value") || "";
+      if (key === "status") return row.cells[3].textContent.trim().toLowerCase();
+      return "";
+    }
+
+    document.querySelectorAll("#file-table th[data-key]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-key");
+        sortAsc = sortKey === key ? !sortAsc : true;
+        sortKey = key;
+
+        document.querySelectorAll("#file-table th[data-key] .sort-indicator").forEach((el) => el.remove());
+        const indicator = document.createElement("span");
+        indicator.className = "sort-indicator";
+        indicator.textContent = sortAsc ? "▲" : "▼";
+        th.appendChild(indicator);
+
+        const rows = Array.from(tbody.rows);
+        rows.sort((a, b) => {
+          const av = cellValue(a, key);
+          const bv = cellValue(b, key);
+          if (av < bv) return sortAsc ? -1 : 1;
+          if (av > bv) return sortAsc ? 1 : -1;
+          return 0;
+        });
+        rows.forEach((row) => tbody.appendChild(row));
+      });
+    });
+  })();
+`;
+
 const CLIENT_SCRIPT = `
   async function handleUpload(kind, fileInputId, classSelectId, statusId, btn) {
     const fileInput = document.getElementById(fileInputId);
@@ -322,61 +388,4 @@ const CLIENT_SCRIPT = `
       if (btn) btn.disabled = false;
     }
   }
-
-  (function () {
-    const searchInput = document.getElementById("file-search");
-    const classFilter = document.getElementById("file-class-filter");
-    const tbody = document.getElementById("file-table-body");
-    if (!tbody) return;
-
-    function applyFilters() {
-      const query = (searchInput.value || "").toLowerCase().trim();
-      const cls = classFilter.value;
-      Array.from(tbody.rows).forEach((row) => {
-        const title = row.dataset.title || "";
-        const rowClass = row.dataset.class || "";
-        const matchesSearch = !query || title.includes(query) || rowClass.toLowerCase().includes(query);
-        const matchesClass = !cls || rowClass === cls;
-        row.style.display = matchesSearch && matchesClass ? "" : "none";
-      });
-    }
-
-    if (searchInput) searchInput.addEventListener("input", applyFilters);
-    if (classFilter) classFilter.addEventListener("change", applyFilters);
-
-    let sortKey = null;
-    let sortAsc = true;
-
-    function cellValue(row, key) {
-      if (key === "title") return row.cells[0].textContent.trim().toLowerCase();
-      if (key === "class") return row.cells[1].textContent.trim().toLowerCase();
-      if (key === "date") return row.cells[2].getAttribute("data-sort-value") || "";
-      if (key === "status") return row.cells[3].textContent.trim().toLowerCase();
-      return "";
-    }
-
-    document.querySelectorAll("#file-table th[data-key]").forEach((th) => {
-      th.addEventListener("click", () => {
-        const key = th.getAttribute("data-key");
-        sortAsc = sortKey === key ? !sortAsc : true;
-        sortKey = key;
-
-        document.querySelectorAll("#file-table th[data-key] .sort-indicator").forEach((el) => el.remove());
-        const indicator = document.createElement("span");
-        indicator.className = "sort-indicator";
-        indicator.textContent = sortAsc ? "▲" : "▼";
-        th.appendChild(indicator);
-
-        const rows = Array.from(tbody.rows);
-        rows.sort((a, b) => {
-          const av = cellValue(a, key);
-          const bv = cellValue(b, key);
-          if (av < bv) return sortAsc ? -1 : 1;
-          if (av > bv) return sortAsc ? 1 : -1;
-          return 0;
-        });
-        rows.forEach((row) => tbody.appendChild(row));
-      });
-    });
-  })();
-`;
+` + FILE_TABLE_SCRIPT;
