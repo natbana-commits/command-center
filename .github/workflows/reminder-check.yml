@@ -1,4 +1,4 @@
-name: Reminder check
+name: Reminder check + keep-warm ping
 
 on:
   schedule:
@@ -13,3 +13,19 @@ jobs:
         run: |
           curl -sf -X POST "https://command-center-navy-pi.vercel.app/api/reminder-check" \
             -H "Authorization: Bearer ${{ secrets.REMINDER_CHECK_SECRET }}"
+
+      # Keeps each of the (now-consolidated, post cold-start cleanup) page
+      # functions' serverless containers warm — an unauthenticated GET still
+      # invokes the function even though requireAuth immediately redirects
+      # it to login, which is all a warming ping needs. One path per
+      # function: /donna/files and /donna/school share donna-calendar.ts's
+      # container with /donna/calendar, /donna/contacts shares
+      # donna-reminders.ts's with /donna/reminders, /donna/ipos shares
+      # donna-finances.ts's with /donna/finances — no need to ping those
+      # separately. Best-effort: a single path being briefly unreachable
+      # shouldn't fail this job or the reminder-check step above it.
+      - name: Keep main pages warm
+        run: |
+          for path in /donna /donna/chat /donna/settings /donna/reminders /donna/calendar /donna/finances; do
+            curl -s -o /dev/null -m 15 "https://command-center-navy-pi.vercel.app$path" || true
+          done

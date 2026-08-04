@@ -15,6 +15,9 @@ import { getManualBills } from "../src/finance/manualBills.js";
 import { buildUpcomingPayments } from "../src/finance/upcomingPayments.js";
 import { resolveTimezone } from "../src/util/time.js";
 import { buildFinancesHtml } from "../src/donna/financesPage.js";
+import { getRecentIpoFilings } from "../src/ipos/store.js";
+import { getFollowedCompanies, followCompany, unfollowCompany } from "../src/ipos/followedCompanies.js";
+import { buildIposHtml } from "../src/donna/iposPage.js";
 
 // Plaid's webhook signature covers the exact raw request bytes, and
 // Vercel's automatic body parsing doesn't preserve those (re-serializing
@@ -108,6 +111,50 @@ async function handleUnlink(body: Record<string, string>, res: VercelResponse) {
   res.redirect(303, "/donna/finances");
 }
 
+// Folded in here (rather than its own api/donna-ipos.ts) for the same
+// Vercel Hobby 12-function reason as the other route merges — Finances and
+// IPOs are both "watch a market thing" pages, and real traffic to either
+// keeps both warm. Reuses this file's already-parsed POST body (see
+// handler() below) rather than re-reading the request stream, which can
+// only be consumed once.
+async function handleIposPost(body: Record<string, string>, res: VercelResponse) {
+  try {
+    if (body.action === "follow") {
+      const cik = body.cik;
+      const companyName = body.companyName;
+      if (cik && companyName) {
+        await followCompany(cik, companyName, body.ticker);
+      }
+    } else if (body.action === "unfollow") {
+      const cik = body.cik;
+      if (cik) {
+        await unfollowCompany(cik);
+      }
+    }
+    res.redirect(303, "/donna/ipos");
+  } catch (err) {
+    console.error("IPO follow action failed:", err);
+    res.redirect(303, "/donna/ipos");
+  }
+}
+
+async function handleIposGet(res: VercelResponse) {
+  const settings = await loadSettings();
+  const [filings, followedCompanies] = await Promise.all([
+    getRecentIpoFilings(20).catch(() => []),
+    getFollowedCompanies().catch(() => []),
+  ]);
+
+  const html = buildIposHtml({
+    filings,
+    followedCompanies,
+    navVisibility: settings.dashboardConfig.navVisibility,
+    navOrder: settings.dashboardConfig.navOrder,
+  });
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.status(200).send(html);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const plaidVerification = req.headers["plaid-verification"];
 
@@ -129,9 +176,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!(await requireAuth(req, res))) return;
 
+  if (req.query.page === "ipos" && req.method !== "POST") {
+    await handleIposGet(res);
+    return;
+  }
+
   if (req.method === "POST") {
     const rawBody = await readRawBody(req);
     const body = parseBody(rawBody, req.headers["content-type"]);
+
+    if (req.query.page === "ipos") {
+      await handleIposPost(body, res);
+      return;
+    }
 
     try {
       if (body.action === "create-link-token") {
