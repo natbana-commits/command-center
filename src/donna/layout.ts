@@ -373,6 +373,26 @@ const ROUTER_SCRIPT = `
     }
     if (url.origin !== window.location.origin) return;
     e.preventDefault();
+
+    // Nothing visibly happened while a submit was in flight — easy to
+    // read as "did that not work?" and click Add again, creating a
+    // duplicate (reminders especially). Disabling every submit-role
+    // button in the form for the duration covers every Add/Save form in
+    // the app from this one place, not just the ones someone remembers to
+    // add it to by hand. Re-enabled once navigate() settles rather than
+    // left disabled — a full-page swap replaces the button anyway (this
+    // is a harmless no-op on the detached old one), but a scoped
+    // data-swap-target swap (e.g. the Add-reminder modal, which lives
+    // outside the swapped region) leaves this exact button in place, and
+    // it needs to work again for the next add.
+    const submitButtons = Array.prototype.filter.call(form.querySelectorAll("button"), function (btn) {
+      return btn.type !== "button" && !btn.disabled;
+    });
+    submitButtons.forEach(function (btn) { btn.disabled = true; });
+    const reenable = function () {
+      submitButtons.forEach(function (btn) { btn.disabled = false; });
+    };
+
     const method = (form.getAttribute("method") || "GET").toUpperCase();
     const formData = new FormData(form);
     // A real native form submit includes the clicked submit button's own
@@ -388,17 +408,17 @@ const ROUTER_SCRIPT = `
     }
     const params = new URLSearchParams(formData);
     const swapTarget = form.getAttribute("data-swap-target") || undefined;
-    if (method === "GET") {
-      navigate(url.pathname + "?" + params.toString(), { method: "GET" }, true, swapTarget);
-    } else {
-      // URLSearchParams, not raw FormData — no form in this app declares
-      // enctype="multipart/form-data", so every one of them relies on the
-      // browser's native default encoding (application/x-www-form-
-      // urlencoded). Sending a raw FormData body here would switch that
-      // to multipart, which Vercel's built-in body parser (@vercel/node's
-      // req.body) doesn't parse, silently dropping every field.
-      navigate(url.pathname + url.search, { method: method, body: params }, true, swapTarget);
-    }
+    const navigated =
+      method === "GET"
+        ? navigate(url.pathname + "?" + params.toString(), { method: "GET" }, true, swapTarget)
+        : // URLSearchParams, not raw FormData — no form in this app declares
+          // enctype="multipart/form-data", so every one of them relies on the
+          // browser's native default encoding (application/x-www-form-
+          // urlencoded). Sending a raw FormData body here would switch that
+          // to multipart, which Vercel's built-in body parser (@vercel/node's
+          // req.body) doesn't parse, silently dropping every field.
+          navigate(url.pathname + url.search, { method: method, body: params }, true, swapTarget);
+    navigated.finally(reenable);
   });
 
   window.addEventListener("popstate", function () {

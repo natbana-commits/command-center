@@ -232,7 +232,7 @@ export function buildFilesHtml(data: FilesPageData): string {
         <div class="upload-form">
           <select id="lecture-class">${renderClassOptions(classFolders)}</select>
           <input type="file" id="lecture-file" accept="audio/*" />
-          <button class="btn btn-block" onclick="handleUpload('lecture', 'lecture-file', 'lecture-class', 'lecture-status')">Upload &amp; Transcribe</button>
+          <button class="btn btn-block" onclick="handleUpload('lecture', 'lecture-file', 'lecture-class', 'lecture-status', this)">Upload &amp; Transcribe</button>
           <div class="hint" id="lecture-status"></div>
         </div>
 
@@ -243,7 +243,7 @@ export function buildFilesHtml(data: FilesPageData): string {
         <div class="upload-form">
           <select id="photo-class">${renderClassOptions(classFolders)}</select>
           <input type="file" id="photo-file" accept="image/*" />
-          <button class="btn btn-block" onclick="handleUpload('photo', 'photo-file', 'photo-class', 'photo-status')">Upload &amp; Extract Text</button>
+          <button class="btn btn-block" onclick="handleUpload('photo', 'photo-file', 'photo-class', 'photo-status', this)">Upload &amp; Extract Text</button>
           <div class="hint" id="photo-status"></div>
         </div>
       </div>
@@ -261,7 +261,7 @@ export function buildFilesHtml(data: FilesPageData): string {
 }
 
 const CLIENT_SCRIPT = `
-  async function handleUpload(kind, fileInputId, classSelectId, statusId) {
+  async function handleUpload(kind, fileInputId, classSelectId, statusId, btn) {
     const fileInput = document.getElementById(fileInputId);
     const classSelect = document.getElementById(classSelectId);
     const statusEl = document.getElementById(statusId);
@@ -271,6 +271,12 @@ const CLIENT_SCRIPT = `
       return;
     }
 
+    // Disabled for the whole upload+process round trip, not just
+    // re-enabled at the end — this is a custom fetch flow, not a form
+    // submit the router's own disable-on-submit handling would catch, and
+    // a click during "Processing…" would kick off a second transcription/
+    // OCR pass on the same file rather than just resubmitting a form.
+    if (btn) btn.disabled = true;
     statusEl.textContent = "Uploading…";
     const classId = classSelect.value ? Number(classSelect.value) : null;
 
@@ -312,6 +318,8 @@ const CLIENT_SCRIPT = `
       }
     } catch (err) {
       statusEl.textContent = "Something went wrong.";
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 

@@ -213,6 +213,16 @@ export const BASE_STYLES = `
   @media (max-width: 860px) {
     .sidebar { display: none; }
     .main-content { padding: var(--sp-3) var(--sp-2) 90px; max-width: 100%; }
+    /* iOS Safari auto-zooms the whole page on focusing any input/select/
+       textarea under 16px — every one of them was set smaller for a
+       tighter desktop look, which meant tapping to type anywhere (the
+       chat bar included) zoomed the page in and threw off the layout
+       until you zoomed back out by hand. 16px here is the documented
+       Safari threshold, not an arbitrary bump. !important because every
+       one of those smaller sizes comes from a more specific selector
+       (.field input[type="text"], .chat-overlay-footer input, etc.) that
+       would otherwise win the cascade over this plain element selector. */
+    input, select, textarea { font-size: 16px !important; }
     .bottom-nav {
       display: flex;
       position: fixed;
