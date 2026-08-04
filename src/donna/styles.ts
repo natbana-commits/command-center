@@ -252,7 +252,11 @@ export const BASE_STYLES = `
       border-radius: 12px;
       box-shadow: 0 -8px 24px rgba(0,0,0,0.12);
       padding: 6px;
-      z-index: 901;
+      /* Above .chat-mobile-bar (901) — they sit at the same bottom offset,
+         so without this the bar (later in DOM order) would win the tie
+         and sit on top, blocking the sheet's own options from being
+         clickable. */
+      z-index: 902;
       flex-direction: column;
       gap: 2px;
     }
