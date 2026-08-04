@@ -2,7 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
-import { iconInfo, iconSettings, iconChat, iconX } from "./icons.js";
+import { iconSettings, iconChat } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -33,41 +33,6 @@ const THEME_INIT_SCRIPT = `
       document.documentElement.setAttribute("data-theme", saved);
     }
   } catch (e) {}
-})();
-`;
-
-// Class-based (not a single #id) since the mobile top bar's menu now has
-// its own theme-toggle button alongside the sidebar's — every matching
-// button toggles the same shared theme and stays in sync with each other.
-const THEME_TOGGLE_SCRIPT = `
-(function () {
-  const btns = document.querySelectorAll(".theme-toggle-btn");
-  if (btns.length === 0) return;
-
-  function effectiveTheme() {
-    const explicit = document.documentElement.getAttribute("data-theme");
-    if (explicit) return explicit;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-
-  function updateIcons() {
-    const icon = effectiveTheme() === "dark" ? "☀️" : "🌙";
-    btns.forEach((btn) => {
-      const iconEl = btn.querySelector(".theme-toggle-icon");
-      if (iconEl) iconEl.textContent = icon;
-    });
-  }
-
-  btns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = effectiveTheme() === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      try { localStorage.setItem("donna-theme", next); } catch (e) {}
-      updateIcons();
-    });
-  });
-
-  updateIcons();
 })();
 `;
 
@@ -439,10 +404,10 @@ const ROUTER_SCRIPT = `
 })();
 `;
 
-// The trigger itself lives in the sidebar's icon cluster (next to
-// Info/Settings/theme-toggle, see the sidebar-user markup below) — this is
-// just the overlay panel it opens, kept as its own persistent (non-swapped)
-// region same as before.
+// The desktop trigger lives in the sidebar's icon cluster next to Settings
+// (see the sidebar-user markup below); this docked mobile bar is its
+// mobile equivalent, since there's no sidebar there. Both share the
+// .chat-trigger class and open the same overlay panel below.
 function renderChatFabMarkup(): string {
   return `
   <div class="chat-mobile-bar chat-trigger" role="button" tabindex="0" aria-label="Ask Donna">
@@ -497,32 +462,24 @@ const PROGRESS_BAR_SCRIPT = `
 })();
 `;
 
-// Delegated on document (rather than binding to each button/sheet directly)
+// Delegated on document (rather than binding to the button/sheet directly)
 // because the client-side router replaces #bottom-nav-region's innerHTML on
 // every navigation — direct bindings would go stale after the first swap,
-// same reasoning as ROUTER_SCRIPT's own click handling. Drives both the
-// mobile bottom nav's "More" sheet and the mobile top bar's menu sheet —
-// same toggle/click-outside-to-close behavior, just two button/sheet pairs.
+// same reasoning as ROUTER_SCRIPT's own click handling.
 const NAV_SHEET_SCRIPT = `
 (function () {
-  const PAIRS = [
-    { btn: "bottom-nav-more-btn", sheet: "bottom-nav-sheet" },
-    { btn: "mobile-more-btn", sheet: "mobile-more-sheet" },
-  ];
   document.addEventListener("click", (e) => {
-    PAIRS.forEach(({ btn: btnId, sheet: sheetId }) => {
-      const sheet = document.getElementById(sheetId);
-      if (!sheet) return;
-      const btn = e.target && e.target.closest && e.target.closest("#" + btnId);
-      if (btn) {
-        e.stopPropagation();
-        sheet.classList.toggle("open");
-        return;
-      }
-      if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
-        sheet.classList.remove("open");
-      }
-    });
+    const sheet = document.getElementById("bottom-nav-sheet");
+    if (!sheet) return;
+    const btn = e.target && e.target.closest && e.target.closest("#bottom-nav-more-btn");
+    if (btn) {
+      e.stopPropagation();
+      sheet.classList.toggle("open");
+      return;
+    }
+    if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
+      sheet.classList.remove("open");
+    }
   });
 })();
 `;
@@ -654,15 +611,7 @@ ${BASE_STYLES}
 </head>
 <body>
   <div class="nav-progress-bar" id="nav-progress-bar"></div>
-  <div class="mobile-topbar">
-    <button type="button" class="mobile-topbar-btn" id="mobile-more-btn" aria-label="More">${iconSettings}</button>
-    <div class="mobile-more-sheet" id="mobile-more-sheet">
-      <a href="/donna/settings#how-this-works">${iconInfo}<span>How this works</span></a>
-      <button type="button" class="theme-toggle-btn"><span class="theme-toggle-icon">&#x1F319;</span><span>Toggle theme</span></button>
-      <a href="/donna/settings">${iconSettings}<span>Settings</span></a>
-      <a href="/donna/logout">${iconX}<span>Sign out</span></a>
-    </div>
-  </div>
+  <a class="mobile-topbar-btn" href="/donna/settings" aria-label="Settings">${iconSettings}</a>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-logo">
@@ -675,10 +624,7 @@ ${BASE_STYLES}
       <nav class="sidebar-nav" id="sidebar-nav-region">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
       <div class="sidebar-user">
         <button type="button" class="sidebar-user-icon-link chat-trigger" title="Ask Donna" aria-label="Ask Donna">${iconChat}</button>
-        <a class="sidebar-user-icon-link" href="/donna/settings#how-this-works" title="How this works" aria-label="How this works">${iconInfo}</a>
         <a class="sidebar-user-icon-link${activeTab === "settings" ? " sidebar-user-icon-link-active" : ""}" href="/donna/settings" title="Settings" aria-label="Settings">${iconSettings}</a>
-        <button type="button" class="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme"><span class="theme-toggle-icon">&#x1F319;</span></button>
-        <a class="sidebar-user-logout" href="/donna/logout" title="Sign out">&#x2715;</a>
       </div>
     </aside>
 
@@ -699,7 +645,6 @@ ${BASE_STYLES}
   <script>
 ${PROGRESS_BAR_SCRIPT}
 ${NAV_SHEET_SCRIPT}
-${THEME_TOGGLE_SCRIPT}
 ${COMMAND_PALETTE_SCRIPT}
 ${ROUTER_SCRIPT}
 ${showChatFab ? CHAT_FAB_SCRIPT : ""}

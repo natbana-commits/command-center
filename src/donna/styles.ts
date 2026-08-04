@@ -194,22 +194,6 @@ export const BASE_STYLES = `
   .sidebar-user-icon-link svg { width: 16px; height: 16px; }
   .sidebar-user-icon-link:hover,
   .sidebar-user-icon-link-active { color: var(--accent); }
-  .theme-toggle-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 4px;
-    line-height: 1;
-  }
-  .sidebar-user-logout {
-    color: var(--text-muted);
-    text-decoration: none;
-    font-size: 11px;
-    padding: 4px;
-  }
-  .sidebar-user-logout:hover { color: var(--accent); }
-
   .main-content {
     flex: 1;
     min-width: 0;
@@ -218,7 +202,7 @@ export const BASE_STYLES = `
   }
 
   .bottom-nav { display: none; }
-  .mobile-topbar { display: none; }
+  .mobile-topbar-btn { display: none; }
   .chat-mobile-bar { display: none; }
 
   @media (max-width: 860px) {
@@ -284,67 +268,28 @@ export const BASE_STYLES = `
     .bottom-nav-sheet-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
     .bottom-nav-sheet-link:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
 
-    /* The sidebar (Info/Settings/theme-toggle/chat) is hidden on mobile —
-       this top-right menu and the docked chat bar below are what stand in
-       for it there. */
-    .mobile-topbar {
-      display: block;
+    /* The sidebar's Settings icon is hidden on mobile — this fixed
+       top-right link is what stands in for it there. Info/theme/sign-out
+       all moved into the Settings page itself, so this is just a link,
+       no dropdown needed. */
+    .mobile-topbar-btn {
+      display: flex;
       position: fixed;
       top: max(12px, env(safe-area-inset-top));
       right: 12px;
       z-index: 950;
-    }
-    .mobile-topbar-btn {
       width: 36px;
       height: 36px;
       border-radius: 50%;
       background: var(--card);
       border: 1px solid var(--border);
       color: var(--text-secondary);
-      display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .mobile-topbar-btn svg { width: 18px; height: 18px; }
-    .mobile-more-sheet {
-      display: none;
-      position: fixed;
-      top: calc(max(12px, env(safe-area-inset-top)) + 44px);
-      right: 12px;
-      width: 220px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-      padding: 6px;
-      z-index: 951;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .mobile-more-sheet.open { display: flex; }
-    .mobile-more-sheet a,
-    .mobile-more-sheet button {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      background: none;
-      border: none;
-      font-family: inherit;
-      cursor: pointer;
-      width: 100%;
-      text-align: left;
-    }
-    .mobile-more-sheet svg { width: 18px; height: 18px; flex: 0 0 auto; }
-    .mobile-more-sheet a:hover,
-    .mobile-more-sheet button:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
 
     .chat-mobile-bar {
       display: flex;
@@ -1017,15 +962,23 @@ export const BASE_STYLES = `
       bottom: 0;
       width: auto;
       max-width: none;
-      max-height: 70vh;
+      /* A real height, not max-height — with no explicit height the flex
+         column sizes to its content instead, so .chat-overlay-body's
+         flex:1 has nothing to grow into and its own scroll region never
+         actually engages (this was the "spacing/window off" bug: with a
+         long chat history the sheet just kept growing instead of
+         scrolling internally, and got clipped in a broken-looking way). */
+      height: 70vh;
       border-radius: 16px 16px 0 0;
       transform: translateY(100%);
       transition: transform 0.25s ease;
       box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
     }
     .chat-overlay-panel.open { transform: translateY(0); }
+    .chat-overlay-footer { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   }
   .chat-overlay-header {
+    flex: 0 0 auto;
     background: var(--ink-fixed);
     color: #fff;
     padding: 14px 16px;
@@ -1036,8 +989,8 @@ export const BASE_STYLES = `
     font-weight: 700;
   }
   .chat-overlay-close { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; }
-  .chat-overlay-body { flex: 1; overflow-y: auto; padding: var(--sp-2); display: flex; flex-direction: column; gap: 10px; }
-  .chat-overlay-footer { border-top: 1px solid var(--border); padding: 10px; display: flex; gap: 8px; }
+  .chat-overlay-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-2); display: flex; flex-direction: column; gap: 10px; }
+  .chat-overlay-footer { flex: 0 0 auto; border-top: 1px solid var(--border); padding: 10px; display: flex; gap: 8px; }
   .chat-overlay-footer input {
     flex: 1;
     border: 1px solid var(--border);

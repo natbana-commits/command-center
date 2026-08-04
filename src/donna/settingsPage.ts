@@ -341,6 +341,16 @@ export function buildSettingsHtml(
     ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
 
     <section class="section card">
+      <h1 class="section-title">Appearance</h1>
+      <div class="field" style="flex-direction: row; align-items: center; justify-content: space-between;">
+        <label style="margin:0;">Theme</label>
+        <button type="button" class="btn-secondary btn-small" id="settings-theme-toggle">
+          <span id="settings-theme-icon">&#x1F319;</span> Toggle
+        </button>
+      </div>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
       <h1 class="section-title">Brief settings</h1>
       <form class="settings-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="save-settings" />
@@ -533,14 +543,17 @@ export function buildSettingsHtml(
       <h1 class="section-title">Sessions</h1>
       ${renderSessionRows(sessions, currentSessionId)}
 
-      ${
-        sessions.length > 1
-          ? `<form method="POST" action="/api/donna-settings" style="margin-top: var(--sp-2);" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
-        <input type="hidden" name="action" value="revoke-other-sessions" />
-        <button class="btn btn-danger" type="submit">Sign out all other devices</button>
-      </form>`
-          : ""
-      }
+      <div style="margin-top: var(--sp-2); display:flex; gap: var(--sp-2); flex-wrap: wrap;">
+        <a class="btn btn-secondary" href="/donna/logout">Sign out of this device</a>
+        ${
+          sessions.length > 1
+            ? `<form method="POST" action="/api/donna-settings" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
+          <input type="hidden" name="action" value="revoke-other-sessions" />
+          <button class="btn btn-danger" type="submit">Sign out all other devices</button>
+        </form>`
+            : ""
+        }
+      </div>
       <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device — it takes effect immediately, without changing your password.</div>
     </section>
 
@@ -570,6 +583,33 @@ export function buildSettingsHtml(
 
 const SETTINGS_CLIENT_SCRIPT = `
 (function () {
+  // Moved here from the sidebar/mobile menu — this button and its icon
+  // are part of Settings' own swapped content, so (unlike the old
+  // persistent-shell version) a plain direct bind is safe: the element is
+  // destroyed and recreated in lockstep with this script re-running on
+  // every visit, never stale.
+  (function () {
+    const btn = document.getElementById("settings-theme-toggle");
+    const icon = document.getElementById("settings-theme-icon");
+    if (!btn || !icon) return;
+
+    function effectiveTheme() {
+      const explicit = document.documentElement.getAttribute("data-theme");
+      if (explicit) return explicit;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    function updateIcon() {
+      icon.textContent = effectiveTheme() === "dark" ? "☀️" : "🌙";
+    }
+    btn.addEventListener("click", () => {
+      const next = effectiveTheme() === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("donna-theme", next); } catch (e) {}
+      updateIcon();
+    });
+    updateIcon();
+  })();
+
   if (window.location.hash === "#how-this-works") {
     const details = document.getElementById("how-this-works");
     if (details) {
