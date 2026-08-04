@@ -7,6 +7,7 @@ import {
 } from "../src/formatBrief.js";
 import { getDueNotifications, markNotificationSent } from "../src/reminders/notifications.js";
 import { getDueHabitNudges, markHabitNotified } from "../src/habits/store.js";
+import { fetchAndStoreNewsletters } from "../src/gmail/index.js";
 import { loadSettings } from "../src/config.js";
 import { localDateKey, resolveTimezone } from "../src/util/time.js";
 
@@ -51,24 +52,42 @@ async function handleReminderCheck(res: VercelResponse) {
     }
   }
 
+  const settings = await loadSettings().catch((err) => {
+    console.error("Failed to load settings for habit nudges/newsletter refresh:", err);
+    return null;
+  });
+
   // Habit nudges ride the same poll — a completely separate concept from
   // reminder_notifications (no due time, no one-shot delivery), so they're
   // fetched and marked independently rather than folded into `due` above.
-  try {
-    const settings = await loadSettings();
-    const timezone = resolveTimezone(settings.timezone);
-    const dueHabits = await getDueHabitNudges(timezone);
-    const todayKey = localDateKey(new Date(), timezone);
-    for (const habit of dueHabits) {
-      try {
-        await sendTelegramMessage(`Did you do: ${habit.title} today?`);
-        await markHabitNotified(habit.id, todayKey);
-      } catch (err) {
-        console.error(`Failed to deliver/mark habit nudge ${habit.id}:`, err);
+  if (settings) {
+    try {
+      const timezone = resolveTimezone(settings.timezone);
+      const dueHabits = await getDueHabitNudges(timezone);
+      const todayKey = localDateKey(new Date(), timezone);
+      for (const habit of dueHabits) {
+        try {
+          await sendTelegramMessage(`Did you do: ${habit.title} today?`);
+          await markHabitNotified(habit.id, todayKey);
+        } catch (err) {
+          console.error(`Failed to deliver/mark habit nudge ${habit.id}:`, err);
+        }
       }
+    } catch (err) {
+      console.error("Failed to check due habit nudges:", err);
     }
-  } catch (err) {
-    console.error("Failed to check due habit nudges:", err);
+
+    // Newsletters used to only refresh once a day, inside the scheduled
+    // brief below — anything that arrived in Gmail after the brief sent
+    // was invisible until the next day's run. Riding this same 5-minute
+    // poll instead means the Home page's Newsletters tab stays current
+    // through the day; storeNewsletters upserts by id and keys each row
+    // by its own receivedAt, so a repeat fetch is safe/idempotent.
+    try {
+      await fetchAndStoreNewsletters(resolveTimezone(settings.timezone), settings.newsletterQuery);
+    } catch (err) {
+      console.error("Failed to refresh newsletters:", err);
+    }
   }
 
   // A failure here shouldn't fail the reminder-check response itself —

@@ -87,7 +87,7 @@ export async function buildFastBriefMessages(): Promise<BriefMessage[]> {
   const remindersPromise = listRemindersSafe();
   const backgroundWorkPromise = Promise.all([
     // No-ops until GOOGLE_* secrets are configured — safe to call unconditionally.
-    fetchAndStoreNewsletters(day, settings.newsletterQuery),
+    fetchAndStoreNewsletters(calendarResult.timezone, settings.newsletterQuery),
     isPlaidConfigured()
       ? snapshotAccountBalances().catch((err) => console.error("Balance snapshot failed:", err))
       : Promise.resolve(),

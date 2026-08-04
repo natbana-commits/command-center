@@ -1,4 +1,5 @@
 import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
+import { localDateKey } from "../util/time.js";
 import type { NewsletterEmail } from "./fetch.js";
 
 const RETENTION_DAYS = 30;
@@ -12,13 +13,19 @@ export interface StoredNewsletter {
   html: string;
 }
 
-export async function storeNewsletters(day: string, newsletters: NewsletterEmail[]): Promise<void> {
+export async function storeNewsletters(newsletters: NewsletterEmail[], timezone: string): Promise<void> {
   if (newsletters.length === 0) return;
 
   const client = getSupabaseClient();
+  // Each newsletter's own receivedAt decides its day — not "whenever this
+  // fetch happened to run". The search query is a rolling 2-day window
+  // (newer_than:2d), so the same still-in-range newsletter gets refetched
+  // and re-upserted (by id) on every run; stamping it with a single shared
+  // "today" value here used to flip an already-correctly-dated newsletter
+  // from yesterday over to today on the next run.
   const rows = newsletters.map((n) => ({
     id: n.id,
-    day,
+    day: localDateKey(n.receivedAt, timezone),
     subject: n.subject,
     sender: n.sender,
     received_at: n.receivedAt.toISOString(),
