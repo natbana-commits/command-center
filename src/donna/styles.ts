@@ -176,24 +176,27 @@ export const BASE_STYLES = `
   .sidebar-user {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: var(--sp-2) 8px 0;
+    justify-content: center;
+    gap: 36px;
+    padding: var(--sp-3) 8px;
     margin-top: auto;
     border-top: 1px solid var(--border);
   }
   .sidebar-user-icon-link {
     display: flex;
     align-items: center;
+    justify-content: center;
     color: var(--text-muted);
-    padding: 4px;
+    padding: 10px;
+    border-radius: 10px;
     background: none;
     border: none;
     cursor: pointer;
     font: inherit;
   }
-  .sidebar-user-icon-link svg { width: 16px; height: 16px; }
+  .sidebar-user-icon-link svg { width: 24px; height: 24px; }
   .sidebar-user-icon-link:hover,
-  .sidebar-user-icon-link-active { color: var(--accent); }
+  .sidebar-user-icon-link-active { color: var(--accent); background: var(--sidebar-bg); }
   .main-content {
     flex: 1;
     min-width: 0;
