@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { HomeWidgetId, FinanceWidgetId, NavVisibility } from "../src/config.js";
 import { loadSettings, saveSettings } from "../src/config.js";
-import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
+import { getClassFolders, addClassFolder, renameClassFolder, deleteClassFolder } from "../src/drive/classFolders.js";
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
@@ -48,6 +48,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         await addClassFolder(className, folderId);
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "rename-class") {
+        const id = Number(body.id);
+        const className = body.className?.trim();
+        if (Number.isFinite(id) && className) {
+          await renameClassFolder(id, className);
+        }
         res.redirect(303, "/donna/settings?saved=1");
         return;
       }

@@ -43,6 +43,17 @@ export async function addClassFolder(className: string, driveFolderId: string): 
   }
 }
 
+export async function renameClassFolder(id: number, className: string): Promise<void> {
+  const client = getSupabaseClient();
+  const { error } = await withSupabaseRetry(() =>
+    client.from("class_folders").update({ class_name: className }).eq("id", id)
+  );
+
+  if (error) {
+    throw new Error(`Supabase update error: ${error.message}`);
+  }
+}
+
 export async function deleteClassFolder(id: number): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() => client.from("class_folders").delete().eq("id", id));

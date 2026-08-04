@@ -116,12 +116,21 @@ function renderClassRows(classFolders: ClassFolder[]): string {
       (cls) => `
         <div class="class-row">
           <span>${escapeHtml(cls.className)}</span>
-          <form method="POST" action="/api/donna-settings">
-            <input type="hidden" name="action" value="delete-class" />
-            <input type="hidden" name="id" value="${cls.id}" />
-            <button class="btn btn-danger" type="submit">Remove</button>
-          </form>
-        </div>`
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="reminder-edit-link" onclick="toggleClassRename(${cls.id})">Rename</button>
+            <form method="POST" action="/api/donna-settings">
+              <input type="hidden" name="action" value="delete-class" />
+              <input type="hidden" name="id" value="${cls.id}" />
+              <button class="btn btn-danger" type="submit">Remove</button>
+            </form>
+          </div>
+        </div>
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="class-rename-form-${cls.id}" style="display:none; margin-top:6px;">
+          <input type="hidden" name="action" value="rename-class" />
+          <input type="hidden" name="id" value="${cls.id}" />
+          <input type="text" name="className" value="${escapeHtml(cls.className)}" required />
+          <button class="btn btn-small" type="submit">Save</button>
+        </form>`
     )
     .join("\n");
 }
@@ -583,6 +592,15 @@ export function buildSettingsHtml(
 
 const SETTINGS_CLIENT_SCRIPT = `
 (function () {
+  // Referenced by an inline onclick="" attribute, which looks up
+  // identifiers on the global scope — needs the explicit window
+  // assignment despite this whole script being wrapped in an IIFE.
+  function toggleClassRename(id) {
+    const form = document.getElementById("class-rename-form-" + id);
+    if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
+  }
+  window.toggleClassRename = toggleClassRename;
+
   // Moved here from the sidebar/mobile menu — this button and its icon
   // are part of Settings' own swapped content, so (unlike the old
   // persistent-shell version) a plain direct bind is safe: the element is
