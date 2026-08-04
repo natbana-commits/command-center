@@ -299,6 +299,47 @@ export function buildFinancesHtml(data: FinancesPageData): string {
 }
 
 const CLIENT_SCRIPT = `
+  // Some institutions (most major banks, once PLAID_REDIRECT_URI is set)
+  // require an OAuth handshake: Link redirects the whole tab out to the
+  // bank's real login page, then back to this same URL with an
+  // oauth_state_id param — a real navigation, so nothing in JS memory
+  // survives it. The link token has to make the trip via sessionStorage
+  // instead, and gets resumed automatically below on the page load that
+  // comes back from the bank.
+  var PLAID_TOKEN_KEY = "donna-plaid-link-token";
+
+  async function finishExchange(publicToken, institutionName) {
+    try {
+      await fetch("/donna/finances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "exchange-public-token", publicToken: publicToken, institutionName: institutionName }),
+      });
+    } finally {
+      try { sessionStorage.removeItem(PLAID_TOKEN_KEY); } catch (e) {}
+      // Not reload() — an OAuth resume leaves ?oauth_state_id=... in the
+      // URL, and reload() would keep it, re-triggering the resume check
+      // below against a token that's already been used and cleared.
+      window.location.href = "/donna/finances";
+    }
+  }
+
+  function openHandler(token, btn, receivedRedirectUri) {
+    return Plaid.create({
+      token: token,
+      receivedRedirectUri: receivedRedirectUri,
+      onSuccess: function (publicToken, metadata) {
+        btn.textContent = "Linking…";
+        finishExchange(publicToken, (metadata && metadata.institution && metadata.institution.name) || "Linked account");
+      },
+      onExit: function () {
+        try { sessionStorage.removeItem(PLAID_TOKEN_KEY); } catch (e) {}
+        btn.disabled = false;
+        btn.textContent = "+ Link an account";
+      },
+    });
+  }
+
   async function openPlaidLink() {
     const btn = document.getElementById("link-account-btn");
     if (!btn) return;
@@ -313,35 +354,23 @@ const CLIENT_SCRIPT = `
       });
       const data = await res.json();
       if (!data.linkToken) throw new Error("No link token returned");
-
-      const handler = Plaid.create({
-        token: data.linkToken,
-        onSuccess: async (publicToken, metadata) => {
-          btn.textContent = "Linking…";
-          try {
-            await fetch("/donna/finances", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "exchange-public-token",
-                publicToken,
-                institutionName: (metadata && metadata.institution && metadata.institution.name) || "Linked account",
-              }),
-            });
-          } finally {
-            window.location.reload();
-          }
-        },
-        onExit: () => {
-          btn.disabled = false;
-          btn.textContent = "+ Link an account";
-        },
-      });
-      handler.open();
+      try { sessionStorage.setItem(PLAID_TOKEN_KEY, data.linkToken); } catch (e) {}
+      openHandler(data.linkToken, btn, undefined).open();
     } catch (err) {
       btn.disabled = false;
       btn.textContent = "+ Link an account";
       alert("Couldn't start linking an account — try again in a bit.");
     }
   }
+
+  (function () {
+    if (window.location.search.indexOf("oauth_state_id=") === -1) return;
+    const btn = document.getElementById("link-account-btn");
+    let token = null;
+    try { token = sessionStorage.getItem(PLAID_TOKEN_KEY); } catch (e) {}
+    if (!btn || !token) return;
+    btn.disabled = true;
+    btn.textContent = "Linking…";
+    openHandler(token, btn, window.location.href).open();
+  })();
 `;

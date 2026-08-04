@@ -70,6 +70,13 @@ async function handleCreateLinkToken(res: VercelResponse) {
     country_codes: [CountryCode.Us],
     language: "en",
     webhook: process.env.PLAID_WEBHOOK_URL || undefined,
+    // Only OAuth institutions (most major banks, in production — sandbox
+    // never exercises this) use this: Link redirects out to the bank's
+    // real login page and back here, which Plaid only allows landing on a
+    // URL registered in the dashboard as an Allowed redirect URI. Omitted
+    // entirely when unset so non-OAuth institutions keep working exactly
+    // as before — Plaid only requires this for the banks that need it.
+    redirect_uri: process.env.PLAID_REDIRECT_URI || undefined,
   });
   res.status(200).json({ linkToken: response.data.link_token });
 }
