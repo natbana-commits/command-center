@@ -334,7 +334,7 @@ export function buildSettingsHtml(
 
     <section class="section card" style="margin-top: 16px;">
       <h1 class="section-title">Dashboard</h1>
-      <form class="settings-form" method="POST" action="/api/donna-settings">
+      <form id="dashboard-settings-form" class="settings-form" method="POST" action="/api/donna-settings">
         <div class="field">
           <label>Home cards</label>
           ${settings.dashboardConfig.homeWidgets
@@ -533,5 +533,40 @@ const SETTINGS_CLIENT_SCRIPT = `
       details.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
+
+  // Dashboard reorder buttons (move-up/move-down/move-nav-*/move-fin-*) —
+  // intercept just those, not the form's "Save" button, so Save keeps its
+  // existing full-page "Saved." confirmation while reordering becomes
+  // instant. This script re-runs on every client-routed visit to Settings
+  // (it's inline in #page-content, re-executed by the router's runScripts),
+  // so the window flag stops a duplicate listener stacking up each time.
+  if (window.__dashboardReorderBound) return;
+  window.__dashboardReorderBound = true;
+
+  document.addEventListener("click", function (e) {
+    const btn = e.target && e.target.closest && e.target.closest('button[name="action"][value^="move-"]');
+    if (!btn) return;
+    const form = btn.closest("form");
+    if (!form) return;
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    formData.append(btn.name, btn.value);
+
+    fetch(form.action, { method: "POST", body: formData })
+      .then(function (res) {
+        if (!res.ok) throw new Error("bad status " + res.status);
+        return res.text();
+      })
+      .then(function (text) {
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        const newForm = doc.getElementById("dashboard-settings-form");
+        if (newForm) form.replaceWith(newForm);
+      })
+      .catch(function () {
+        // Fall back to a real submission — never leave the click doing nothing.
+        form.requestSubmit(btn);
+      });
+  });
 })();
 `;
