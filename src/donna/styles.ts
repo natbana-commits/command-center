@@ -499,20 +499,64 @@ export const BASE_STYLES = `
   .ipo-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .newsletter-frame { width: 100%; height: 500px; border: none; }
 
-  /* --- agenda (calendar page) --- */
-  .agenda-day-group {
-    margin-bottom: var(--sp-3);
-    border-left: 3px solid var(--border);
-    padding-left: var(--sp-2);
-  }
-  .agenda-day-group-today { border-left-color: var(--accent); }
+  /* --- agenda rows: generic two-line row, reused well beyond just the
+     calendar (Home widgets, Files, School) --- */
   .agenda-event-row { display: flex; gap: var(--sp-2); padding: 8px 0; }
   .agenda-event-time { flex: 0 0 90px; font-weight: 500; font-size: 13px; color: var(--text-secondary); }
   .agenda-event-title { font-size: 14px; color: var(--ink); }
-  .agenda-event-detail { font-size: 12px; color: var(--text-muted); }
+
+  /* --- calendar week grid --- */
+  .cal-week-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-2); gap: var(--sp-2); }
+  .cal-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(120px, 1fr));
+    gap: var(--sp-2);
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .cal-day-col {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: var(--sp-2);
+    min-height: 160px;
+  }
+  .cal-day-col-today { border-color: var(--accent); }
+  .cal-day-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-day-name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .cal-day-num { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--ink); }
+  .cal-day-num-today { color: var(--accent); }
+  .cal-day-events { display: flex; flex-direction: column; gap: 6px; }
+  .cal-event-block {
+    border-left: 3px solid var(--accent);
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: var(--sidebar-bg);
+    overflow: hidden;
+  }
+  .cal-event-time { display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+  .cal-event-title {
+    display: block;
+    font-size: 12px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (max-width: 860px) {
+    .cal-week-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); }
+  }
 
   /* --- day-badge row: shared "days until X" style, used by the Econ
-     events widget, Reminders, and Calendar day headers --- */
+     events widget, Reminders, and Finances' Upcoming Payments widget --- */
   .day-badge-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 0; }
   .day-badge-row + .day-badge-row { border-top: 1px solid var(--border); }
   .day-badge {
