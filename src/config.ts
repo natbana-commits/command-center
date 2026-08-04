@@ -17,6 +17,7 @@ export type FinanceWidgetId =
   | "spending-by-category"
   | "accounts"
   | "recurring-charges"
+  | "upcoming-payments"
   | "transactions";
 
 // The single source of truth for which "middle" nav tabs exist (every
@@ -96,6 +97,7 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "spending-by-category", visible: true },
     { id: "accounts", visible: true },
     { id: "recurring-charges", visible: true },
+    { id: "upcoming-payments", visible: true },
     { id: "transactions", visible: true },
   ],
   defaultHomeTab: "news",

@@ -5,6 +5,7 @@ import { getClassFolders, addClassFolder, deleteClassFolder } from "../src/drive
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
+import { getManualBills, addManualBill, deleteManualBill } from "../src/finance/manualBills.js";
 import {
   getCommunityFeedSources,
   addCommunityFeedSource,
@@ -111,6 +112,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteReminderGroup(id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "add-manual-bill") {
+        const name = body.name?.trim();
+        const amount = Number(body.amount);
+        const dueDay = Number(body.dueDay);
+        if (name && Number.isFinite(amount) && amount >= 0 && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31) {
+          await addManualBill(name, amount, dueDay);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "delete-manual-bill") {
+        const id = Number(body.id);
+        if (Number.isFinite(id)) {
+          await deleteManualBill(id);
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -225,7 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources, sessions] =
+  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources, sessions, manualBills] =
     await Promise.all([
       loadSettings(),
       getClassFolders(),
@@ -233,6 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       getReminderGroups(),
       getCommunityFeedSources(),
       listActiveSessions(),
+      getManualBills(),
     ]);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
@@ -246,6 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     communityFeedSources,
     sessions,
     currentSessionId,
+    manualBills,
     saved,
     error
   );

@@ -4,6 +4,7 @@ import type { WatchlistEntry } from "../news/watchlist.js";
 import type { ReminderGroup } from "../reminders/groups.js";
 import type { CommunityFeedSource } from "../news/communityFeeds.js";
 import type { SessionInfo } from "../auth/session.js";
+import type { ManualBill } from "../finance/manualBills.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
@@ -101,6 +102,7 @@ const FINANCE_WIDGET_LABELS: Record<FinanceWidgetId, string> = {
   "spending-by-category": "Spending by Category",
   accounts: "Accounts",
   "recurring-charges": "Recurring Charges",
+  "upcoming-payments": "Upcoming Payments",
   transactions: "Recent Transactions",
 };
 
@@ -122,6 +124,33 @@ function renderClassRows(classFolders: ClassFolder[]): string {
         </div>`
     )
     .join("\n");
+}
+
+function renderManualBillRows(bills: ManualBill[]): string {
+  if (bills.length === 0) {
+    return `<p class="empty">No manual bills yet.</p>`;
+  }
+
+  return bills
+    .map(
+      (b) => `
+        <div class="class-row">
+          <span>${escapeHtml(b.name)} — $${escapeHtml(b.amount.toFixed(2))}, due the ${escapeHtml(String(b.dueDay))}${escapeHtml(ordinalSuffix(b.dueDay))}</span>
+          <form method="POST" action="/api/donna-settings">
+            <input type="hidden" name="action" value="delete-manual-bill" />
+            <input type="hidden" name="id" value="${b.id}" />
+            <button class="btn btn-danger" type="submit">Remove</button>
+          </form>
+        </div>`
+    )
+    .join("\n");
+}
+
+function ordinalSuffix(day: number): string {
+  if (day % 10 === 1 && day !== 11) return "st";
+  if (day % 10 === 2 && day !== 12) return "nd";
+  if (day % 10 === 3 && day !== 13) return "rd";
+  return "th";
 }
 
 function renderReminderGroupRows(groups: ReminderGroup[]): string {
@@ -300,6 +329,7 @@ export function buildSettingsHtml(
   communityFeedSources: CommunityFeedSource[],
   sessions: SessionInfo[],
   currentSessionId: string | null,
+  manualBills: ManualBill[],
   saved: boolean,
   error?: string
 ): string {
@@ -483,6 +513,20 @@ export function buildSettingsHtml(
         <button class="btn" type="submit">Add</button>
       </form>
       <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>
+    </section>
+
+    <section class="section card" style="margin-top: 16px;">
+      <h1 class="section-title">Manual Bills</h1>
+      ${renderManualBillRows(manualBills)}
+
+      <form class="add-class-form" method="POST" action="/api/donna-settings">
+        <input type="hidden" name="action" value="add-manual-bill" />
+        <input type="text" name="name" placeholder="Bill name, e.g. Rent" required />
+        <input type="number" name="amount" placeholder="Amount" min="0" step="0.01" required style="width:100px;" />
+        <input type="number" name="dueDay" placeholder="Due day" min="1" max="31" required style="width:90px;" />
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <div class="hint">For bills Plaid can't see (rent paid outside a linked account, etc.) — shows up alongside auto-detected recurring charges in the Finances page's Upcoming Payments widget.</div>
     </section>
 
     <section class="section card" style="margin-top: 16px;">

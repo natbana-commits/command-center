@@ -529,3 +529,15 @@ create index if not exists sessions_expires_idx on sessions (expires_at);
 -- per day, doubling as the guard against sending either pass twice.
 alter table daily_context add column if not exists brief_sent_at timestamptz;
 alter table daily_context add column if not exists news_attempted_at timestamptz;
+
+-- Bills Plaid can't see (rent paid outside a linked account, etc.) for the
+-- Finances "upcoming payments" widget — see src/finance/manualBills.ts.
+-- Combined with auto-detected recurring charges there, not stored together
+-- with them (different lifecycle: user-entered vs. transaction-derived).
+create table if not exists manual_bills (
+  id bigint generated always as identity primary key,
+  name text not null,
+  amount numeric not null,
+  due_day int not null check (due_day between 1 and 31),
+  created_at timestamptz not null default now()
+);

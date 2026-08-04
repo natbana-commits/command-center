@@ -11,6 +11,9 @@ import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
 import { getNetWorthHistory } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
 import { getSpendingHistory, getSpendingByCategory } from "../src/finance/spendingAnalytics.js";
+import { getManualBills } from "../src/finance/manualBills.js";
+import { buildUpcomingPayments } from "../src/finance/upcomingPayments.js";
+import { resolveTimezone } from "../src/util/time.js";
 import { buildFinancesHtml } from "../src/donna/financesPage.js";
 
 // Plaid's webhook signature covers the exact raw request bytes, and
@@ -156,7 +159,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const plaidConfigured = isPlaidConfigured();
-  const settings = await loadSettings();
+  const [settings, manualBills] = await Promise.all([loadSettings(), getManualBills().catch(() => [])]);
+  const timezone = resolveTimezone(settings.timezone);
   const [items, accounts, transactions, netWorthHistory, recurringChargeTransactions] = plaidConfigured
     ? await Promise.all([
         getAllItems(),
@@ -169,6 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         getRecentTransactions(300).catch(() => []),
       ])
     : [[], [], [], [], []];
+  const recurringCharges = detectRecurringCharges(recurringChargeTransactions);
 
   const html = buildFinancesHtml({
     plaidConfigured,
@@ -176,7 +181,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     accounts,
     transactions,
     netWorthHistory,
-    recurringCharges: detectRecurringCharges(recurringChargeTransactions),
+    recurringCharges,
+    upcomingPayments: buildUpcomingPayments(recurringCharges, manualBills, timezone),
     // Same 300-row pull already fetched above for recurring-charge
     // detection — plenty of history for both a 90-day spending trend and
     // a 30-day category breakdown without a second Supabase query.

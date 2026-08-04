@@ -4,6 +4,7 @@ export interface RecurringCharge {
   label: string;
   averageAmount: number;
   lastChargeDate: string;
+  nextDueDate: string;
   occurrences: number;
 }
 
@@ -14,6 +15,12 @@ const MIN_OCCURRENCES = 2;
 
 function daysBetween(a: string, b: string): number {
   return Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86_400_000;
+}
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setUTCDate(d.getUTCDate() + Math.round(days));
+  return d.toISOString().slice(0, 10);
 }
 
 // Groups spend by merchant, then only calls it "recurring" when EVERY
@@ -46,12 +53,14 @@ export function detectRecurringCharges(transactions: PlaidTransaction[]): Recurr
     );
 
     let isRecurring = true;
+    const gaps: number[] = [];
     for (let i = 1; i < sorted.length; i++) {
       const gapDays = daysBetween(sorted[i - 1].transactionDate, sorted[i].transactionDate);
       if (gapDays < MIN_INTERVAL_DAYS || gapDays > MAX_INTERVAL_DAYS) {
         isRecurring = false;
         break;
       }
+      gaps.push(gapDays);
       const prevAmount = sorted[i - 1].amount;
       const amountDiff = Math.abs(sorted[i].amount - prevAmount) / Math.max(prevAmount, 0.01);
       if (amountDiff > AMOUNT_TOLERANCE) {
@@ -62,10 +71,15 @@ export function detectRecurringCharges(transactions: PlaidTransaction[]): Recurr
     if (!isRecurring) continue;
 
     const last = sorted[sorted.length - 1];
+    // This merchant's own observed cadence (e.g. a biller that always
+    // charges every 28 days) predicts the next date more precisely than a
+    // flat 30 — gaps is non-empty here since MIN_OCCURRENCES is 2.
+    const avgGapDays = gaps.reduce((sum, g) => sum + g, 0) / gaps.length;
     results.push({
       label: last.merchantName ?? last.name,
       averageAmount: sorted.reduce((sum, t) => sum + t.amount, 0) / sorted.length,
       lastChargeDate: last.transactionDate,
+      nextDueDate: addDays(last.transactionDate, avgGapDays),
       occurrences: sorted.length,
     });
   }

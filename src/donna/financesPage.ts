@@ -5,9 +5,11 @@ import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import type { NetWorthPoint } from "../finance/balanceHistory.js";
 import type { RecurringCharge } from "../finance/recurringCharges.js";
 import type { SpendingPoint, CategorySpend } from "../finance/spendingAnalytics.js";
+import type { UpcomingPayment } from "../finance/upcomingPayments.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { renderLineChart, renderBarChart } from "./charts.js";
+import { renderDayBadge } from "./dayBadge.js";
 
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
@@ -145,6 +147,18 @@ function renderRecurringChargeRow(charge: RecurringCharge): string {
     </div>`;
 }
 
+function renderUpcomingPaymentRow(payment: UpcomingPayment): string {
+  const color = payment.source === "manual" ? "var(--olive)" : "var(--accent)";
+  return `
+    <div class="day-badge-row">
+      ${renderDayBadge(payment.dueDate, color)}
+      <div class="day-badge-body">
+        <div class="day-badge-title">${escapeHtml(payment.label)}</div>
+        <span class="hint" style="margin:0;">${escapeHtml(formatMoney(payment.amount, "USD"))}${payment.source === "manual" ? " · manual" : ""}</span>
+      </div>
+    </div>`;
+}
+
 export interface FinancesPageData {
   plaidConfigured: boolean;
   items: PlaidItem[];
@@ -152,6 +166,7 @@ export interface FinancesPageData {
   transactions: PlaidTransaction[];
   netWorthHistory: NetWorthPoint[];
   recurringCharges: RecurringCharge[];
+  upcomingPayments: UpcomingPayment[];
   spendingHistory: SpendingPoint[];
   spendingByCategory: CategorySpend[];
   financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
@@ -167,6 +182,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     transactions,
     netWorthHistory,
     recurringCharges,
+    upcomingPayments,
     spendingHistory,
     spendingByCategory,
     financeWidgets,
@@ -224,6 +240,10 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       recurringCharges.length === 0
         ? null
         : { title: "Recurring Charges", content: `<div class="card">${recurringCharges.map(renderRecurringChargeRow).join("\n")}</div>` },
+    "upcoming-payments":
+      upcomingPayments.length === 0
+        ? null
+        : { title: "Upcoming Payments", content: `<div class="card">${upcomingPayments.map(renderUpcomingPaymentRow).join("\n")}</div>` },
     transactions: {
       title: "Recent Transactions",
       content: `<div class="card">${
