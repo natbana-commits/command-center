@@ -8,6 +8,7 @@ import type { ManualBill } from "../finance/manualBills.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
+import { iconGripVertical } from "./icons.js";
 
 // Folded in from the old dedicated Info tab (retired to free a sidebar
 // slot — Settings already gets a small icon of its own in the sidebar
@@ -281,56 +282,62 @@ function renderSessionRows(sessions: SessionInfo[], currentSessionId: string | n
   return sessions.map((s) => renderSessionRow(s, currentSessionId)).join("\n");
 }
 
-// Same reorderable-row pattern as renderWidgetRow, on distinct action
-// names (move-nav-up/down vs move-up/down) so the single dashboard form
-// can tell a nav-reorder click apart from a widget-reorder click.
-function renderNavRow(tab: string, visible: boolean, index: number, total: number): string {
+// Same drag-reorderable row shape as renderWidgetRow/renderFinanceWidgetRow —
+// data-id is what SETTINGS_CLIENT_SCRIPT's drag handler reads off each row
+// to build the new order it posts to reorder-nav.
+function renderNavRow(tab: string, visible: boolean): string {
   return `
-    <div class="widget-row">
+    <div class="widget-row" data-reorder-row data-id="${escapeHtml(tab)}">
+      <button type="button" class="reorder-handle" aria-label="Drag to reorder ${escapeHtml(NAV_TAB_LABELS[tab as keyof typeof NAV_TAB_LABELS] ?? tab)}">${iconGripVertical}</button>
       <label class="widget-row-label">
         <input type="checkbox" name="nav-${tab}" ${visible ? "checked" : ""} />
         ${escapeHtml(NAV_TAB_LABELS[tab as keyof typeof NAV_TAB_LABELS] ?? tab)}
       </label>
-      <div class="widget-row-controls">
-        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-nav-up:${tab}" aria-label="Move up">↑</button>` : ""}
-        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-nav-down:${tab}" aria-label="Move down">↓</button>` : ""}
-      </div>
     </div>`;
 }
 
-function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }, index: number, total: number): string {
+function renderWidgetRow(widget: { id: HomeWidgetId; visible: boolean }): string {
   return `
-    <div class="widget-row">
+    <div class="widget-row" data-reorder-row data-id="${escapeHtml(widget.id)}">
+      <button type="button" class="reorder-handle" aria-label="Drag to reorder ${escapeHtml(WIDGET_LABELS[widget.id] ?? widget.id)}">${iconGripVertical}</button>
       <label class="widget-row-label">
         <input type="checkbox" name="widget-${widget.id}" ${widget.visible ? "checked" : ""} />
         ${escapeHtml(WIDGET_LABELS[widget.id] ?? widget.id)}
       </label>
-      <div class="widget-row-controls">
-        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-up:${widget.id}" aria-label="Move up">↑</button>` : ""}
-        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-down:${widget.id}" aria-label="Move down">↓</button>` : ""}
-      </div>
     </div>`;
 }
 
-// Same reorderable-row pattern as renderWidgetRow, on distinct action
-// names (move-fin-up/down vs move-up/down) and checkbox prefix
-// (fin-widget- vs widget-) so the same Dashboard form can tell a
-// Finance-widget click apart from a Home-widget click.
-function renderFinanceWidgetRow(widget: { id: FinanceWidgetId; visible: boolean }, index: number, total: number): string {
+// Same drag-reorderable row shape as renderWidgetRow, with a distinct
+// checkbox prefix (fin-widget- vs widget-) and reorder action
+// (reorder-fin-widgets vs reorder-widgets) so the two lists never collide.
+function renderFinanceWidgetRow(widget: { id: FinanceWidgetId; visible: boolean }): string {
   return `
-    <div class="widget-row">
+    <div class="widget-row" data-reorder-row data-id="${escapeHtml(widget.id)}">
+      <button type="button" class="reorder-handle" aria-label="Drag to reorder ${escapeHtml(FINANCE_WIDGET_LABELS[widget.id] ?? widget.id)}">${iconGripVertical}</button>
       <label class="widget-row-label">
         <input type="checkbox" name="fin-widget-${widget.id}" ${widget.visible ? "checked" : ""} />
         ${escapeHtml(FINANCE_WIDGET_LABELS[widget.id] ?? widget.id)}
       </label>
-      <div class="widget-row-controls">
-        ${index > 0 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-fin-up:${widget.id}" aria-label="Move up">↑</button>` : ""}
-        ${index < total - 1 ? `<button class="btn-secondary btn-small" type="submit" name="action" value="move-fin-down:${widget.id}" aria-label="Move down">↓</button>` : ""}
-      </div>
     </div>`;
 }
 
-export function buildSettingsHtml(
+function jumpSection(id: string, title: string, innerHtml: string): { id: string; label: string; html: string } {
+  return {
+    id,
+    label: title,
+    html: `
+    <section class="section card settings-jump-target" id="${escapeHtml(id)}" style="margin-top: 16px;">
+      <h1 class="section-title">${escapeHtml(title)}</h1>
+      ${innerHtml}
+    </section>`,
+  };
+}
+
+// Nav pills are rendered straight from this array (see renderSettingsNav),
+// so it's the single source of truth for both a section's heading and its
+// jump-nav entry — add a section here and it appears in the nav for free,
+// nothing to keep in sync by hand.
+function buildJumpSections(
   settings: Settings,
   classFolders: ClassFolder[],
   watchlistEntries: WatchlistEntry[],
@@ -338,29 +345,13 @@ export function buildSettingsHtml(
   communityFeedSources: CommunityFeedSource[],
   sessions: SessionInfo[],
   currentSessionId: string | null,
-  manualBills: ManualBill[],
-  saved: boolean,
-  error?: string
-): string {
-  const body = `
-    <div class="section">
-      <h1 class="page-title">Settings</h1>
-    </div>
-    ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
-    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
-
-    <section class="section card">
-      <h1 class="section-title">Appearance</h1>
-      <div class="field" style="flex-direction: row; align-items: center; justify-content: space-between;">
-        <label style="margin:0;">Theme</label>
-        <button type="button" class="btn-secondary btn-small" id="settings-theme-toggle">
-          <span id="settings-theme-icon">&#x1F319;</span> Toggle
-        </button>
-      </div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Brief settings</h1>
+  manualBills: ManualBill[]
+): { id: string; label: string; html: string }[] {
+  return [
+    jumpSection(
+      "settings-brief",
+      "Brief settings",
+      `
       <form class="settings-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="save-settings" />
 
@@ -378,26 +369,27 @@ export function buildSettingsHtml(
 
         <button class="btn" type="submit">Save</button>
       </form>
-      <p class="hint">Reminders now live in Google Tasks — check the Reminders page, or ask Donna to add or check them off.</p>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Dashboard</h1>
+      <p class="hint">Reminders now live in Google Tasks — check the Reminders page, or ask Donna to add or check them off.</p>`
+    ),
+    jumpSection(
+      "settings-dashboard",
+      "Dashboard",
+      `
       <form id="dashboard-settings-form" class="settings-form" method="POST" action="/api/donna-settings">
         <div class="field">
           <label>Home cards</label>
-          ${settings.dashboardConfig.homeWidgets
-            .map((w, i) => renderWidgetRow(w, i, settings.dashboardConfig.homeWidgets.length))
-            .join("\n")}
-          <div class="hint">Uncheck a card to hide it from Home, or use the arrows to reorder.</div>
+          <div class="reorder-list" data-reorder-list data-reorder-action="reorder-widgets">
+            ${settings.dashboardConfig.homeWidgets.map((w) => renderWidgetRow(w)).join("\n")}
+          </div>
+          <div class="hint">Uncheck a card to hide it from Home, or drag the handle to reorder.</div>
         </div>
 
         <div class="field">
           <label>Finance page widgets</label>
-          ${settings.dashboardConfig.financeWidgets
-            .map((w, i) => renderFinanceWidgetRow(w, i, settings.dashboardConfig.financeWidgets.length))
-            .join("\n")}
-          <div class="hint">Uncheck a widget to hide it from the Finances page, or use the arrows to reorder.</div>
+          <div class="reorder-list" data-reorder-list data-reorder-action="reorder-fin-widgets">
+            ${settings.dashboardConfig.financeWidgets.map((w) => renderFinanceWidgetRow(w)).join("\n")}
+          </div>
+          <div class="hint">Uncheck a widget to hide it from the Finances page, or drag the handle to reorder.</div>
         </div>
 
         <div class="field">
@@ -410,25 +402,21 @@ export function buildSettingsHtml(
 
         <div class="field">
           <label>Sidebar pages</label>
-          ${settings.dashboardConfig.navOrder
-            .map((tab, i) =>
-              renderNavRow(
-                tab,
-                settings.dashboardConfig.navVisibility[tab as keyof NavVisibility],
-                i,
-                settings.dashboardConfig.navOrder.length
-              )
-            )
-            .join("\n")}
-          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or use the arrows to reorder — order also decides which pages show directly on the mobile bottom bar vs. under "More".</div>
+          <div class="reorder-list" data-reorder-list data-reorder-action="reorder-nav">
+            ${settings.dashboardConfig.navOrder
+              .map((tab) => renderNavRow(tab, settings.dashboardConfig.navVisibility[tab as keyof NavVisibility]))
+              .join("\n")}
+          </div>
+          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or drag the handle to reorder — order also decides which pages show directly on the mobile bottom bar vs. under "More".</div>
         </div>
 
         <button class="btn" type="submit" name="action" value="save-dashboard-settings">Save</button>
-      </form>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Morning text</h1>
+      </form>`
+    ),
+    jumpSection(
+      "settings-morning-text",
+      "Morning text",
+      `
       <form class="settings-form" method="POST" action="/api/donna-settings">
         <input type="hidden" name="action" value="save-brief-settings" />
         <div class="field">
@@ -480,11 +468,12 @@ export function buildSettingsHtml(
         </div>
 
         <button class="btn" type="submit">Save</button>
-      </form>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Watchlist</h1>
+      </form>`
+    ),
+    jumpSection(
+      "settings-watchlist",
+      "Watchlist",
+      `
       ${renderWatchlistRows(watchlistEntries)}
 
       <form class="add-class-form" method="POST" action="/api/donna-settings">
@@ -492,11 +481,12 @@ export function buildSettingsHtml(
         <input type="text" name="label" placeholder="Company or ticker, e.g. Klarna or KLAR" required />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">A watchlist mention gets priority in the daily news picks and a badge in the feed.</div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Community Feeds</h1>
+      <div class="hint">A watchlist mention gets priority in the daily news picks and a badge in the feed.</div>`
+    ),
+    jumpSection(
+      "settings-community-feeds",
+      "Community Feeds",
+      `
       ${renderCommunityFeedRows(communityFeedSources)}
 
       <form class="add-class-form" method="POST" action="/api/donna-settings">
@@ -505,11 +495,12 @@ export function buildSettingsHtml(
         <input type="text" name="url" placeholder="RSS feed URL" required style="flex: 2 1 220px;" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Raw RSS sources for Home's Community tab — no curation, just a chronological list.</div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Classes</h1>
+      <div class="hint">Raw RSS sources for Home's Community tab — no curation, just a chronological list.</div>`
+    ),
+    jumpSection(
+      "settings-classes",
+      "Classes",
+      `
       ${renderClassRows(classFolders)}
 
       <form class="add-class-form" method="POST" action="/api/donna-settings">
@@ -518,11 +509,12 @@ export function buildSettingsHtml(
         <input type="text" name="driveFolderLink" placeholder="Paste Drive folder link" required />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Paste a Drive folder's share link — Donna extracts the folder ID automatically.</div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Reminder Groups</h1>
+      <div class="hint">Paste a Drive folder's share link — Donna extracts the folder ID automatically.</div>`
+    ),
+    jumpSection(
+      "settings-reminder-groups",
+      "Reminder Groups",
+      `
       ${renderReminderGroupRows(reminderGroups)}
 
       <form class="add-class-form" method="POST" action="/api/donna-settings">
@@ -531,11 +523,12 @@ export function buildSettingsHtml(
         <input type="color" name="color" value="#b86b45" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Manual Bills</h1>
+      <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>`
+    ),
+    jumpSection(
+      "settings-manual-bills",
+      "Manual Bills",
+      `
       ${renderManualBillRows(manualBills)}
 
       <form class="add-class-form" method="POST" action="/api/donna-settings">
@@ -545,11 +538,12 @@ export function buildSettingsHtml(
         <input type="number" name="dueDay" placeholder="Due day" min="1" max="31" required style="width:90px;" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">For bills Plaid can't see (rent paid outside a linked account, etc.) — shows up alongside auto-detected recurring charges in the Finances page's Upcoming Payments widget.</div>
-    </section>
-
-    <section class="section card" style="margin-top: 16px;">
-      <h1 class="section-title">Sessions</h1>
+      <div class="hint">For bills Plaid can't see (rent paid outside a linked account, etc.) — shows up alongside auto-detected recurring charges in the Finances page's Upcoming Payments widget.</div>`
+    ),
+    jumpSection(
+      "settings-sessions",
+      "Sessions",
+      `
       ${renderSessionRows(sessions, currentSessionId)}
 
       <div style="margin-top: var(--sp-2); display:flex; gap: var(--sp-2); flex-wrap: wrap;">
@@ -563,17 +557,70 @@ export function buildSettingsHtml(
             : ""
         }
       </div>
-      <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device — it takes effect immediately, without changing your password.</div>
-    </section>
-
+      <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device — it takes effect immediately, without changing your password.</div>`
+    ),
+    {
+      id: "how-this-works",
+      label: "How this works",
+      html: `
     <section class="section card" style="margin-top: 16px;">
-      <details id="how-this-works">
+      <details id="how-this-works" class="settings-jump-target">
         <summary class="section-title" style="cursor:pointer;">How this works</summary>
         <div style="margin-top: var(--sp-2);">
           ${HOW_THIS_WORKS.map(renderHowThisWorksSection).join("\n")}
         </div>
       </details>
-    </section>`;
+    </section>`,
+    },
+  ];
+}
+
+function renderSettingsNav(items: { id: string; label: string }[]): string {
+  const pills = items
+    .map((s) => `<a class="settings-nav-pill" href="#${escapeHtml(s.id)}">${escapeHtml(s.label)}</a>`)
+    .join("\n");
+  return `
+    <nav class="settings-nav" aria-label="Settings sections">
+      <div class="settings-nav-pills">${pills}</div>
+      <button type="button" class="settings-nav-pill settings-nav-theme-btn" id="settings-theme-toggle">
+        <span id="settings-theme-icon">&#x1F319;</span> Theme
+      </button>
+    </nav>`;
+}
+
+export function buildSettingsHtml(
+  settings: Settings,
+  classFolders: ClassFolder[],
+  watchlistEntries: WatchlistEntry[],
+  reminderGroups: ReminderGroup[],
+  communityFeedSources: CommunityFeedSource[],
+  sessions: SessionInfo[],
+  currentSessionId: string | null,
+  manualBills: ManualBill[],
+  saved: boolean,
+  error?: string
+): string {
+  const jumpSections = buildJumpSections(
+    settings,
+    classFolders,
+    watchlistEntries,
+    reminderGroups,
+    communityFeedSources,
+    sessions,
+    currentSessionId,
+    manualBills
+  );
+
+  const body = `
+    <div class="section">
+      <h1 class="page-title">Settings</h1>
+    </div>
+    ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
+    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
+
+    ${renderSettingsNav(jumpSections)}
+
+    ${jumpSections.map((s) => s.html).join("\n")}`;
 
   return renderLayout({
     title: "Donna Settings",
@@ -636,39 +683,120 @@ const SETTINGS_CLIENT_SCRIPT = `
     }
   }
 
-  // Dashboard reorder buttons (move-up/move-down/move-nav-*/move-fin-*) —
-  // intercept just those, not the form's "Save" button, so Save keeps its
-  // existing full-page "Saved." confirmation while reordering becomes
-  // instant. This script re-runs on every client-routed visit to Settings
-  // (it's inline in #page-content, re-executed by the router's runScripts),
-  // so the window flag stops a duplicate listener stacking up each time.
-  if (window.__dashboardReorderBound) return;
-  window.__dashboardReorderBound = true;
+  // The nav pill for "How this works" only changes the URL hash — that
+  // doesn't re-run the check above, so without this the details stays
+  // collapsed after a same-page click (only a fresh load honors the hash).
+  const howPill = document.querySelector('a[href="#how-this-works"]');
+  if (howPill) {
+    howPill.addEventListener("click", function () {
+      const details = document.getElementById("how-this-works");
+      if (details) details.open = true;
+    });
+  }
 
-  document.addEventListener("click", function (e) {
-    const btn = e.target && e.target.closest && e.target.closest('button[name="action"][value^="move-"]');
-    if (!btn) return;
-    const form = btn.closest("form");
-    if (!form) return;
-    e.preventDefault();
+  // Touch-friendly drag-to-reorder for the three lists on this page (Home
+  // cards, Finance widgets, Sidebar pages) — replaces the old up/down
+  // arrow buttons entirely. Each [data-reorder-list] posts its new order
+  // as a standalone request (not the whole Dashboard form) the moment a
+  // drag ends, so it never touches unsaved checkbox/select edits sitting
+  // elsewhere in that form. Elements here live inside #page-content and
+  // are destroyed/recreated by the router on every visit (see the theme
+  // toggle above), so — unlike the old document-level click listener this
+  // replaces — plain addEventListener needs no dedupe guard.
+  function initReorderList(list) {
+    const action = list.getAttribute("data-reorder-action");
+    let dragRow = null;
+    let startY = 0;
+    let startTop = 0;
 
-    const formData = new FormData(form);
-    formData.append(btn.name, btn.value);
+    function rows() {
+      return Array.prototype.slice.call(list.children);
+    }
 
-    fetch(form.action, { method: "POST", body: formData })
-      .then(function (res) {
-        if (!res.ok) throw new Error("bad status " + res.status);
-        return res.text();
-      })
-      .then(function (text) {
-        const doc = new DOMParser().parseFromString(text, "text/html");
-        const newForm = doc.getElementById("dashboard-settings-form");
-        if (newForm) form.replaceWith(newForm);
-      })
-      .catch(function () {
-        // Fall back to a real submission — never leave the click doing nothing.
-        form.requestSubmit(btn);
-      });
-  });
+    function saveOrder() {
+      const order = rows()
+        .map(function (r) { return r.getAttribute("data-id"); })
+        .join(",");
+      fetch("/api/donna-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "action=" + encodeURIComponent(action) + "&order=" + encodeURIComponent(order),
+      }).catch(function () {});
+    }
+
+    list.addEventListener("pointerdown", function (e) {
+      const handle = e.target.closest && e.target.closest(".reorder-handle");
+      if (!handle) return;
+      const row = handle.closest("[data-reorder-row]");
+      if (!row || row.parentElement !== list) return;
+      dragRow = row;
+      startY = e.clientY;
+      startTop = row.getBoundingClientRect().top;
+      row.classList.add("widget-row-dragging");
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    list.addEventListener("pointermove", function (e) {
+      if (!dragRow) return;
+      const deltaY = e.clientY - startY;
+      dragRow.style.transform = "translateY(" + deltaY + "px)";
+
+      const dragMid = startTop + dragRow.offsetHeight / 2 + deltaY;
+      const siblings = rows();
+      for (let i = 0; i < siblings.length; i++) {
+        const sib = siblings[i];
+        if (sib === dragRow) continue;
+        const rect = sib.getBoundingClientRect();
+        const sibMid = rect.top + rect.height / 2;
+        const dragIsAfter = !!(dragRow.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_PRECEDING);
+        if (dragIsAfter && dragMid < sibMid) {
+          list.insertBefore(dragRow, sib);
+        } else if (!dragIsAfter && dragMid > sibMid) {
+          list.insertBefore(dragRow, sib.nextSibling);
+        } else {
+          continue;
+        }
+        startTop = dragRow.getBoundingClientRect().top;
+        startY = e.clientY;
+        dragRow.style.transform = "translateY(0px)";
+        break;
+      }
+    });
+
+    function endDrag() {
+      if (!dragRow) return;
+      dragRow.classList.remove("widget-row-dragging");
+      dragRow.style.transform = "";
+      dragRow = null;
+      saveOrder();
+    }
+    list.addEventListener("pointerup", endDrag);
+    list.addEventListener("pointercancel", endDrag);
+
+    // Keyboard fallback (Arrow Up/Down while a handle is focused) — the
+    // arrow buttons this replaces were natively keyboard-operable, so this
+    // keeps that true without needing them back.
+    list.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      const handle = e.target.closest && e.target.closest(".reorder-handle");
+      if (!handle) return;
+      const row = handle.closest("[data-reorder-row]");
+      if (!row) return;
+      e.preventDefault();
+      if (e.key === "ArrowUp" && row.previousElementSibling) {
+        list.insertBefore(row, row.previousElementSibling);
+      } else if (e.key === "ArrowDown" && row.nextElementSibling) {
+        list.insertBefore(row.nextElementSibling, row);
+      }
+      handle.focus();
+      saveOrder();
+    });
+  }
+
+  const reorderLists = document.querySelectorAll("[data-reorder-list]");
+  for (let i = 0; i < reorderLists.length; i++) {
+    initReorderList(reorderLists[i]);
+  }
 })();
 `;

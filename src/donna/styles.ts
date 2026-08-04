@@ -98,6 +98,8 @@ export const BASE_STYLES = `
     --danger: #e2725a;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   body {
     margin: 0;
     background: var(--bg);
@@ -891,7 +893,7 @@ export const BASE_STYLES = `
   .widget-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border);
   }
@@ -902,8 +904,79 @@ export const BASE_STYLES = `
     gap: 8px;
     font-weight: 500;
     margin-bottom: 0;
+    flex: 1;
+    min-width: 0;
   }
-  .widget-row-controls { display: flex; gap: 4px; }
+
+  /* --- drag-to-reorder (Settings: Home cards, Finance widgets, Sidebar pages) --- */
+  .reorder-list { display: flex; flex-direction: column; }
+  .reorder-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-muted);
+    cursor: grab;
+    touch-action: none;
+  }
+  .reorder-handle:hover { color: var(--ink); background: var(--sidebar-bg); }
+  .reorder-handle:active { cursor: grabbing; }
+  .widget-row-dragging {
+    position: relative;
+    z-index: 5;
+    background: var(--card);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+    cursor: grabbing;
+  }
+  .widget-row-dragging .reorder-handle { cursor: grabbing; }
+
+  /* --- Settings section jump-nav --- */
+  .settings-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    padding: 10px 0;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-nav-pills {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .settings-nav-pills::-webkit-scrollbar { display: none; }
+  .settings-nav-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .settings-nav-pill:hover { border-color: var(--accent); color: var(--ink); }
+  .settings-nav-theme-btn { margin-left: auto; flex: 0 0 auto; }
+  .settings-jump-target { scroll-margin-top: 68px; }
 
   input:focus, select:focus, textarea:focus, button:focus-visible {
     outline: 2px solid rgba(184, 107, 69, 0.35);

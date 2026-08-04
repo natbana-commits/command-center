@@ -164,61 +164,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      // A single "Dashboard" form covers both saving and reordering — each
-      // submit button carries its own `action` value ("save-dashboard-
-      // settings", or "move-up:<widgetId>"/"move-down:<widgetId>" for
-      // widgets, "move-nav-up:<tab>"/"move-nav-down:<tab>" for nav order)
-      // so one form can do all three without any JS. Whichever button is
-      // clicked, the checkbox/select state currently shown on the page
-      // comes along with it, so a reorder click also saves any
-      // visibility/tab changes made in the same view.
-      const [actionType, targetId] = action?.split(":") ?? [];
-      const isWidgetReorder = actionType === "move-up" || actionType === "move-down";
-      const isFinanceWidgetReorder = actionType === "move-fin-up" || actionType === "move-fin-down";
-      const isNavReorder = actionType === "move-nav-up" || actionType === "move-nav-down";
-      if (actionType === "save-dashboard-settings" || isWidgetReorder || isFinanceWidgetReorder || isNavReorder) {
+      if (action === "save-dashboard-settings") {
         const current = await loadSettings();
-        const widgetOrder = current.dashboardConfig.homeWidgets.map((w) => w.id);
-        const financeWidgetOrder = current.dashboardConfig.financeWidgets.map((w) => w.id);
-        const navOrder = [...current.dashboardConfig.navOrder];
-
-        if (isWidgetReorder) {
-          const idx = widgetOrder.indexOf(targetId as HomeWidgetId);
-          const swapWith = actionType === "move-up" ? idx - 1 : idx + 1;
-          if (idx !== -1 && swapWith >= 0 && swapWith < widgetOrder.length) {
-            [widgetOrder[idx], widgetOrder[swapWith]] = [widgetOrder[swapWith], widgetOrder[idx]];
-          }
-        }
-
-        if (isFinanceWidgetReorder) {
-          const idx = financeWidgetOrder.indexOf(targetId as FinanceWidgetId);
-          const swapWith = actionType === "move-fin-up" ? idx - 1 : idx + 1;
-          if (idx !== -1 && swapWith >= 0 && swapWith < financeWidgetOrder.length) {
-            [financeWidgetOrder[idx], financeWidgetOrder[swapWith]] = [financeWidgetOrder[swapWith], financeWidgetOrder[idx]];
-          }
-        }
-
-        if (isNavReorder) {
-          const idx = navOrder.indexOf(targetId);
-          const swapWith = actionType === "move-nav-up" ? idx - 1 : idx + 1;
-          if (idx !== -1 && swapWith >= 0 && swapWith < navOrder.length) {
-            [navOrder[idx], navOrder[swapWith]] = [navOrder[swapWith], navOrder[idx]];
-          }
-        }
-
+        const navOrder = current.dashboardConfig.navOrder;
         const navVisibility = Object.fromEntries(
           navOrder.map((tab) => [tab, body[`nav-${tab}`] === "on"])
         ) as unknown as NavVisibility;
 
         await saveSettings({
           dashboardConfig: {
-            homeWidgets: widgetOrder.map((id) => ({ id, visible: body[`widget-${id}`] === "on" })),
-            financeWidgets: financeWidgetOrder.map((id) => ({ id, visible: body[`fin-widget-${id}`] === "on" })),
+            ...current.dashboardConfig,
+            homeWidgets: current.dashboardConfig.homeWidgets.map((w) => ({
+              id: w.id,
+              visible: body[`widget-${w.id}`] === "on",
+            })),
+            financeWidgets: current.dashboardConfig.financeWidgets.map((w) => ({
+              id: w.id,
+              visible: body[`fin-widget-${w.id}`] === "on",
+            })),
             defaultHomeTab: body.defaultHomeTab === "newsletters" ? "newsletters" : "news",
             navVisibility,
-            navOrder,
           },
         });
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      // Drag-reorder auto-saves on drop (see SETTINGS_CLIENT_SCRIPT) as a
+      // standalone fetch carrying only the new order — not the whole
+      // Dashboard form — so each of these three only ever touches its own
+      // one array, preserving every widget/tab's current visibility rather
+      // than re-deriving it from a body that was never sent. Order is
+      // filtered to known ids and anything missing from it (a stale
+      // client, a partial submission) is appended at the end rather than
+      // silently dropped from Settings.
+      if (action === "reorder-widgets" || action === "reorder-fin-widgets" || action === "reorder-nav") {
+        const current = await loadSettings();
+        const order = (body.order ?? "").split(",").filter(Boolean);
+
+        if (action === "reorder-widgets") {
+          const byId = new Map(current.dashboardConfig.homeWidgets.map((w) => [w.id, w]));
+          const reordered = order.map((id) => byId.get(id as HomeWidgetId)).filter((w) => w !== undefined);
+          const missing = current.dashboardConfig.homeWidgets.filter((w) => !order.includes(w.id));
+          await saveSettings({
+            dashboardConfig: { ...current.dashboardConfig, homeWidgets: [...reordered, ...missing] },
+          });
+        } else if (action === "reorder-fin-widgets") {
+          const byId = new Map(current.dashboardConfig.financeWidgets.map((w) => [w.id, w]));
+          const reordered = order.map((id) => byId.get(id as FinanceWidgetId)).filter((w) => w !== undefined);
+          const missing = current.dashboardConfig.financeWidgets.filter((w) => !order.includes(w.id));
+          await saveSettings({
+            dashboardConfig: { ...current.dashboardConfig, financeWidgets: [...reordered, ...missing] },
+          });
+        } else {
+          const known = current.dashboardConfig.navOrder;
+          const reordered = order.filter((tab) => known.includes(tab));
+          const missing = known.filter((tab) => !order.includes(tab));
+          await saveSettings({
+            dashboardConfig: { ...current.dashboardConfig, navOrder: [...reordered, ...missing] },
+          });
+        }
         res.redirect(303, "/donna/settings?saved=1");
         return;
       }
