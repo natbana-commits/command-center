@@ -30,6 +30,19 @@ function sign(payload: string): string {
   return crypto.createHmac("sha256", secret).update(payload).digest("hex");
 }
 
+// The `sessions` table stores this instead of the raw random id — a DB-only
+// leak (no SESSION_SECRET) already can't forge a cookie (the signature
+// needs the secret), but it previously *could* hand an attacker every
+// currently-valid plaintext session id, which becomes immediately usable
+// the moment SESSION_SECRET leaks too, from a wholly separate compromise.
+// Hashing means a DB leak alone never yields anything usable in
+// combination with a later/different secret leak. The raw id (in the
+// cookie, never persisted) is still what's needed to compute the HMAC
+// signature — this only changes what's written to the `id` column.
+function hashSessionId(id: string): string {
+  return crypto.createHash("sha256").update(id).digest("hex");
+}
+
 function signCookieValue(sessionId: string): string {
   return `${sessionId}.${sign(sessionId)}`;
 }
@@ -75,10 +88,14 @@ function parseCookies(header: string | undefined): Record<string, string> {
 
 // Unsigned lookup only — used wherever code just needs to know *which*
 // session this request claims to be (e.g. to exclude it from a "sign out
-// everywhere else" sweep), not whether it's actually still valid.
+// everywhere else" sweep), not whether it's actually still valid. Returns
+// the *hashed* id (matching what's stored in the `sessions` table, see
+// hashSessionId above) — every caller uses this purely to compare against
+// or query that table, never to reconstruct the cookie.
 export function getCurrentSessionId(req: VercelRequest): string | null {
   const cookies = parseCookies(req.headers.cookie);
-  return verifyCookieSignature(cookies[COOKIE_NAME]);
+  const rawId = verifyCookieSignature(cookies[COOKIE_NAME]);
+  return rawId ? hashSessionId(rawId) : null;
 }
 
 // Vercel's local dev server (`vercel dev`) serves over plain http, where a
@@ -99,7 +116,7 @@ export async function createSession(req: VercelRequest, res: VercelResponse): Pr
 
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() =>
-    client.from("sessions").insert({ id, expires_at: expiresAt, user_agent: userAgent })
+    client.from("sessions").insert({ id: hashSessionId(id), expires_at: expiresAt, user_agent: userAgent })
   );
   if (error) {
     throw new Error(`Supabase insert error: ${error.message}`);

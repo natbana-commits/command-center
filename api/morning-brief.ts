@@ -10,6 +10,7 @@ import { getDueHabitNudges, markHabitNotified } from "../src/habits/store.js";
 import { fetchAndStoreNewsletters } from "../src/gmail/index.js";
 import { loadSettings } from "../src/config.js";
 import { localDateKey, resolveTimezone } from "../src/util/time.js";
+import { timingSafeStringEqual } from "../src/util/timingSafeEqual.js";
 
 // Merged with the old api/reminder-check.ts to stay under Vercel Hobby's
 // 12-function cap — both are bare secret-gated background jobs with no
@@ -111,16 +112,19 @@ async function handleManualBrief(res: VercelResponse, phase: string | undefined)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization ?? "";
 
   // The env-var presence checks matter: without them, an unset secret makes
   // the comparison target literally "Bearer undefined", which a request
   // sending that exact (unset) header would match.
-  if (process.env.REMINDER_CHECK_SECRET && authHeader === `Bearer ${process.env.REMINDER_CHECK_SECRET}`) {
+  if (
+    process.env.REMINDER_CHECK_SECRET &&
+    timingSafeStringEqual(authHeader, `Bearer ${process.env.REMINDER_CHECK_SECRET}`)
+  ) {
     await handleReminderCheck(res);
     return;
   }
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || !timingSafeStringEqual(authHeader, `Bearer ${process.env.CRON_SECRET}`)) {
     res.status(401).send("Unauthorized");
     return;
   }

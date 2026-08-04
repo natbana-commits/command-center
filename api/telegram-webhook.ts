@@ -8,6 +8,7 @@ import { chunkText } from "../src/util/chunk.js";
 import { localDateKey, resolveTimezone } from "../src/util/time.js";
 import { loadSettings } from "../src/config.js";
 import { transcribeAudio, isOpenAiConfigured } from "../src/transcription/whisper.js";
+import { timingSafeStringEqual } from "../src/util/timingSafeEqual.js";
 
 const AFFIRMATIVE = /^(y|yes|yeah|yep|yea)[.!]?$/i;
 const NEGATIVE = /^(n|no|nope|nah)[.!]?$/i;
@@ -22,9 +23,10 @@ interface TelegramUpdate {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = req.headers["x-telegram-bot-api-secret-token"];
-  // The empty-string check matters: without it, an unset TELEGRAM_WEBHOOK_SECRET
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  // The expectedSecret check matters: without it, an unset TELEGRAM_WEBHOOK_SECRET
   // would make both sides `undefined` and silently authenticate any request.
-  if (!process.env.TELEGRAM_WEBHOOK_SECRET || secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+  if (!expectedSecret || typeof secret !== "string" || !timingSafeStringEqual(secret, expectedSecret)) {
     res.status(401).send("Unauthorized");
     return;
   }
