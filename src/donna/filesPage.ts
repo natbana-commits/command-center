@@ -215,7 +215,10 @@ export function buildFilesHtml(data: FilesPageData): string {
     <div class="file-library-layout">
       <div class="file-library">
         ${renderDeadlinesSection(classFolders, reminders, classLinks)}
-        <h1 class="section-title">File Library</h1>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
+          <h1 class="section-title" style="margin:0;">File Library</h1>
+          <a class="btn-secondary btn-small" href="/donna/files?refresh=1" title="Re-check Drive for files added since the last load">Refresh</a>
+        </div>
         ${libraryHtml}
       </div>
 

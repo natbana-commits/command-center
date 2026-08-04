@@ -11,6 +11,7 @@ import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { buildFilesHtml } from "../src/donna/filesPage.js";
+import { invalidateCache } from "../src/util/cache.js";
 import { buildSchoolHtml } from "../src/donna/schoolPage.js";
 import { getFlashcardsForClass, createFlashcards, reviewFlashcard } from "../src/school/flashcards.js";
 import { generateFlashcardsFromTranscript } from "../src/school/generateFlashcards.js";
@@ -37,6 +38,15 @@ function addLocalDays(from: Date, days: number, timezone: string): Date {
 async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
+
+  // The whole ICS feed is cached under one key for 2 minutes (fetching it
+  // is free — a plain HTTP GET, no API cost — this is just to avoid
+  // re-fetching on every page load). ?refresh=1 clears it so an event
+  // added moments ago on your phone shows up immediately instead of
+  // waiting out the cache.
+  if (req.query.refresh === "1") {
+    await invalidateCache("calendar:ics");
+  }
 
   const parsedOffset = Number(req.query.week);
   const weekOffset = Number.isFinite(parsedOffset) ? Math.trunc(parsedOffset) : 0;
@@ -102,6 +112,15 @@ async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
     listRemindersSafe(),
   ]);
   const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+
+  // listFilesInFolder caches each folder's listing for 5 minutes (Drive API
+  // has no per-call cost, this is purely to avoid re-hitting it on every
+  // page load) — a file added directly in Drive can be invisible for up to
+  // that long otherwise. ?refresh=1 (the Files page's Refresh link) clears
+  // every folder's entry before fetching, forcing a live re-read.
+  if (req.query.refresh === "1") {
+    await Promise.all(classFolders.map((cls) => invalidateCache(`drive:files:${cls.driveFolderId}`)));
+  }
 
   const filesByClass: Record<number, DriveFile[]> = {};
   const uploadsByClass: Record<number, Upload[]> = {};

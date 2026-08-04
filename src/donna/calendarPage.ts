@@ -85,6 +85,7 @@ export function buildCalendarHtml(data: CalendarPageData): string {
       <div style="display:flex; align-items:center; gap: var(--sp-2);">
         <span class="section-title" style="margin:0;">${escapeHtml(weekLabel)}</span>
         ${weekOffset !== 0 ? `<a class="hint" href="/donna/calendar">This week</a>` : ""}
+        <a class="hint" href="/donna/calendar?week=${weekOffset}&refresh=1" title="Re-check the calendar for anything added since the last load">Refresh</a>
       </div>
       <a class="btn-secondary btn-small" href="/donna/calendar?week=${weekOffset + 1}">Next →</a>
     </div>

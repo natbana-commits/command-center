@@ -534,6 +534,9 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     </section>
 
     <section class="section home-tab-panel" id="community-panel" style="display:none;">
+      <div style="text-align:right; margin-bottom: var(--sp-2);">
+        <a class="hint" href="/donna?refresh=1" title="Re-check community sources for anything posted since the last load">Refresh</a>
+      </div>
       ${renderCommunitySection(communityFeedItems)}
     </section>
 

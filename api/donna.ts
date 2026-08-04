@@ -25,6 +25,7 @@ import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
 import { isAuthenticated, requireAuth, createSession, destroySession, verifyPassword } from "../src/auth/session.js";
 import { isLoginLocked, recordFailedLogin, clearFailedLogins } from "../src/auth/loginAttempts.js";
+import { invalidateCache } from "../src/util/cache.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const page = req.query.page;
@@ -87,6 +88,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(500).json({ error: "Failed to generate explanation" });
     }
     return;
+  }
+
+  // Community feed items are cached under one key for 15 minutes (fetching
+  // RSS is free — this is just to avoid re-fetching on every Home load).
+  // The Community tab's Refresh link reloads Home with this set, clearing
+  // it so a new post shows up immediately instead of waiting out the cache.
+  if (req.query.refresh === "1") {
+    await invalidateCache("community-feed-items");
   }
 
   const settings = await loadSettings();
