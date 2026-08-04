@@ -10,6 +10,22 @@ import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { renderLineChart, renderBarChart } from "./charts.js";
 import { renderDayBadge } from "./dayBadge.js";
+import { renderPageEditLink } from "./editLink.js";
+
+const VISIBLE_TRANSACTIONS = 4;
+
+// Widgets short enough to sit three-across in a .card-row instead of each
+// claiming a full-width row — desktop was scrolling much further than the
+// content needed just from these being stacked one under another. List-
+// heavy widgets (Accounts, Transactions) stay full-width; a 1/3-width
+// column reads cramped for a long list of rows.
+const COMPACT_WIDGET_IDS: readonly FinanceWidgetId[] = [
+  "net-worth",
+  "spending-over-time",
+  "spending-by-category",
+  "recurring-charges",
+  "upcoming-payments",
+];
 
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
@@ -92,6 +108,20 @@ function renderTransactionRow(t: PlaidTransaction, accountName: string): string 
         <span class="finance-row-date">${escapeHtml(formatTransactionDate(t.transactionDate))}</span>
       </div>
     </div>`;
+}
+
+function renderTransactionsList(transactions: PlaidTransaction[], accountNameById: Map<string, string>): string {
+  if (transactions.length === 0) return `<p class="empty">No transactions yet.</p>`;
+
+  const rowHtml = (t: PlaidTransaction) => renderTransactionRow(t, accountNameById.get(t.accountId) ?? "Account");
+  const visible = transactions.slice(0, VISIBLE_TRANSACTIONS);
+  const rest = transactions.slice(VISIBLE_TRANSACTIONS);
+  if (rest.length === 0) return visible.map(rowHtml).join("\n");
+
+  return `
+    ${visible.map(rowHtml).join("\n")}
+    <div id="finance-extra-transactions" style="display:none;">${rest.map(rowHtml).join("\n")}</div>
+    <button type="button" class="btn-secondary btn-small" style="margin-top: var(--sp-2);" onclick="toggleExtraTransactions(this)">Show ${rest.length} more</button>`;
 }
 
 function renderNetWorthSection(history: NetWorthPoint[]): string {
@@ -239,35 +269,60 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     "recurring-charges":
       recurringCharges.length === 0
         ? null
-        : { title: "Recurring Charges", content: `<div class="card">${recurringCharges.map(renderRecurringChargeRow).join("\n")}</div>` },
+        : { title: "Recurring Charges", content: recurringCharges.map(renderRecurringChargeRow).join("\n") },
     "upcoming-payments":
       upcomingPayments.length === 0
         ? null
-        : { title: "Upcoming Payments", content: `<div class="card">${upcomingPayments.map(renderUpcomingPaymentRow).join("\n")}</div>` },
+        : { title: "Upcoming Payments", content: upcomingPayments.map(renderUpcomingPaymentRow).join("\n") },
     transactions: {
       title: "Recent Transactions",
-      content: `<div class="card">${
-        transactions.length === 0
-          ? `<p class="empty">No transactions yet.</p>`
-          : transactions.map((t) => renderTransactionRow(t, accountNameById.get(t.accountId) ?? "Account")).join("\n")
-      }</div>`,
+      content: renderTransactionsList(transactions, accountNameById),
     },
   };
 
-  const widgetSections = financeWidgets
-    .filter((w) => w.visible && sectionsById[w.id])
-    .map((w) => {
-      const section = sectionsById[w.id]!;
-      // Accounts (the summary cards + item cards) already renders its own
-      // .card elements, unlike the chart widgets which need one wrapped
-      // around their content — matching each existing section's prior markup.
-      const wrapped = w.id === "accounts" ? section.content : `<div class="card">${section.content}</div>`;
-      return `<div class="section" style="margin-top: var(--sp-3);">
+  const visibleWidgets = financeWidgets.filter((w) => w.visible && sectionsById[w.id]);
+  const isCompact = (id: FinanceWidgetId) => (COMPACT_WIDGET_IDS as readonly string[]).includes(id);
+
+  const blocks: string[] = [];
+  let compactRun: { title: string; content: string }[] = [];
+  const flushCompactRun = () => {
+    if (compactRun.length === 0) return;
+    blocks.push(
+      `<div class="card-row" style="margin-top: var(--sp-3);">
+        ${compactRun
+          .map(
+            (section) =>
+              `<div class="card">
+                <div class="card-title" style="margin-bottom: var(--sp-2);">${escapeHtml(section.title)}</div>
+                ${section.content}
+              </div>`
+          )
+          .join("\n")}
+      </div>`
+    );
+    compactRun = [];
+  };
+
+  for (const w of visibleWidgets) {
+    const section = sectionsById[w.id]!;
+    if (isCompact(w.id)) {
+      compactRun.push(section);
+      continue;
+    }
+    flushCompactRun();
+    // Accounts (the summary cards + item cards) already renders its own
+    // .card elements, unlike the other full-width widgets, which need one
+    // wrapped around their content — matching each section's prior markup.
+    const wrapped = w.id === "accounts" ? section.content : `<div class="card">${section.content}</div>`;
+    blocks.push(
+      `<div class="section" style="margin-top: var(--sp-3);">
         <h1 class="section-title">${escapeHtml(section.title)}</h1>
         ${wrapped}
-      </div>`;
-    })
-    .join("\n");
+      </div>`
+    );
+  }
+  flushCompactRun();
+  const widgetSections = blocks.join("\n");
 
   const body = !plaidConfigured
     ? `
@@ -280,6 +335,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     <div class="section">
       <h1 class="page-title">Finances</h1>
       <p class="page-sub">${items.length} institution${items.length === 1 ? "" : "s"} linked</p>
+      ${renderPageEditLink("settings-manual-bills", "Bills")}
     </div>
 
     <button type="button" class="btn" id="link-account-btn" onclick="openPlaidLink()">+ Link an account</button>
@@ -299,6 +355,14 @@ export function buildFinancesHtml(data: FinancesPageData): string {
 }
 
 const CLIENT_SCRIPT = `
+  function toggleExtraTransactions(btn) {
+    const extra = document.getElementById("finance-extra-transactions");
+    if (!extra) return;
+    const showing = extra.style.display !== "none";
+    extra.style.display = showing ? "none" : "block";
+    btn.textContent = showing ? "Show " + extra.children.length + " more" : "Show less";
+  }
+
   // Some institutions (most major banks, once PLAID_REDIRECT_URI is set)
   // require an OAuth handshake: Link redirects the whole tab out to the
   // bank's real login page, then back to this same URL with an

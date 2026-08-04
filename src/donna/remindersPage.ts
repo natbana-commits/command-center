@@ -9,6 +9,7 @@ import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts, withTimeSuffix, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { renderDayBadge } from "./dayBadge.js";
+import { renderPageEditLink } from "./editLink.js";
 
 // Google's Tasks API silently discards the time-of-day on `due` (always
 // stores/returns midnight UTC) — the reminder_notifications row is the only
@@ -411,6 +412,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
         <div>
           <h1 class="page-title">Reminders</h1>
           <p class="page-sub">${reminders.length} open</p>
+          ${renderPageEditLink("settings-reminder-groups", "Groups")}
         </div>
         ${googleConfigured ? `<button type="button" class="btn-fab-inline" onclick="openAddReminderModal()" aria-label="Add reminder">+</button>` : ""}
       </div>

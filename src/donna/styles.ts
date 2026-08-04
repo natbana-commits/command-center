@@ -386,6 +386,30 @@ export const BASE_STYLES = `
   .card-collapse-btn svg { transition: transform 0.15s ease; }
   .card-collapsed .card-collapse-btn svg { transform: rotate(-90deg); }
   .card-collapsed .card-content { display: none; }
+  .card-edit-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px;
+    flex: 0 0 auto;
+    display: flex;
+    text-decoration: none;
+  }
+  .card-edit-btn svg { width: 14px; height: 14px; }
+  .card-edit-btn:hover { color: var(--accent); }
+  .page-edit-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    margin-top: 6px;
+  }
+  .page-edit-link svg { width: 14px; height: 14px; }
+  .page-edit-link:hover { color: var(--accent); }
   .mini-day-group { margin-bottom: 8px; }
   .mini-day-group:last-child { margin-bottom: 0; }
   .mini-day-label {

@@ -5,6 +5,7 @@ import type { Flashcard } from "../school/flashcards.js";
 import type { StudyStats } from "../school/studySessions.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { renderPageEditLink } from "./editLink.js";
 
 function renderClassTabs(classFolders: ClassFolder[], activeClassId: number): string {
   return classFolders
@@ -113,6 +114,7 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     <div class="section">
       <h1 class="page-title">School</h1>
       <p class="page-sub">Studying for ${escapeHtml(cls.className)}</p>
+      ${renderPageEditLink("settings-classes", "Classes")}
     </div>
 
     <div class="home-tabs">${renderClassTabs(classFolders, cls.id)}</div>

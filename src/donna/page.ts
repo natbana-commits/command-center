@@ -21,6 +21,7 @@ import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWalle
 const iconMarkets = iconTrendingUp;
 const iconEconEvents = iconCalendar;
 import { renderSourceBadge } from "./sourceBadge.js";
+import { renderCardEditLink, renderPageEditLink } from "./editLink.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
 import { renderDayBadge } from "./dayBadge.js";
 
@@ -38,6 +39,17 @@ const CARD_HREFS: Record<HomeWidgetId, string> = {
   finances: "/donna/finances",
   markets: "/donna/settings",
   "econ-events": "/donna/calendar",
+};
+
+// Only widgets whose content is actually configured somewhere in Settings
+// get an edit link — Recent Activity, Upcoming, Contacts, IPOs, and Econ
+// Events are all managed inline on their own page instead, so there's
+// nothing in Settings for an edit link to send you to.
+const EDIT_ANCHORS: Partial<Record<HomeWidgetId, string>> = {
+  reminders: "settings-reminder-groups",
+  files: "settings-classes",
+  markets: "settings-watchlist",
+  finances: "settings-manual-bills",
 };
 
 function formatMoney(amount: number, currency: string | null): string {
@@ -492,11 +504,13 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     .map((w) => {
       const card = cardsById[w.id];
       const href = CARD_HREFS[w.id];
+      const editAnchor = EDIT_ANCHORS[w.id];
       return `
       <div class="card card-clickable" data-widget-id="${w.id}" onclick="navigateCard(event, '${href}')">
         <div class="card-header">
           <div class="card-icon">${card.icon}</div>
           <div class="card-title">${escapeHtml(card.title)}</div>
+          ${editAnchor ? renderCardEditLink(editAnchor, card.title) : ""}
           <button type="button" class="card-collapse-btn" onclick="toggleCardCollapse(event, '${w.id}')" aria-label="Collapse">${iconChevronDown}</button>
         </div>
         <div class="card-content" id="home-widget-content-${w.id}">
@@ -534,7 +548,8 @@ export function buildDonnaHtml(data: DonnaPageData): string {
     </section>
 
     <section class="section home-tab-panel" id="community-panel" style="display:none;">
-      <div style="text-align:right; margin-bottom: var(--sp-2);">
+      <div style="display:flex; justify-content:flex-end; align-items:center; gap: var(--sp-2); margin-bottom: var(--sp-2);">
+        ${renderPageEditLink("settings-community-feeds", "Sources")}
         <a class="hint" href="/donna?refresh=1" title="Re-check community sources for anything posted since the last load">Refresh</a>
       </div>
       ${renderCommunitySection(communityFeedItems)}

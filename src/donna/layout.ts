@@ -289,7 +289,18 @@ const ROUTER_SCRIPT = `
     if (sidebarNav && newSidebarNav) sidebarNav.innerHTML = newSidebarNav.innerHTML;
     if (bottomNav && newBottomNav) bottomNav.innerHTML = newBottomNav.innerHTML;
     runScripts(pageContent);
-    window.scrollTo(0, 0);
+    // history.pushState above (for a full, non-scoped navigation) already
+    // lands the new hash in window.location.hash before this runs, so a
+    // link to e.g. /donna/settings#settings-classes should land on that
+    // section — not always reset to the top, which would silently defeat
+    // any cross-page link that includes an anchor (the Home cards' and
+    // pages' "Edit" links, the sidebar info icon's How-this-works link).
+    const hashTarget = window.location.hash ? document.getElementById(window.location.hash.slice(1)) : null;
+    if (hashTarget) {
+      hashTarget.scrollIntoView({ block: "start" });
+    } else {
+      window.scrollTo(0, 0);
+    }
     stopProgress();
   }
 

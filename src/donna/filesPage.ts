@@ -6,6 +6,7 @@ import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
+import { renderPageEditLink } from "./editLink.js";
 
 interface LibraryRow {
   title: string;
@@ -217,7 +218,10 @@ export function buildFilesHtml(data: FilesPageData): string {
         ${renderDeadlinesSection(classFolders, reminders, classLinks)}
         <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
           <h1 class="section-title" style="margin:0;">File Library</h1>
-          <a class="btn-secondary btn-small" href="/donna/files?refresh=1" title="Re-check Drive for files added since the last load">Refresh</a>
+          <div style="display:flex; align-items:center; gap: var(--sp-2);">
+            ${renderPageEditLink("settings-classes", "Classes")}
+            <a class="btn-secondary btn-small" href="/donna/files?refresh=1" title="Re-check Drive for files added since the last load">Refresh</a>
+          </div>
         </div>
         ${libraryHtml}
       </div>
