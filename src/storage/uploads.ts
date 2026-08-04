@@ -2,7 +2,7 @@ import { getSupabaseClient, withSupabaseRetry } from "../supabaseClient.js";
 
 const BUCKET = "donna-uploads";
 
-export type UploadKind = "lecture" | "photo";
+export type UploadKind = "lecture" | "photo" | "file";
 export type UploadStatus = "pending" | "processing" | "done" | "failed";
 
 export interface Upload {

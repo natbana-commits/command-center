@@ -15,6 +15,21 @@ Calendar API in step 1, then redo step 4's authorization with all four
 scopes together to get a new `GOOGLE_REFRESH_TOKEN` — steps 1's other APIs
 and step 3's OAuth client don't need to be recreated.
 
+**Already done setup and just adding Drive upload access?** (So files
+uploaded through Donna's Files page also land in the real Drive folder,
+not just Donna's own storage.) Same pattern: in step 2's Data Access tab,
+**replace** `https://www.googleapis.com/auth/drive.readonly` with
+`https://www.googleapis.com/auth/drive` (full read/write — not
+`drive.file`, which only covers files/folders the app itself created;
+your class folders are existing ones you pasted a share link for, so the
+app needs standing access to write into them). Then redo step 4's
+authorization with all four scopes (this broader Drive one plus the
+other three unchanged) to get a new `GOOGLE_REFRESH_TOKEN`. Nothing else
+needs recreating. Until you do this, file uploads keep working exactly
+as before — Drive mirroring is attempted best-effort and just quietly
+no-ops (logged server-side, nothing shown to you) if the token doesn't
+have write access yet.
+
 ## Before you start: check the Princeton account restriction
 
 Sign in to https://console.cloud.google.com with your **personal** Google
@@ -43,7 +58,10 @@ That's the one thing only you can test.
    polished, this never goes through Google's review.
 4. Add all four scopes:
    - `https://www.googleapis.com/auth/gmail.readonly`
-   - `https://www.googleapis.com/auth/drive.readonly`
+   - `https://www.googleapis.com/auth/drive` (read/write — needed so Donna
+     can mirror Files-page uploads into the real Drive folder, not just
+     read what's already there. `drive.readonly` is enough if you don't
+     want upload mirroring.)
    - `https://www.googleapis.com/auth/tasks` (read/write — needed so Donna
      can create and complete reminders, not just read them)
    - `https://www.googleapis.com/auth/calendar.events` (read/write on

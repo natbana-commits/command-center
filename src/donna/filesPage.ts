@@ -42,7 +42,7 @@ function uploadToRow(u: Upload, className: string): LibraryRow {
     dateIso: u.createdAt,
     dateLabel: formatDate(u.createdAt),
     status: uploadStatusLabel(u.status),
-    icon: u.kind === "lecture" ? "\u{1F3A7}" : "\u{1F5BC}\u{FE0F}",
+    icon: u.kind === "lecture" ? "\u{1F3A7}" : u.kind === "photo" ? "\u{1F5BC}\u{FE0F}" : "\u{1F4C4}",
   };
 }
 
@@ -248,6 +248,17 @@ export function buildFilesHtml(data: FilesPageData): string {
           <input type="file" id="photo-file" accept="image/*" />
           <button class="btn btn-block" onclick="handleUpload('photo', 'photo-file', 'photo-class', 'photo-status', this)">Upload &amp; Extract Text</button>
           <div class="hint" id="photo-status"></div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;" />
+
+        <h1 class="section-title">Upload a file</h1>
+        <div class="hint">Any file type — PDF, slides, docs, whatever. Stored as-is, no transcription or text extraction. Mirrored to the class's Drive folder if one's selected${googleConfigured ? "" : " (once Drive write access is set up)"}.</div>
+        <div class="upload-form">
+          <select id="file-class">${renderClassOptions(classFolders)}</select>
+          <input type="file" id="file-file" />
+          <button class="btn btn-block" onclick="handleUpload('file', 'file-file', 'file-class', 'file-status', this)">Upload</button>
+          <div class="hint" id="file-status"></div>
         </div>
       </div>
     </div>`;
