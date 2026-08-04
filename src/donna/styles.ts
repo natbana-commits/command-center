@@ -943,7 +943,7 @@ export const BASE_STYLES = `
     top: 0;
     z-index: 20;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     background: var(--bg);
     padding: 10px 0;
@@ -952,11 +952,11 @@ export const BASE_STYLES = `
   }
   .settings-nav-pills {
     display: flex;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    min-width: 0;
     gap: 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
-  .settings-nav-pills::-webkit-scrollbar { display: none; }
   .settings-nav-pill {
     flex: 0 0 auto;
     display: inline-flex;

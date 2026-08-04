@@ -683,16 +683,26 @@ const SETTINGS_CLIENT_SCRIPT = `
     }
   }
 
-  // The nav pill for "How this works" only changes the URL hash — that
-  // doesn't re-run the check above, so without this the details stays
-  // collapsed after a same-page click (only a fresh load honors the hash).
-  const howPill = document.querySelector('a[href="#how-this-works"]');
-  if (howPill) {
-    howPill.addEventListener("click", function () {
-      const details = document.getElementById("how-this-works");
-      if (details) details.open = true;
+  // The section nav pills drive scrolling explicitly via scrollIntoView
+  // rather than relying on the browser's native #anchor jump — a plain
+  // href="#id" click was landing on the target and then jumping straight
+  // back to the top of the page a moment later (this sticky nav sits in a
+  // scroll container that appears to fight native fragment navigation;
+  // explicit JS scrolling sidesteps it entirely rather than chasing the
+  // exact cause). preventDefault here also means the click never reaches
+  // the router's own click handling, so there's no separate fetch+swap
+  // triggered either.
+  document.querySelectorAll('.settings-nav-pill[href^="#"]').forEach(function (pill) {
+    pill.addEventListener("click", function (e) {
+      const id = pill.getAttribute("href").slice(1);
+      const target = document.getElementById(id);
+      if (!target) return;
+      e.preventDefault();
+      if (id === "how-this-works") target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      history.replaceState(null, "", "#" + id);
     });
-  }
+  });
 
   // Touch-friendly drag-to-reorder for the three lists on this page (Home
   // cards, Finance widgets, Sidebar pages) — replaces the old up/down
