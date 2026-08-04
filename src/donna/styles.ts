@@ -306,19 +306,27 @@ export const BASE_STYLES = `
     border-radius: 12px;
     padding: var(--sp-2);
   }
+  /* True masonry packing (CLIENT_SCRIPT in page.ts): a CSS grid's rows
+     still align across all columns even with align-items: start, so a
+     short card next to a tall one in the SAME row still leaves the row
+     below it starting at the tall card's baseline — real gap-free packing
+     needs the JS to know each card's actual rendered height, which a
+     grid's own layout algorithm doesn't expose. The JS moves each .card
+     into a .masonry-col; this is also the graceful no-JS fallback (cards
+     wrap 3-per-row, grid-style, hanging space included — same as before
+     this feature existed, not broken, just not gap-free). */
   .card-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    /* Default grid stretch makes every card in a row match the tallest
-       sibling's height — align-items: start lets each card size to its
-       own content instead, so a short card (e.g. Econ events with only
-       2 rows) doesn't carry hanging empty space to match a taller one. */
-    align-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: var(--sp-2);
     margin-bottom: var(--sp-4);
   }
+  .card-row > .card { flex: 1 1 calc(33.333% - var(--sp-2) * 2 / 3); min-width: 260px; }
+  .masonry-col { flex: 1; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
   @media (max-width: 860px) {
-    .card-row { grid-template-columns: 1fr; }
+    .card-row { flex-direction: column; flex-wrap: nowrap; }
+    .card-row > .card { flex: 1 1 auto; min-width: 0; }
   }
   .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {

@@ -537,7 +537,7 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       ${renderCommunitySection(communityFeedItems)}
     </section>
 
-    <div class="card-row" style="margin-top: var(--sp-3);">
+    <div class="card-row" id="card-row" style="margin-top: var(--sp-3);">
       ${renderCardRow(data, timezone)}
     </div>`;
 
@@ -580,6 +580,48 @@ const CLIENT_SCRIPT = `
     }
   }
 
+  // Greedy shortest-column packing (the standard masonry algorithm): each
+  // card, in its configured order, goes into whichever column currently
+  // has the least total height — see the .card-row CSS comment for why a
+  // pure-CSS grid can't do this. Columns must already be attached to the
+  // document before any card is measured (offsetHeight on a detached node
+  // is always 0), so the empty .masonry-col elements go in first.
+  function distributeMasonry() {
+    const container = document.getElementById("card-row");
+    if (!container) return;
+    const cards = Array.prototype.slice.call(container.querySelectorAll(".card"));
+    if (cards.length === 0) return;
+
+    const columnCount = window.innerWidth > 860 ? 3 : 1;
+    if (columnCount === 1) {
+      cards.forEach((card) => container.appendChild(card));
+      container.querySelectorAll(".masonry-col").forEach((col) => col.remove());
+      return;
+    }
+
+    const columns = [];
+    for (let i = 0; i < columnCount; i++) {
+      const col = document.createElement("div");
+      col.className = "masonry-col";
+      columns.push(col);
+    }
+    container.innerHTML = "";
+    columns.forEach((col) => container.appendChild(col));
+
+    const heights = new Array(columnCount).fill(0);
+    cards.forEach((card) => {
+      let shortest = 0;
+      for (let i = 1; i < columnCount; i++) {
+        if (heights[i] < heights[shortest]) shortest = i;
+      }
+      columns[shortest].appendChild(card);
+      heights[shortest] += card.offsetHeight;
+    });
+  }
+  // Restore collapsed state before measuring for masonry below — a card
+  // collapsed in a previous session should be measured at its actual
+  // (short) collapsed height, not its full height followed by a
+  // now-stale collapse.
   document.querySelectorAll(".card[data-widget-id]").forEach((card) => {
     let collapsed = false;
     try {
@@ -587,6 +629,17 @@ const CLIENT_SCRIPT = `
     } catch (err) {}
     if (collapsed) card.classList.add("card-collapsed");
   });
+
+  distributeMasonry();
+
+  if (!window.__homeMasonryResizeBound) {
+    window.__homeMasonryResizeBound = true;
+    let resizeTimer;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(distributeMasonry, 150);
+    });
+  }
 
   function switchHomeTab(btn) {
     document.querySelectorAll(".home-tab-btn").forEach((b) => b.classList.remove("home-tab-btn-active"));
