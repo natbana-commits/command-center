@@ -90,6 +90,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
     const action = body.action;
+    // The Home page's Reminders widget completes reminders in place (see
+    // page.ts's renderRemindersCard) — its checkbox form sets this so the
+    // scoped swap it triggers lands back on Home, not the full Reminders
+    // page, which wouldn't contain the widget's element id to swap into.
+    const returnTo = body.returnTo === "home" ? "/donna" : "/donna/reminders";
 
     try {
       if (action === "add") {
@@ -177,10 +182,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await deleteHabit(id);
         }
       }
-      res.redirect(303, "/donna/reminders");
+      res.redirect(303, returnTo);
     } catch (err) {
       console.error("Reminder action failed:", err);
-      res.redirect(303, "/donna/reminders?error=1");
+      res.redirect(303, returnTo === "/donna" ? "/donna" : "/donna/reminders?error=1");
     }
     return;
   }

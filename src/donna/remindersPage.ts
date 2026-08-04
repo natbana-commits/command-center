@@ -122,7 +122,7 @@ function renderReminderRow(
 
   return `
     <div class="reminder-row">
-      <form method="POST" action="/donna/reminders" style="display:contents;">
+      <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
         <input type="hidden" name="action" value="complete" />
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
         <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
@@ -134,7 +134,14 @@ function renderReminderRow(
         ${dueHint}
         ${earlyHint}
       </div>
-      <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
+      <div class="reminder-row-actions">
+        <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
+        <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
+          <input type="hidden" name="action" value="delete" />
+          <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
+          <button class="reminder-delete-link" type="submit" onclick="if(!confirm('Delete this reminder?'))return false; this.closest('.reminder-row').classList.add('reminder-row-completing'); return true;">Delete</button>
+        </form>
+      </div>
     </div>`;
 }
 
@@ -142,7 +149,7 @@ function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): 
   const streakLabel = streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} streak` : "No streak yet";
   return `
     <div class="reminder-row">
-      <form method="POST" action="/donna/reminders" style="display:contents;">
+      <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
         <input type="hidden" name="action" value="toggle-habit" />
         <input type="hidden" name="id" value="${habit.id}" />
         <input type="checkbox" ${completedToday ? "checked" : ""} onchange="this.closest('.reminder-row').classList.toggle('reminder-row-completing', this.checked); this.form.requestSubmit()" aria-label="Mark done today" />
@@ -154,7 +161,7 @@ function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): 
           <span class="hint" style="margin:0;">Nudge at ${escapeHtml(habit.notifyTime)}</span>
         </div>
       </div>
-      <form method="POST" action="/donna/reminders" style="display:contents;">
+      <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
         <input type="hidden" name="action" value="delete-habit" />
         <input type="hidden" name="id" value="${habit.id}" />
         <button class="reminder-edit-link" type="submit" style="background:none; border:none; cursor:pointer; font:inherit;">Delete</button>
@@ -164,7 +171,7 @@ function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): 
 
 function renderAddHabitForm(): string {
   return `
-    <form method="POST" action="/donna/reminders" class="reminder-add-row2" style="margin-top: var(--sp-2);">
+    <form method="POST" action="/donna/reminders" class="reminder-add-row2" data-swap-target="reminders-main" style="margin-top: var(--sp-2);">
       <input type="hidden" name="action" value="add-habit" />
       <input type="text" name="title" placeholder="New habit…" required style="flex: 1 1 160px;" />
       <label class="hint" style="margin:0;">Nudge at</label>
@@ -219,7 +226,7 @@ export interface RemindersPageData {
 
 function renderAddForm(classFolders: ClassFolder[], reminderGroups: ReminderGroup[]): string {
   return `
-    <form method="POST" action="/donna/reminders" class="reminder-add-form">
+    <form method="POST" action="/donna/reminders" class="reminder-add-form" id="reminder-add-form" data-swap-target="reminders-main">
       <input type="hidden" name="action" value="add" />
       <input type="text" name="title" placeholder="Add a reminder…" required />
       <div class="reminder-add-row2">
@@ -257,7 +264,7 @@ function renderEditForm(
   const leadCurrent = due && earlyNotification ? leadTimeParts(due, earlyNotification.notifyAt) : undefined;
 
   return `
-    <form method="POST" action="/donna/reminders" class="reminder-edit-form">
+    <form method="POST" action="/donna/reminders" class="reminder-edit-form" data-swap-target="reminders-main">
       <input type="hidden" name="action" value="update" />
       <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
 
@@ -289,10 +296,10 @@ function renderEditForm(
         <a class="btn btn-secondary" href="/donna/reminders">Cancel</a>
       </div>
     </form>
-    <form method="POST" action="/donna/reminders" style="margin-top: 8px;">
+    <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="margin-top: 8px;">
       <input type="hidden" name="action" value="delete" />
       <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
-      <button class="btn btn-danger" type="submit">Delete reminder</button>
+      <button class="btn btn-danger" type="submit" onclick="return confirm('Delete this reminder?')">Delete reminder</button>
     </form>`;
 }
 
@@ -436,7 +443,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
   return renderLayout({
     title: "Donna Reminders",
     activeTab: "reminders",
-    bodyHtml: body,
+    bodyHtml: `<div id="reminders-main">${body}</div>`,
     extraBodyHtml: modalHtml,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
@@ -469,5 +476,22 @@ const CLIENT_SCRIPT = `
     const closeBtn = document.getElementById("add-reminder-close");
     if (scrim) scrim.addEventListener("click", closeAddReminderModal);
     if (closeBtn) closeBtn.addEventListener("click", closeAddReminderModal);
+
+    // Every reminders/habits action does a scoped swap of #reminders-main
+    // now (see ROUTER_SCRIPT's data-swap-target support) rather than a
+    // full page reload — closing the add modal here is what used to
+    // happen for free via the old full-page navigation after a
+    // successful add. Guarded on window since this script re-runs on
+    // every client-routed visit to this page, but document itself (what
+    // the listener is on) never gets recreated.
+    if (!window.__remindersSwapListenerBound) {
+      window.__remindersSwapListenerBound = true;
+      document.addEventListener("donna:swapped", function (e) {
+        if (!e.detail || e.detail.target !== "reminders-main") return;
+        closeAddReminderModal();
+        const addForm = document.getElementById("reminder-add-form");
+        if (addForm) addForm.reset();
+      });
+    }
   })();
 `;

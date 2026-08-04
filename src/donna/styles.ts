@@ -1,26 +1,5 @@
 export const BASE_STYLES = `
   @font-face {
-    font-family: "Merriweather";
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url("/fonts/merriweather-400.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Merriweather";
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url("/fonts/merriweather-700.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "Merriweather";
-    font-style: italic;
-    font-weight: 400;
-    font-display: swap;
-    src: url("/fonts/merriweather-400italic.woff2") format("woff2");
-  }
-  @font-face {
     font-family: "Inter";
     font-style: normal;
     font-weight: 400;
@@ -40,6 +19,13 @@ export const BASE_STYLES = `
     font-weight: 600;
     font-display: swap;
     src: url("/fonts/inter-600.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("/fonts/inter-700.woff2") format("woff2");
   }
 
   :root {
@@ -63,7 +49,11 @@ export const BASE_STYLES = `
        along with --ink (which flips to a light color for body text). */
     --ink-fixed: #1f1f1f;
     --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --display: "Merriweather", Georgia, "Times New Roman", serif;
+    /* Used to be Merriweather (serif) — retired sitewide per feedback that
+       it looked off, especially in the day-badge numbers. Kept as a
+       separate token from --sans (rather than replacing every usage
+       in-place) in case a deliberate display face is wanted again later. */
+    --display: var(--sans);
     --mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
     --sp-1: 8px;
     --sp-2: 16px;
@@ -519,7 +509,10 @@ export const BASE_STYLES = `
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: var(--sp-2);
-    min-height: 160px;
+    /* Fills down to roughly the bottom of the viewport (accounting for the
+       page header/nav row above it) instead of a short fixed box — the
+       max() floor keeps it from collapsing too small on a short viewport. */
+    min-height: max(calc(100vh - 300px), 420px);
   }
   .cal-day-col-today { border-color: var(--accent); }
   .cal-day-header {
@@ -532,7 +525,7 @@ export const BASE_STYLES = `
     border-bottom: 1px solid var(--border);
   }
   .cal-day-name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
-  .cal-day-num { font-family: var(--display); font-size: 18px; font-weight: 700; color: var(--ink); }
+  .cal-day-num { font-family: var(--display); font-size: 18px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
   .cal-day-num-today { color: var(--accent); }
   .cal-day-events { display: flex; flex-direction: column; gap: 6px; }
   .cal-event-block {
@@ -553,6 +546,7 @@ export const BASE_STYLES = `
   }
   @media (max-width: 860px) {
     .cal-week-grid { grid-template-columns: repeat(7, minmax(100px, 1fr)); }
+    .cal-day-col { min-height: max(calc(100vh - 340px), 360px); }
   }
 
   /* --- day-badge row: shared "days until X" style, used by the Econ
@@ -572,7 +566,7 @@ export const BASE_STYLES = `
     border: 1px solid var(--border);
   }
   .day-badge-overdue { background: #b3441f1a; }
-  .day-badge-number { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .day-badge-number { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
   .day-badge-unit { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
   .day-badge-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .day-badge-title { font-size: 14px; color: var(--ink); }
@@ -654,8 +648,19 @@ export const BASE_STYLES = `
     padding: 1px 6px;
   }
   .reminder-due-overdue { color: var(--danger); background: rgba(184, 68, 46, 0.1); }
-  .reminder-edit-link { font-size: 12px; color: var(--text-muted); text-decoration: none; flex: 0 0 auto; }
+  .reminder-row-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+  .reminder-edit-link { font-size: 12px; color: var(--text-muted); text-decoration: none; }
   .reminder-edit-link:hover { color: var(--accent); }
+  .reminder-delete-link {
+    font-size: 12px;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .reminder-delete-link:hover { color: var(--danger); }
 
   .reminder-add-form { display: flex; flex-direction: column; gap: 10px; margin-top: var(--sp-2); }
   .reminder-add-row2 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

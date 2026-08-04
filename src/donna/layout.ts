@@ -288,7 +288,25 @@ const ROUTER_SCRIPT = `
     });
   }
 
-  function swapFrom(doc) {
+  // A plain element id (data-swap-target="foo") scopes the swap to just
+  // that element instead of the whole page — for an action whose result
+  // only ever affects one region (a reminder row's complete/delete, an
+  // edit-form save) a full #page-content replace is both an unnecessary
+  // scroll-to-top/flash and, since it also touches every unrelated widget
+  // on the page, more work than the action needs. Falls back to the full
+  // swap if the target id isn't present in either the current or new DOM.
+  function swapFrom(doc, swapTarget) {
+    if (swapTarget) {
+      const current = document.getElementById(swapTarget);
+      const fresh = doc.getElementById(swapTarget);
+      if (current && fresh) {
+        current.innerHTML = fresh.innerHTML;
+        runScripts(current);
+        stopProgress();
+        document.dispatchEvent(new CustomEvent("donna:swapped", { detail: { target: swapTarget } }));
+        return;
+      }
+    }
     document.title = doc.title;
     const newPageContent = doc.getElementById("page-content");
     const newSidebarNav = doc.getElementById("sidebar-nav-region");
@@ -301,20 +319,32 @@ const ROUTER_SCRIPT = `
     stopProgress();
   }
 
-  async function navigate(url, options, push) {
+  async function navigate(url, options, push, swapTarget) {
     if (progressBar) progressBar.classList.add("active");
     try {
       const res = await fetch(url, options);
       if (!res.ok) throw new Error("bad status " + res.status);
       const text = await res.text();
       const doc = new DOMParser().parseFromString(text, "text/html");
-      if (push) {
+      if (swapTarget) {
+        // A scoped swap doesn't push a new history entry (it's an in-place
+        // update, not a navigation to step back through) — but the server
+        // may still have redirected somewhere meaningfully different (e.g.
+        // saving a reminder edit leaves ?edit=<id> behind), so the address
+        // bar is corrected in place with replaceState. Without this, a
+        // reload right after a scoped-swap action would land back in the
+        // stale view (e.g. the edit form) instead of matching what's shown.
+        const target = res.url || url;
+        if (target !== window.location.href) {
+          history.replaceState(history.state, "", target);
+        }
+      } else if (push) {
         let target = res.url || url;
         const hashIndex = url.indexOf("#");
         if (hashIndex !== -1 && target.indexOf("#") === -1) target += url.slice(hashIndex);
         history.pushState({ swapped: true }, "", target);
       }
-      swapFrom(doc);
+      swapFrom(doc, swapTarget);
     } catch (err) {
       // Fall back to a real navigation — never leave the click/submit
       // silently doing nothing.
@@ -329,7 +359,7 @@ const ROUTER_SCRIPT = `
     if (link.target === "_blank" || link.hasAttribute("download")) return;
     if (!isInternalHref(link.getAttribute("href"))) return;
     e.preventDefault();
-    navigate(link.href, { method: "GET" }, true);
+    navigate(link.href, { method: "GET" }, true, link.getAttribute("data-swap-target") || undefined);
   });
 
   document.addEventListener("submit", function (e) {
@@ -363,8 +393,9 @@ const ROUTER_SCRIPT = `
       formData.append(e.submitter.name, e.submitter.value);
     }
     const params = new URLSearchParams(formData);
+    const swapTarget = form.getAttribute("data-swap-target") || undefined;
     if (method === "GET") {
-      navigate(url.pathname + "?" + params.toString(), { method: "GET" }, true);
+      navigate(url.pathname + "?" + params.toString(), { method: "GET" }, true, swapTarget);
     } else {
       // URLSearchParams, not raw FormData — no form in this app declares
       // enctype="multipart/form-data", so every one of them relies on the
@@ -372,7 +403,7 @@ const ROUTER_SCRIPT = `
       // urlencoded). Sending a raw FormData body here would switch that
       // to multipart, which Vercel's built-in body parser (@vercel/node's
       // req.body) doesn't parse, silently dropping every field.
-      navigate(url.pathname + url.search, { method: method, body: params }, true);
+      navigate(url.pathname + url.search, { method: method, body: params }, true, swapTarget);
     }
   });
 

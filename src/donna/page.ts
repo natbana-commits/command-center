@@ -152,12 +152,19 @@ function renderRemindersCard(
 
       return `
         <div class="day-badge-row">
+          <form method="POST" action="/donna/reminders" data-swap-target="home-widget-content-reminders" style="display:contents;">
+            <input type="hidden" name="action" value="complete" />
+            <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
+            <input type="hidden" name="returnTo" value="home" />
+            <input type="checkbox" onchange="this.closest('.day-badge-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
+          </form>
           ${due ? renderDayBadge(localDateKey(new Date(due), timezone), group?.color ?? "var(--olive)") : ""}
           <div class="day-badge-body">
             ${groupPill}
             <div class="day-badge-title">${title}</div>
             ${due ? `<span class="hint" style="margin:0;">${escapeHtml(formatDue(due, timezone))}</span>` : ""}
           </div>
+          <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
         </div>`;
     })
     .join("\n");
@@ -492,7 +499,7 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
           <div class="card-title">${escapeHtml(card.title)}</div>
           <button type="button" class="card-collapse-btn" onclick="toggleCardCollapse(event, '${w.id}')" aria-label="Collapse">${iconChevronDown}</button>
         </div>
-        <div class="card-content">
+        <div class="card-content" id="home-widget-content-${w.id}">
           ${card.content}
         </div>
       </div>`;
@@ -552,7 +559,11 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 const CLIENT_SCRIPT = `
 (function () {
   function navigateCard(event, href) {
-    if (event.target.closest(".card-collapse-btn")) return;
+    // Broadened beyond just the collapse button now that Reminders'
+    // widget has its own interactive controls (complete checkbox, Edit
+    // link) — a click on any of those shouldn't also navigate the whole
+    // card away.
+    if (event.target.closest(".card-collapse-btn, a, button, input, label")) return;
     if (href) window.location.href = href;
   }
 
