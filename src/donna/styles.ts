@@ -633,6 +633,59 @@ export const BASE_STYLES = `
     .cal-day-col { min-height: max(calc(100vh - 340px), 360px); }
   }
 
+  /* --- Calendar: day view (single wide column, week view's box reused) --- */
+  .cal-day-grid { display: grid; grid-template-columns: minmax(280px, 520px); }
+
+  /* --- Calendar: month view --- */
+  .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .cal-month-weekday {
+    background: var(--sidebar-bg);
+    padding: 6px;
+    text-align: center;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .cal-month-cell {
+    background: var(--card);
+    min-height: 90px;
+    padding: 6px;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: inherit;
+  }
+  .cal-month-cell:hover { background: var(--sidebar-bg); }
+  .cal-month-cell-outside { opacity: 0.4; }
+  .cal-month-daynum { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cal-month-daynum-today {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+  }
+  .cal-month-chip {
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--sidebar-bg);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cal-month-more { font-size: 10.5px; color: var(--text-muted); }
+  @media (max-width: 860px) {
+    .cal-month-cell { min-height: 64px; }
+    .cal-month-chip { display: none; }
+  }
+
   /* --- day-badge row: shared "days until X" style, used by the Econ
      events widget, Reminders, and Finances' Upcoming Payments widget --- */
   .day-badge-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 0; }

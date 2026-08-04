@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
 import { resolveTimezone, dayBounds, localDateKey, localWeekdayIndex } from "../src/util/time.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
-import { buildCalendarHtml, type CalendarDayGroup } from "../src/donna/calendarPage.js";
+import { buildCalendarHtml, type CalendarDayGroup, type CalendarView } from "../src/donna/calendarPage.js";
 import { requireAuth } from "../src/auth/session.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { listFilesInFolder, type DriveFile } from "../src/drive/list.js";
@@ -10,6 +10,7 @@ import { getUploadsForClass, getGeneralUploads, getUpload, type Upload } from ".
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
+import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { buildFilesHtml } from "../src/donna/filesPage.js";
 import { invalidateCache } from "../src/util/cache.js";
 import { buildSchoolHtml } from "../src/donna/schoolPage.js";
@@ -35,6 +36,19 @@ function addLocalDays(from: Date, days: number, timezone: string): Date {
   return dayBounds(cursor, timezone).start;
 }
 
+// Groups a contiguous run of day-starts against a flat event list — shared
+// by all three views, which differ only in how many days they cover and
+// where the range starts.
+function groupEventsByDay(dayStarts: Date[], events: CalendarEvent[], timezone: string, todayKey: string): CalendarDayGroup[] {
+  return dayStarts.map((start, i) => {
+    const nextStart = dayStarts[i + 1] ?? new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const dayEvents = events.filter((e) => e.start >= start && e.start < nextStart);
+    const dateKey = localDateKey(start, timezone);
+    const dateLabel = start.toLocaleDateString("en-US", { timeZone: timezone, weekday: "long", month: "long", day: "numeric" });
+    return { dateLabel, dateKey, events: dayEvents, isToday: dateKey === todayKey };
+  });
+}
+
 async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
@@ -48,55 +62,119 @@ async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
     await invalidateCache("calendar:ics");
   }
 
-  const parsedOffset = Number(req.query.week);
-  const weekOffset = Number.isFinite(parsedOffset) ? Math.trunc(parsedOffset) : 0;
+  const rawView = typeof req.query.view === "string" ? req.query.view : "week";
+  const view: CalendarView = rawView === "day" || rawView === "month" ? rawView : "week";
 
   const { start: todayStart } = dayBounds(new Date(), timezone);
   const todayKey = localDateKey(todayStart, timezone);
-  const currentWeekSunday = addLocalDays(todayStart, -localWeekdayIndex(todayStart, timezone), timezone);
-  const weekStart = addLocalDays(currentWeekSunday, weekOffset * DAYS_PER_WEEK, timezone);
 
-  const dayStarts: Date[] = [];
-  let cursor = weekStart;
-  for (let i = 0; i < DAYS_PER_WEEK; i++) {
-    dayStarts.push(cursor);
-    const { end } = dayBounds(cursor, timezone);
-    cursor = new Date(end.getTime() + 1);
-  }
-
-  const rangeStart = dayStarts[0];
-  const rangeEnd = new Date(dayStarts[dayStarts.length - 1].getTime() + 24 * 60 * 60 * 1000);
-
-  let events: CalendarEvent[] = [];
+  let offset = 0;
+  let headerLabel = "";
+  let days: CalendarDayGroup[] = [];
+  let monthWeeks: CalendarDayGroup[][] = [];
   let configured = true;
-  try {
-    const result = await getEventsInRange(timezone, rangeStart, rangeEnd);
-    events = result.events;
-  } catch (err) {
-    configured = false;
+
+  if (view === "day") {
+    // A month-grid cell click passes an absolute ?date=; Prev/Next passes a
+    // relative ?day= offset from today. Either way, the resulting offset is
+    // recomputed from today so this page's own Prev/Next links keep working
+    // in relative terms regardless of how the day was reached.
+    const dateParam = typeof req.query.date === "string" ? req.query.date : undefined;
+    const targetStart =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+        ? dayBounds(new Date(`${dateParam}T12:00:00`), timezone).start
+        : addLocalDays(todayStart, Number.isFinite(Number(req.query.day)) ? Math.trunc(Number(req.query.day)) : 0, timezone);
+    offset = Math.round((targetStart.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000));
+
+    const rangeEnd = new Date(targetStart.getTime() + 24 * 60 * 60 * 1000);
+    let events: CalendarEvent[] = [];
+    try {
+      events = (await getEventsInRange(timezone, targetStart, rangeEnd)).events;
+    } catch {
+      configured = false;
+    }
+    days = groupEventsByDay([targetStart], events, timezone, todayKey);
+    headerLabel = days[0].dateLabel;
+  } else if (view === "month") {
+    const parsedMonthOffset = Number(req.query.month);
+    const monthOffset = Number.isFinite(parsedMonthOffset) ? Math.trunc(parsedMonthOffset) : 0;
+    offset = monthOffset;
+
+    const [todayY, todayM] = localDateKey(todayStart, timezone).split("-").map(Number);
+    const totalMonths = todayM - 1 + monthOffset;
+    const targetYear = todayY + Math.floor(totalMonths / 12);
+    const targetMonth1 = (((totalMonths % 12) + 12) % 12) + 1;
+    const firstOfMonthKey = `${targetYear}-${String(targetMonth1).padStart(2, "0")}-01`;
+    const firstOfMonthStart = dayBounds(new Date(`${firstOfMonthKey}T12:00:00`), timezone).start;
+
+    const gridStart = addLocalDays(firstOfMonthStart, -localWeekdayIndex(firstOfMonthStart, timezone), timezone);
+    const CELLS = 42; // 6 weeks × 7 days — always enough to cover any month's grid
+    const monthDayStarts: Date[] = [];
+    let cursor = gridStart;
+    for (let i = 0; i < CELLS; i++) {
+      monthDayStarts.push(cursor);
+      const { end } = dayBounds(cursor, timezone);
+      cursor = new Date(end.getTime() + 1);
+    }
+
+    const rangeStart = monthDayStarts[0];
+    const rangeEnd = new Date(monthDayStarts[CELLS - 1].getTime() + 24 * 60 * 60 * 1000);
+    let events: CalendarEvent[] = [];
+    try {
+      events = (await getEventsInRange(timezone, rangeStart, rangeEnd)).events;
+    } catch {
+      configured = false;
+    }
+
+    const monthDayGroups = groupEventsByDay(monthDayStarts, events, timezone, todayKey).map((d) => ({
+      ...d,
+      inCurrentMonth: d.dateKey.slice(0, 7) === firstOfMonthKey.slice(0, 7),
+    }));
+    for (let i = 0; i < CELLS; i += 7) monthWeeks.push(monthDayGroups.slice(i, i + 7));
+    headerLabel = firstOfMonthStart.toLocaleDateString("en-US", { timeZone: timezone, month: "long", year: "numeric" });
+  } else {
+    const parsedOffset = Number(req.query.week);
+    const weekOffset = Number.isFinite(parsedOffset) ? Math.trunc(parsedOffset) : 0;
+    offset = weekOffset;
+
+    const currentWeekSunday = addLocalDays(todayStart, -localWeekdayIndex(todayStart, timezone), timezone);
+    const weekStart = addLocalDays(currentWeekSunday, weekOffset * DAYS_PER_WEEK, timezone);
+
+    const dayStarts: Date[] = [];
+    let cursor = weekStart;
+    for (let i = 0; i < DAYS_PER_WEEK; i++) {
+      dayStarts.push(cursor);
+      const { end } = dayBounds(cursor, timezone);
+      cursor = new Date(end.getTime() + 1);
+    }
+
+    const rangeStart = dayStarts[0];
+    const rangeEnd = new Date(dayStarts[dayStarts.length - 1].getTime() + 24 * 60 * 60 * 1000);
+    let events: CalendarEvent[] = [];
+    try {
+      events = (await getEventsInRange(timezone, rangeStart, rangeEnd)).events;
+    } catch {
+      configured = false;
+    }
+    days = groupEventsByDay(dayStarts, events, timezone, todayKey);
+    headerLabel = `${dayStarts[0].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })} – ${dayStarts[6].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })}`;
   }
 
-  const days: CalendarDayGroup[] = dayStarts.map((start, i) => {
-    const nextStart = dayStarts[i + 1] ?? new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    const dayEvents = events.filter((e) => e.start >= start && e.start < nextStart);
-    const dateKey = localDateKey(start, timezone);
-    const dateLabel = start.toLocaleDateString("en-US", {
-      timeZone: timezone,
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    });
-    return { dateLabel, dateKey, events: dayEvents, isToday: dateKey === todayKey };
-  });
-
-  const weekLabel = `${dayStarts[0].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })} – ${dayStarts[6].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })}`;
+  const todayReminders = await listRemindersSafe();
+  const reminderNotifications = await getPendingNotificationsForTasks(todayReminders.map((r) => r.id)).catch(
+    () => new Map()
+  );
 
   const html = buildCalendarHtml({
+    view,
+    offset,
+    headerLabel,
     days,
-    weekLabel,
-    weekOffset,
+    monthWeeks,
     timezone,
     configured,
+    todayReminders,
+    reminderNotifications,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });
