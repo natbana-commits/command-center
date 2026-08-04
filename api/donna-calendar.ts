@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
-import { resolveTimezone, dayBounds } from "../src/util/time.js";
+import { resolveTimezone, dayBounds, localDateKey } from "../src/util/time.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { buildCalendarHtml, type CalendarDayGroup } from "../src/donna/calendarPage.js";
 import { requireAuth } from "../src/auth/session.js";
@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       month: "long",
       day: "numeric",
     });
-    return { dateLabel, events: dayEvents, isToday: i === 0 };
+    return { dateLabel, dateKey: localDateKey(start, timezone), events: dayEvents, isToday: i === 0 };
   });
 
   const html = buildCalendarHtml({

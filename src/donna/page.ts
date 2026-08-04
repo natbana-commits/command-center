@@ -15,13 +15,14 @@ import type { Quote } from "../markets/quotes.js";
 import type { EconomicEvent } from "../markets/economicEvents.js";
 import type { CommunityFeedItem } from "../news/communityFeeds.js";
 import { escapeHtml } from "../util/html.js";
-import { formatRelativeTime, withTimeSuffix } from "../util/time.js";
+import { formatRelativeTime, withTimeSuffix, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet, iconChevronDown } from "./icons.js";
 const iconMarkets = iconTrendingUp;
 const iconEconEvents = iconCalendar;
 import { renderSourceBadge } from "./sourceBadge.js";
 import { effectiveDue, formatDue } from "./remindersPage.js";
+import { renderDayBadge } from "./dayBadge.js";
 
 // Nav destination each Home card links to on click — reuses the same
 // hrefs nav.ts's MIDDLE_TAB_META already defines, kept here as a plain
@@ -143,25 +144,19 @@ function renderRemindersCard(
     .slice(0, 4)
     .map((r) => {
       const due = effectiveDue(r, notifications.get(r.id));
-      const dueDate = due ? new Date(due) : null;
-      const overdue = dueDate ? dueDate.getTime() < Date.now() : false;
-      const isToday = dueDate ? new Date().toDateString() === dueDate.toDateString() : false;
-      const rowClass = overdue ? "reminder-row-overdue" : isToday ? "reminder-row-today" : "";
-      const dueBadge = due
-        ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
-        : "";
       const group = groupById.get(groupLinks.get(r.id) ?? -1);
       const groupPill = group
-        ? `<span class="reminder-due" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
+        ? `<span class="day-badge-pill" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
         : "";
+      const title = escapeHtml(withTimeSuffix(r.title, null));
+
       return `
-        <div class="reminder-row ${rowClass}">
-          <div class="reminder-body">
-            <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
-            <div class="interaction-meta">
-              ${dueBadge}
-              ${groupPill}
-            </div>
+        <div class="day-badge-row">
+          ${due ? renderDayBadge(localDateKey(new Date(due), timezone), group?.color ?? "var(--olive)") : ""}
+          <div class="day-badge-body">
+            ${groupPill}
+            <div class="day-badge-title">${title}</div>
+            ${due ? `<span class="hint" style="margin:0;">${escapeHtml(formatDue(due, timezone))}</span>` : ""}
           </div>
         </div>`;
     })
@@ -282,13 +277,6 @@ function renderMarketsCard(quotes: Quote[]): string {
     .join("\n");
 }
 
-function daysAwayBadge(dateKey: string): { big: string; small: string } {
-  const days = Math.round((new Date(`${dateKey}T00:00:00Z`).getTime() - new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`).getTime()) / 86_400_000);
-  if (days === 0) return { big: "Today", small: "" };
-  if (days === 1) return { big: "1", small: "day" };
-  return { big: String(days), small: "days" };
-}
-
 // Fixed per-category colors (not theme-derived) — same "user/data picks
 // the color, not the theme" approach as reminder groups' custom color
 // swatches, since these four categories are a closed, hand-seeded set
@@ -309,17 +297,13 @@ function renderEconEventsCard(events: EconomicEvent[]): string {
     .slice(0, 2)
     .map((e) => {
       const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const badge = daysAwayBadge(e.eventDate);
       const color = ECON_CATEGORY_COLORS[e.category] ?? "var(--olive)";
       return `
-        <div class="econ-event-row">
-          <div class="econ-event-days-badge" style="border-color:${escapeHtml(color)}66;">
-            <span class="econ-event-days-number"${badge.big.length > 2 ? ' style="font-size:14px;"' : ""}>${escapeHtml(badge.big)}</span>
-            ${badge.small ? `<span class="econ-event-days-unit">${escapeHtml(badge.small)}</span>` : ""}
-          </div>
-          <div class="econ-event-body">
-            <span class="econ-event-pill" style="color:${escapeHtml(color)}; background:${escapeHtml(color)}1a;">${escapeHtml(e.category)}</span>
-            <div class="econ-event-title">${escapeHtml(e.eventName)}</div>
+        <div class="day-badge-row">
+          ${renderDayBadge(e.eventDate, color)}
+          <div class="day-badge-body">
+            <span class="day-badge-pill" style="color:${escapeHtml(color)}; background:${escapeHtml(color)}1a;">${escapeHtml(e.category)}</span>
+            <div class="day-badge-title">${escapeHtml(e.eventName)}</div>
             <span class="hint" style="margin:0;">${escapeHtml(dateLabel)}</span>
           </div>
         </div>`;

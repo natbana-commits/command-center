@@ -8,6 +8,7 @@ import { computeStreak } from "../habits/store.js";
 import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts, withTimeSuffix, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
+import { renderDayBadge } from "./dayBadge.js";
 
 // Google's Tasks API silently discards the time-of-day on `due` (always
 // stores/returns midnight UTC) — the reminder_notifications row is the only
@@ -109,36 +110,29 @@ function renderReminderRow(
   group: ReminderGroup | undefined
 ): string {
   const due = effectiveDue(r, notifications.get(r.id));
-  const dueDate = due ? new Date(due) : null;
-  const overdue = dueDate ? dueDate.getTime() < Date.now() : false;
-  const isToday = dueDate ? new Date().toDateString() === dueDate.toDateString() : false;
 
-  const rowClass = overdue ? "reminder-row-overdue" : isToday ? "reminder-row-today" : "";
-  const dueBadge = due
-    ? `<span class="reminder-due${overdue ? " reminder-due-overdue" : ""}">${escapeHtml(formatDue(due, timezone))}</span>`
-    : "";
   const groupPill = group
-    ? `<span class="reminder-due" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
+    ? `<span class="day-badge-pill" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
     : "";
+  const dueHint = due ? `<span class="hint" style="margin:0;">${escapeHtml(formatDue(due, timezone))}</span>` : "";
 
   const early = earlyNotifications.get(r.id);
   const earlyHint =
     due && early ? `<span class="hint" style="margin:0;">+ texts ${formatLeadTime(due, early.notifyAt)} early</span>` : "";
 
   return `
-    <div class="reminder-row ${rowClass}">
+    <div class="reminder-row">
       <form method="POST" action="/donna/reminders" style="display:contents;">
         <input type="hidden" name="action" value="complete" />
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
         <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
       </form>
-      <div class="reminder-body">
-        <span class="reminder-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
-        <div class="interaction-meta">
-          ${dueBadge}
-          ${groupPill}
-          ${earlyHint}
-        </div>
+      ${due ? renderDayBadge(localDateKey(new Date(due), timezone), group?.color ?? "var(--olive)") : ""}
+      <div class="day-badge-body">
+        ${groupPill}
+        <div class="day-badge-title">${escapeHtml(withTimeSuffix(r.title, null))}</div>
+        ${dueHint}
+        ${earlyHint}
       </div>
       <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
     </div>`;

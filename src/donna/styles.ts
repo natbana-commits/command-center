@@ -505,38 +505,16 @@ export const BASE_STYLES = `
     padding-left: var(--sp-2);
   }
   .agenda-day-group-today { border-left-color: var(--accent); }
-  .agenda-day-header {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 8px;
-  }
-  .agenda-day-header-today { color: var(--accent); }
-  .agenda-today-badge {
-    display: inline-block;
-    background: var(--accent);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    border-radius: 4px;
-    padding: 1px 6px;
-    margin-left: 8px;
-    text-transform: none;
-  }
   .agenda-event-row { display: flex; gap: var(--sp-2); padding: 8px 0; }
   .agenda-event-time { flex: 0 0 90px; font-weight: 500; font-size: 13px; color: var(--text-secondary); }
   .agenda-event-title { font-size: 14px; color: var(--ink); }
   .agenda-event-detail { font-size: 12px; color: var(--text-muted); }
 
-  /* --- econ events widget --- */
-  .econ-event-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 0; }
-  .econ-event-row + .econ-event-row { border-top: 1px solid var(--border); }
-  .econ-event-days-badge {
+  /* --- day-badge row: shared "days until X" style, used by the Econ
+     events widget, Reminders, and Calendar day headers --- */
+  .day-badge-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 0; }
+  .day-badge-row + .day-badge-row { border-top: 1px solid var(--border); }
+  .day-badge {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -548,11 +526,12 @@ export const BASE_STYLES = `
     background: var(--sidebar-bg);
     border: 1px solid var(--border);
   }
-  .econ-event-days-number { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink); }
-  .econ-event-days-unit { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
-  .econ-event-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .econ-event-title { font-size: 14px; color: var(--ink); }
-  .econ-event-pill {
+  .day-badge-overdue { background: #b3441f1a; }
+  .day-badge-number { font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink); }
+  .day-badge-unit { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
+  .day-badge-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .day-badge-title { font-size: 14px; color: var(--ink); }
+  .day-badge-pill {
     display: inline-block;
     align-self: flex-start;
     font-size: 11px;
@@ -611,8 +590,6 @@ export const BASE_STYLES = `
     background: var(--card);
     transition: opacity 0.15s ease;
   }
-  .reminder-row-overdue { border-left-color: var(--danger); }
-  .reminder-row-today { border-left-color: var(--accent); }
   .reminder-row-completing { opacity: 0.4; }
   .reminder-row-completing .reminder-title { text-decoration: line-through; }
   @media (prefers-reduced-motion: reduce) {

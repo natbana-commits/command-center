@@ -2,9 +2,11 @@ import type { CalendarEvent } from "../calendar.js";
 import type { NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { renderDayBadge } from "./dayBadge.js";
 
 export interface CalendarDayGroup {
   dateLabel: string;
+  dateKey: string;
   events: CalendarEvent[];
   isToday: boolean;
 }
@@ -46,7 +48,12 @@ function renderDayGroup(day: CalendarDayGroup, timezone: string): string {
 
   return `
     <div class="agenda-day-group${day.isToday ? " agenda-day-group-today" : ""}">
-      <div class="agenda-day-header${day.isToday ? " agenda-day-header-today" : ""}">${escapeHtml(day.dateLabel)}${day.isToday ? `<span class="agenda-today-badge">Today</span>` : ""}</div>
+      <div class="day-badge-row" style="padding-top: 0;">
+        ${renderDayBadge(day.dateKey, "var(--accent)")}
+        <div class="day-badge-body">
+          <div class="day-badge-title" style="font-weight: 600;">${escapeHtml(day.dateLabel)}</div>
+        </div>
+      </div>
       ${eventsHtml}
     </div>`;
 }
