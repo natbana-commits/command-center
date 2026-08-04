@@ -236,6 +236,12 @@ create table if not exists ipo_filings (
 
 create index if not exists ipo_filings_filed_date_idx on ipo_filings (filed_date desc);
 
+-- Added for industry/revenue/SPAC display on the IPOs tab — existing rows
+-- (summarized before this existed) come back null/false, not backfilled.
+alter table ipo_filings add column if not exists industry text;
+alter table ipo_filings add column if not exists estimated_revenue text;
+alter table ipo_filings add column if not exists is_spac boolean not null default false;
+
 -- Companies Nathan has asked to keep tracking beyond their initial S-1 —
 -- checked daily for any new filing (amendments, the eventual 424B4
 -- pricing prospectus) via EDGAR's per-company submissions feed.

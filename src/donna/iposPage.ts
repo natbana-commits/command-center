@@ -44,6 +44,20 @@ function renderFollowToggle(filing: IpoFiling, followedCiks: Set<string>): strin
     </form>`;
 }
 
+function renderIpoBadges(filing: IpoFiling): string {
+  const badges: string[] = [];
+  if (filing.isSpac) {
+    badges.push(`<span class="day-badge-pill" style="color:var(--text-secondary); background:var(--sidebar-bg);">SPAC</span>`);
+  }
+  if (filing.industry) {
+    badges.push(`<span class="day-badge-pill" style="color:var(--accent); background:rgba(184,107,69,0.1);">${escapeHtml(filing.industry)}</span>`);
+  }
+  if (filing.estimatedRevenue) {
+    badges.push(`<span class="hint" style="margin:0;">${escapeHtml(filing.estimatedRevenue)} revenue</span>`);
+  }
+  return badges.length ? `<div class="ipo-badges">${badges.join("\n")}</div>` : "";
+}
+
 function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
   const riskHtml = filing.riskHighlights.length
     ? `<ul>${filing.riskHighlights.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
@@ -54,10 +68,11 @@ function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
       <summary>
         <div class="newsletter-subject">${escapeHtml(filing.companyName)}${filing.ticker ? ` (${escapeHtml(filing.ticker)})` : ""}</div>
         <div class="newsletter-sender">Filed ${escapeHtml(formatDate(filing.filedDate))}</div>
+        ${renderIpoBadges(filing)}
       </summary>
       <div class="news-expanded">
         <h1 class="section-title">Business</h1>
-        <p>${escapeHtml(filing.businessSummary ?? "Not summarized.")}</p>
+        <p><strong>${escapeHtml(filing.companyName)}</strong> — ${escapeHtml(filing.businessSummary ?? "Not summarized.")}</p>
         <h1 class="section-title">Financials</h1>
         <p>${escapeHtml(filing.financialsSummary ?? "Not summarized.")}</p>
         <h1 class="section-title">Deal terms</h1>
@@ -80,6 +95,10 @@ export interface IposPageData {
 export function buildIposHtml(data: IposPageData): string {
   const { filings, followedCompanies, navVisibility, navOrder } = data;
   const followedCiks = new Set(followedCompanies.map((c) => c.cik));
+  // Blank-check SPACs are less interesting to skim than operating companies
+  // (no real business to summarize) — push them down, otherwise keep the
+  // incoming filed-date order (JS sort is stable).
+  const sortedFilings = [...filings].sort((a, b) => Number(a.isSpac) - Number(b.isSpac));
 
   const body = `
     <div class="section">
@@ -89,9 +108,9 @@ export function buildIposHtml(data: IposPageData): string {
     ${renderFollowingSection(followedCompanies)}
     <div class="card">
       ${
-        filings.length === 0
+        sortedFilings.length === 0
           ? `<p class="empty">No IPO filings tracked yet — check back after tomorrow's daily check.</p>`
-          : filings.map((f) => renderFilingRow(f, followedCiks)).join("\n")
+          : sortedFilings.map((f) => renderFilingRow(f, followedCiks)).join("\n")
       }
     </div>`;
 

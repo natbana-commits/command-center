@@ -496,6 +496,7 @@ export const BASE_STYLES = `
   .newsletter[open] summary { margin-bottom: var(--sp-2); }
   .newsletter-subject { font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
   .newsletter-sender { font-size: 12px; color: var(--text-muted); }
+  .ipo-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .newsletter-frame { width: 100%; height: 500px; border: none; }
 
   /* --- agenda (calendar page) --- */

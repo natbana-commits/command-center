@@ -10,6 +10,9 @@ export interface IpoFiling {
   exchange: string | null;
   filedDate: string;
   sourceUrl: string;
+  industry: string | null;
+  estimatedRevenue: string | null;
+  isSpac: boolean;
   businessSummary: string | null;
   financialsSummary: string | null;
   dealTermsSummary: string | null;
@@ -25,6 +28,9 @@ interface IpoFilingRow {
   exchange: string | null;
   filed_date: string;
   source_url: string;
+  industry: string | null;
+  estimated_revenue: string | null;
+  is_spac: boolean | null;
   business_summary: string | null;
   financials_summary: string | null;
   deal_terms_summary: string | null;
@@ -41,6 +47,12 @@ function rowToFiling(row: IpoFilingRow): IpoFiling {
     exchange: row.exchange,
     filedDate: row.filed_date,
     sourceUrl: row.source_url,
+    // Older rows (summarized before these fields existed) come back null —
+    // isSpac defaults to false rather than "unknown" so they sort with
+    // regular filings instead of all landing in one bucket.
+    industry: row.industry,
+    estimatedRevenue: row.estimated_revenue,
+    isSpac: row.is_spac ?? false,
     businessSummary: row.business_summary,
     financialsSummary: row.financials_summary,
     dealTermsSummary: row.deal_terms_summary,
@@ -49,7 +61,7 @@ function rowToFiling(row: IpoFilingRow): IpoFiling {
 }
 
 const SELECT_COLUMNS =
-  "id, accession_no, cik, company_name, ticker, exchange, filed_date, source_url, business_summary, financials_summary, deal_terms_summary, risk_highlights";
+  "id, accession_no, cik, company_name, ticker, exchange, filed_date, source_url, industry, estimated_revenue, is_spac, business_summary, financials_summary, deal_terms_summary, risk_highlights";
 
 export async function getRecentIpoFilings(limit = 20): Promise<IpoFiling[]> {
   const client = getSupabaseClient();
@@ -141,6 +153,9 @@ export async function saveIpoFiling(fields: {
           exchange: fields.exchange || null,
           filed_date: fields.filedDate,
           source_url: fields.sourceUrl,
+          industry: fields.summary.industry ?? null,
+          estimated_revenue: fields.summary.estimatedRevenue ?? null,
+          is_spac: fields.summary.isSpac ?? false,
           business_summary: fields.summary.businessSummary,
           financials_summary: fields.summary.financialsSummary,
           deal_terms_summary: fields.summary.dealTermsSummary,
