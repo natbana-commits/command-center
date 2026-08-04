@@ -707,7 +707,6 @@ const SETTINGS_CLIENT_SCRIPT = `
     const action = list.getAttribute("data-reorder-action");
     let dragRow = null;
     let startY = 0;
-    let startTop = 0;
 
     function rows() {
       return Array.prototype.slice.call(list.children);
@@ -731,7 +730,6 @@ const SETTINGS_CLIENT_SCRIPT = `
       if (!row || row.parentElement !== list) return;
       dragRow = row;
       startY = e.clientY;
-      startTop = row.getBoundingClientRect().top;
       row.classList.add("widget-row-dragging");
       handle.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -739,28 +737,42 @@ const SETTINGS_CLIENT_SCRIPT = `
 
     list.addEventListener("pointermove", function (e) {
       if (!dragRow) return;
-      const deltaY = e.clientY - startY;
-      dragRow.style.transform = "translateY(" + deltaY + "px)";
+      // startY is fixed for the whole gesture (never rebased), so this
+      // transform always reflects the row's true total offset from where
+      // the drag began, regardless of how many swaps have happened since.
+      dragRow.style.transform = "translateY(" + (e.clientY - startY) + "px)";
 
-      const dragMid = startTop + dragRow.offsetHeight / 2 + deltaY;
-      const siblings = rows();
-      for (let i = 0; i < siblings.length; i++) {
-        const sib = siblings[i];
-        if (sib === dragRow) continue;
-        const rect = sib.getBoundingClientRect();
-        const sibMid = rect.top + rect.height / 2;
-        const dragIsAfter = !!(dragRow.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_PRECEDING);
-        if (dragIsAfter && dragMid < sibMid) {
-          list.insertBefore(dragRow, sib);
-        } else if (!dragIsAfter && dragMid > sibMid) {
-          list.insertBefore(dragRow, sib.nextSibling);
-        } else {
-          continue;
+      // getBoundingClientRect() already includes the transform above, so
+      // it's a true read of the row's current visual position — safe to
+      // re-read after every insertBefore below without re-deriving it by
+      // hand. Looping here (rather than handling one swap and waiting for
+      // the next pointermove) matters because a single pointermove can
+      // easily cover more distance than one row's height — a fast flick,
+      // or a coarse synthetic drag — and previously each event only ever
+      // resolved one swap, capping a whole drag at however many move
+      // events happened to fire.
+      let swapped = true;
+      while (swapped) {
+        swapped = false;
+        const rect = dragRow.getBoundingClientRect();
+        const dragMid = rect.top + rect.height / 2;
+        const siblings = rows();
+        for (let i = 0; i < siblings.length; i++) {
+          const sib = siblings[i];
+          if (sib === dragRow) continue;
+          const sibRect = sib.getBoundingClientRect();
+          const sibMid = sibRect.top + sibRect.height / 2;
+          const dragIsAfter = !!(dragRow.compareDocumentPosition(sib) & Node.DOCUMENT_POSITION_PRECEDING);
+          if (dragIsAfter && dragMid < sibMid) {
+            list.insertBefore(dragRow, sib);
+          } else if (!dragIsAfter && dragMid > sibMid) {
+            list.insertBefore(dragRow, sib.nextSibling);
+          } else {
+            continue;
+          }
+          swapped = true;
+          break;
         }
-        startTop = dragRow.getBoundingClientRect().top;
-        startY = e.clientY;
-        dragRow.style.transform = "translateY(0px)";
-        break;
       }
     });
 

@@ -332,6 +332,15 @@ const ROUTER_SCRIPT = `
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     if (link.target === "_blank" || link.hasAttribute("download")) return;
     if (!isInternalHref(link.getAttribute("href"))) return;
+    // A same-page #anchor link (e.g. Settings' section nav pills) should
+    // get native in-page scrolling, not a full fetch+swap — swapFrom
+    // always resets scroll to the top, which would make a same-page jump
+    // link look like it silently did nothing but reset your scroll
+    // position instead of taking you anywhere.
+    const dest = new URL(link.href, window.location.href);
+    if (dest.pathname === window.location.pathname && dest.search === window.location.search && dest.hash) {
+      return;
+    }
     e.preventDefault();
     navigate(link.href, { method: "GET" }, true, link.getAttribute("data-swap-target") || undefined);
   });
