@@ -319,6 +319,11 @@ export const BASE_STYLES = `
   .card-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    /* Default grid stretch makes every card in a row match the tallest
+       sibling's height — align-items: start lets each card size to its
+       own content instead, so a short card (e.g. Econ events with only
+       2 rows) doesn't carry hanging empty space to match a taller one. */
+    align-items: start;
     gap: var(--sp-2);
     margin-bottom: var(--sp-4);
   }

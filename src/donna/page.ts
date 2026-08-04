@@ -306,6 +306,7 @@ function renderEconEventsCard(events: EconomicEvent[]): string {
     return `<p class="empty">No upcoming events seeded.</p>`;
   }
   return events
+    .slice(0, 2)
     .map((e) => {
       const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const badge = daysAwayBadge(e.eventDate);
