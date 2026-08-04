@@ -218,6 +218,8 @@ export const BASE_STYLES = `
   }
 
   .bottom-nav { display: none; }
+  .mobile-topbar { display: none; }
+  .chat-mobile-bar { display: none; }
 
   @media (max-width: 860px) {
     .sidebar { display: none; }
@@ -281,6 +283,89 @@ export const BASE_STYLES = `
     }
     .bottom-nav-sheet-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
     .bottom-nav-sheet-link:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+
+    /* The sidebar (Info/Settings/theme-toggle/chat) is hidden on mobile —
+       this top-right menu and the docked chat bar below are what stand in
+       for it there. */
+    .mobile-topbar {
+      display: block;
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      right: 12px;
+      z-index: 950;
+    }
+    .mobile-topbar-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .mobile-topbar-btn svg { width: 18px; height: 18px; }
+    .mobile-more-sheet {
+      display: none;
+      position: fixed;
+      top: calc(max(12px, env(safe-area-inset-top)) + 44px);
+      right: 12px;
+      width: 220px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      padding: 6px;
+      z-index: 951;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .mobile-more-sheet.open { display: flex; }
+    .mobile-more-sheet a,
+    .mobile-more-sheet button {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      background: none;
+      border: none;
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+    }
+    .mobile-more-sheet svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .mobile-more-sheet a:hover,
+    .mobile-more-sheet button:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+
+    .chat-mobile-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(66px + env(safe-area-inset-bottom));
+      height: 46px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      color: var(--accent);
+      cursor: pointer;
+      z-index: 901;
+    }
+    .chat-mobile-bar svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .chat-mobile-bar span { font-size: 14px; color: var(--text-muted); }
   }
 
   /* --- typography helpers --- */
@@ -919,6 +1004,27 @@ export const BASE_STYLES = `
     box-shadow: -4px 0 20px rgba(0,0,0,0.15);
   }
   .chat-overlay-panel.open { right: 0; }
+  /* Bottom sheet instead of a side panel on mobile — a right-side
+     slide-in is basically full-screen-width on a phone anyway, and a
+     modest-height bottom sheet reads more like the docked bar it opens
+     from. Must come after the base rule above so its equal-specificity
+     overrides actually win in the cascade on a mobile viewport. */
+  @media (max-width: 860px) {
+    .chat-overlay-panel {
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      max-width: none;
+      max-height: 70vh;
+      border-radius: 16px 16px 0 0;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    }
+    .chat-overlay-panel.open { transform: translateY(0); }
+  }
   .chat-overlay-header {
     background: var(--ink-fixed);
     color: #fff;

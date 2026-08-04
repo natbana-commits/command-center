@@ -2,7 +2,7 @@ import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
 import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
-import { iconInfo, iconSettings, iconChat } from "./icons.js";
+import { iconInfo, iconSettings, iconChat, iconX } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
 // self-heal reasoning as config.ts's loadSettings() applies here too:
@@ -36,10 +36,13 @@ const THEME_INIT_SCRIPT = `
 })();
 `;
 
+// Class-based (not a single #id) since the mobile top bar's menu now has
+// its own theme-toggle button alongside the sidebar's — every matching
+// button toggles the same shared theme and stays in sync with each other.
 const THEME_TOGGLE_SCRIPT = `
 (function () {
-  const btn = document.getElementById("theme-toggle-btn");
-  if (!btn) return;
+  const btns = document.querySelectorAll(".theme-toggle-btn");
+  if (btns.length === 0) return;
 
   function effectiveTheme() {
     const explicit = document.documentElement.getAttribute("data-theme");
@@ -47,18 +50,24 @@ const THEME_TOGGLE_SCRIPT = `
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  function updateIcon() {
-    btn.textContent = effectiveTheme() === "dark" ? "☀️" : "🌙";
+  function updateIcons() {
+    const icon = effectiveTheme() === "dark" ? "☀️" : "🌙";
+    btns.forEach((btn) => {
+      const iconEl = btn.querySelector(".theme-toggle-icon");
+      if (iconEl) iconEl.textContent = icon;
+    });
   }
 
-  btn.addEventListener("click", () => {
-    const next = effectiveTheme() === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try { localStorage.setItem("donna-theme", next); } catch (e) {}
-    updateIcon();
+  btns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = effectiveTheme() === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("donna-theme", next); } catch (e) {}
+      updateIcons();
+    });
   });
 
-  updateIcon();
+  updateIcons();
 })();
 `;
 
@@ -436,6 +445,10 @@ const ROUTER_SCRIPT = `
 // region same as before.
 function renderChatFabMarkup(): string {
   return `
+  <div class="chat-mobile-bar chat-trigger" role="button" tabindex="0" aria-label="Ask Donna">
+    ${iconChat}
+    <span>Ask Donna anything…</span>
+  </div>
   <div class="chat-scrim" id="chat-scrim"></div>
   <div class="chat-overlay-panel" id="chat-overlay-panel">
     <div class="chat-overlay-header">
@@ -484,38 +497,48 @@ const PROGRESS_BAR_SCRIPT = `
 })();
 `;
 
-// Delegated on document (rather than binding to the button/sheet directly)
+// Delegated on document (rather than binding to each button/sheet directly)
 // because the client-side router replaces #bottom-nav-region's innerHTML on
 // every navigation — direct bindings would go stale after the first swap,
-// same reasoning as ROUTER_SCRIPT's own click handling.
+// same reasoning as ROUTER_SCRIPT's own click handling. Drives both the
+// mobile bottom nav's "More" sheet and the mobile top bar's menu sheet —
+// same toggle/click-outside-to-close behavior, just two button/sheet pairs.
 const NAV_SHEET_SCRIPT = `
 (function () {
+  const PAIRS = [
+    { btn: "bottom-nav-more-btn", sheet: "bottom-nav-sheet" },
+    { btn: "mobile-more-btn", sheet: "mobile-more-sheet" },
+  ];
   document.addEventListener("click", (e) => {
-    const sheet = document.getElementById("bottom-nav-sheet");
-    if (!sheet) return;
-    const btn = e.target && e.target.closest && e.target.closest("#bottom-nav-more-btn");
-    if (btn) {
-      e.stopPropagation();
-      sheet.classList.toggle("open");
-      return;
-    }
-    if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
-      sheet.classList.remove("open");
-    }
+    PAIRS.forEach(({ btn: btnId, sheet: sheetId }) => {
+      const sheet = document.getElementById(sheetId);
+      if (!sheet) return;
+      const btn = e.target && e.target.closest && e.target.closest("#" + btnId);
+      if (btn) {
+        e.stopPropagation();
+        sheet.classList.toggle("open");
+        return;
+      }
+      if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
+        sheet.classList.remove("open");
+      }
+    });
   });
 })();
 `;
 
 const CHAT_FAB_SCRIPT = `
 (function () {
-  const trigger = document.getElementById("chat-trigger-btn");
+  // Two triggers share this one overlay: the sidebar icon (desktop) and
+  // the docked bar (mobile, where there's no sidebar to put an icon in).
+  const triggers = document.querySelectorAll(".chat-trigger");
   const scrim = document.getElementById("chat-scrim");
   const panel = document.getElementById("chat-overlay-panel");
   const closeBtn = document.getElementById("chat-overlay-close");
   const body = document.getElementById("chat-overlay-body");
   const input = document.getElementById("chat-overlay-input");
   const sendBtn = document.getElementById("chat-overlay-send");
-  if (!trigger) return;
+  if (triggers.length === 0) return;
   let loaded = false;
 
   function appendBubble(role, text) {
@@ -586,7 +609,18 @@ const CHAT_FAB_SCRIPT = `
     }
   }
 
-  trigger.addEventListener("click", open);
+  triggers.forEach((el) => {
+    el.addEventListener("click", open);
+    // Only the mobile bar needs this — a real <button> (the sidebar
+    // trigger) already gets Enter/Space activation natively, and this
+    // guard stops it from double-firing open() there.
+    el.addEventListener("keydown", (e) => {
+      if (e.target === el && el.tagName !== "BUTTON" && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        open();
+      }
+    });
+  });
   closeBtn.addEventListener("click", close);
   scrim.addEventListener("click", close);
   sendBtn.addEventListener("click", send);
@@ -620,6 +654,15 @@ ${BASE_STYLES}
 </head>
 <body>
   <div class="nav-progress-bar" id="nav-progress-bar"></div>
+  <div class="mobile-topbar">
+    <button type="button" class="mobile-topbar-btn" id="mobile-more-btn" aria-label="More">${iconSettings}</button>
+    <div class="mobile-more-sheet" id="mobile-more-sheet">
+      <a href="/donna/settings#how-this-works">${iconInfo}<span>How this works</span></a>
+      <button type="button" class="theme-toggle-btn"><span class="theme-toggle-icon">&#x1F319;</span><span>Toggle theme</span></button>
+      <a href="/donna/settings">${iconSettings}<span>Settings</span></a>
+      <a href="/donna/logout">${iconX}<span>Sign out</span></a>
+    </div>
+  </div>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-logo">
@@ -631,10 +674,10 @@ ${BASE_STYLES}
       </button>
       <nav class="sidebar-nav" id="sidebar-nav-region">${renderSidebarNav(activeTab, navVisibility, navOrder)}</nav>
       <div class="sidebar-user">
-        <button type="button" class="sidebar-user-icon-link" id="chat-trigger-btn" title="Ask Donna" aria-label="Ask Donna">${iconChat}</button>
+        <button type="button" class="sidebar-user-icon-link chat-trigger" title="Ask Donna" aria-label="Ask Donna">${iconChat}</button>
         <a class="sidebar-user-icon-link" href="/donna/settings#how-this-works" title="How this works" aria-label="How this works">${iconInfo}</a>
         <a class="sidebar-user-icon-link${activeTab === "settings" ? " sidebar-user-icon-link-active" : ""}" href="/donna/settings" title="Settings" aria-label="Settings">${iconSettings}</a>
-        <button class="theme-toggle-btn" id="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">&#x1F319;</button>
+        <button type="button" class="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme"><span class="theme-toggle-icon">&#x1F319;</span></button>
         <a class="sidebar-user-logout" href="/donna/logout" title="Sign out">&#x2715;</a>
       </div>
     </aside>
