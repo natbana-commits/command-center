@@ -14,11 +14,11 @@ import { renderPageEditLink } from "./editLink.js";
 
 const VISIBLE_TRANSACTIONS = 4;
 
-// Widgets short enough to sit three-across in a .card-row instead of each
-// claiming a full-width row — desktop was scrolling much further than the
-// content needed just from these being stacked one under another. List-
-// heavy widgets (Accounts, Transactions) stay full-width; a 1/3-width
-// column reads cramped for a long list of rows.
+// Widgets short enough to sit several-across in the masonry grid instead
+// of each claiming a full-width row — desktop was scrolling much further
+// than the content needed just from these being stacked one under
+// another. List-heavy widgets (Accounts, Transactions) stay full-width; a
+// 1/3-width column reads cramped for a long list of rows.
 const COMPACT_WIDGET_IDS: readonly FinanceWidgetId[] = [
   "net-worth",
   "spending-over-time",
@@ -28,11 +28,6 @@ const COMPACT_WIDGET_IDS: readonly FinanceWidgetId[] = [
   "recurring-charges",
   "upcoming-payments",
 ];
-
-// The two headline graphs get a wider tile in the compact grid, same idea
-// as Home's one pinned priority widget — everything else in the grid is a
-// normal single-cell tile.
-const PRIORITY_WIDGET_IDS: readonly FinanceWidgetId[] = ["net-worth", "spending-over-time"];
 
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
@@ -81,7 +76,7 @@ function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
     ? `<span class="reminder-due reminder-due-overdue">Needs re-authentication</span>`
     : "";
   return `
-    <div class="card" style="margin-bottom: var(--sp-3);">
+    <div class="card fw-account-card">
       <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
         <h1 class="section-title" style="margin:0;">${escapeHtml(item.institutionName)}</h1>
         ${reauthBadge}
@@ -399,7 +394,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       content: `${summaryCard}${
         items.length === 0
           ? `<p class="empty">No accounts linked yet.</p>`
-          : `<div class="card-row">${items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")}</div>`
+          : `<div class="fw-masonry" id="fw-accounts-grid">${items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")}</div>`
       }`,
     },
     "recurring-charges":
@@ -426,7 +421,6 @@ export function buildFinancesHtml(data: FinancesPageData): string {
 
   const visibleWidgets = financeWidgets.filter((w) => w.visible && sectionsById[w.id]);
   const isCompact = (id: FinanceWidgetId) => (COMPACT_WIDGET_IDS as readonly string[]).includes(id);
-  const isWide = (id: FinanceWidgetId) => (PRIORITY_WIDGET_IDS as readonly string[]).includes(id);
 
   // Every compact widget renders together as one grid, always first,
   // regardless of where a full-width widget (Accounts, Transactions)
@@ -436,14 +430,21 @@ export function buildFinancesHtml(data: FinancesPageData): string {
   const compactSections = visibleWidgets.filter((w) => isCompact(w.id)).map((w) => ({ id: w.id, ...sectionsById[w.id]! }));
   const fullWidthSections = visibleWidgets.filter((w) => !isCompact(w.id)).map((w) => ({ id: w.id, ...sectionsById[w.id]! }));
 
+  // Masonry (shortest-column JS packing, client script below) rather than
+  // a fixed CSS grid — which widgets are visible/how many is entirely up
+  // to Settings, so no fixed column/span math can guarantee a gap-free
+  // fill for every combination. Net Worth and Spending Over Time get
+  // their "priority" from a taller chart (see renderNetWorthSection/
+  // renderSpendingHistorySection), not a wider tile, so masonry packing
+  // by height alone is all this needs.
   const compactGridHtml =
     compactSections.length === 0
       ? ""
-      : `<div class="fw-grid" style="margin-top: var(--sp-3);">
+      : `<div class="fw-masonry" id="fw-grid" style="margin-top: var(--sp-3);">
       ${compactSections
         .map(
           (section) =>
-            `<div class="fw-tile${isWide(section.id) ? " fw-tile-wide" : ""}">
+            `<div class="fw-tile">
               <div class="card-title" style="margin-bottom: var(--sp-2); display:flex; align-items:center; justify-content:space-between; gap:8px;">
                 <span>${escapeHtml(section.title)}</span>
                 ${section.editAnchor ? renderPageEditLink(section.editAnchor, section.title) : ""}
@@ -585,4 +586,57 @@ const CLIENT_SCRIPT = `
     btn.textContent = "Linking…";
     openHandler(token, btn, window.location.href).open();
   })();
+
+  // Greedy shortest-column packing — a plain flex-wrap left uneven gaps
+  // whenever tiles/cards varied in height (a bank with 4 accounts next to
+  // one with 1, or 5 widgets not dividing evenly into a row), so each
+  // item goes into whichever column currently has the least total height
+  // instead. Re-queries fresh from the container every run (not just
+  // "whatever's currently in a column"), so it's safe to call again on
+  // resize or after content changes.
+  function distributeMasonry(containerId, itemSelector, columnCountRaw) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const items = Array.prototype.slice.call(container.querySelectorAll(itemSelector));
+    if (items.length === 0) return;
+
+    // Always wrapped in at least one .fw-masonry-col, even at 1 column —
+    // keeps the CSS simple (.fw-masonry is always a row of columns, each
+    // column always stacks its own items) instead of needing a second
+    // "no columns at all" layout mode.
+    const columnCount = Math.max(1, columnCountRaw);
+    const columns = [];
+    for (let i = 0; i < columnCount; i++) {
+      const col = document.createElement("div");
+      col.className = "fw-masonry-col";
+      columns.push(col);
+    }
+    container.innerHTML = "";
+    columns.forEach(function (col) { container.appendChild(col); });
+
+    const heights = new Array(columnCount).fill(0);
+    items.forEach(function (item) {
+      let shortest = 0;
+      for (let i = 1; i < columnCount; i++) {
+        if (heights[i] < heights[shortest]) shortest = i;
+      }
+      columns[shortest].appendChild(item);
+      heights[shortest] += item.offsetHeight;
+    });
+  }
+
+  function distributeFinanceMasonry() {
+    const wide = window.innerWidth;
+    distributeMasonry("fw-grid", ".fw-tile", wide > 1100 ? 3 : wide > 700 ? 2 : 1);
+    distributeMasonry("fw-accounts-grid", ".fw-account-card", wide > 860 ? 3 : 1);
+  }
+  distributeFinanceMasonry();
+  if (!window.__financeMasonryResizeBound) {
+    window.__financeMasonryResizeBound = true;
+    let resizeTimer;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(distributeFinanceMasonry, 150);
+    });
+  }
 `;

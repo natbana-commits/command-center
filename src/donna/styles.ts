@@ -341,13 +341,11 @@ export const BASE_STYLES = `
     border-radius: 12px;
     padding: var(--sp-2);
   }
-  /* Plain flex-wrap 3-per-row grouping — used by Finances' summary cards
-     (Total Cash / Credit Card Balances) and its Accounts section
-     (2-3 institution cards per row). Compact widgets moved to .fw-grid
-     below. A short card next to a tall one just leaves a gap below it
-     rather than packing gap-free — no masonry JS behind this, unlike
-     Home's grid (.hw-grid), which sidesteps the problem with fixed
-     per-widget sizing instead. */
+  /* Plain flex-wrap grouping — used only by Finances' summary cards
+     (Total Cash / Credit Card Balances), which are always exactly 2 same-
+     height cards so uneven wrapping never comes up. Anything whose card
+     heights actually vary (the compact-widget grid, Accounts) uses
+     .fw-masonry below instead. */
   .card-row {
     display: flex;
     flex-wrap: wrap;
@@ -361,14 +359,27 @@ export const BASE_STYLES = `
     .card-row > .card { flex: 1 1 auto; min-width: 0; }
   }
 
-  /* Finances' compact-widget grid — Net Worth and Spending Over Time get
-     a wide (2-column) priority tile, the rest sit as normal single cells.
-     No exact-viewport-fill requirement here (unlike Home's .hw-grid),
-     just a plain auto-flowing grid that reflows at narrower widths. */
-  .fw-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+  /* Finances' masonry grid — shortest-column JS packing (CLIENT_SCRIPT in
+     financesPage.ts), used for both the compact-widget grid and the
+     Accounts institution cards. A fixed CSS grid can't guarantee a
+     gap-free fill here the way Home's .hw-grid does, since which widgets
+     are visible (and how many accounts each bank has) is arbitrary rather
+     than a small fixed set — JS measuring actual rendered heights is what
+     keeps a short card next to a tall one from leaving a gap below it, or
+     an odd-numbered widget count from hanging alone in its own row.
+     Always at least one .fw-masonry-col (even at 1 column) so this stays
+     a plain "row of stacking columns" in both cases. */
+  .fw-masonry {
+    display: flex;
+    align-items: flex-start;
     gap: var(--sp-2);
+  }
+  .fw-masonry-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    flex: 1;
+    min-width: 0;
   }
   .fw-tile {
     background: var(--card);
@@ -376,14 +387,6 @@ export const BASE_STYLES = `
     border-radius: 12px;
     padding: var(--sp-2);
     min-width: 0;
-  }
-  .fw-tile-wide { grid-column: span 2; }
-  @media (max-width: 1100px) {
-    .fw-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 700px) {
-    .fw-grid { grid-template-columns: 1fr; }
-    .fw-tile-wide { grid-column: span 1; }
   }
   .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {
