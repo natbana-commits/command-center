@@ -242,6 +242,12 @@ alter table ipo_filings add column if not exists industry text;
 alter table ipo_filings add column if not exists estimated_revenue text;
 alter table ipo_filings add column if not exists is_spac boolean not null default false;
 
+-- "primary" (shares offered by the company), "secondary" (existing
+-- shareholders cashing out), "mixed", or null when the S-1 excerpts didn't
+-- say — same backfill posture as the columns above, existing rows come
+-- back null.
+alter table ipo_filings add column if not exists offering_type text;
+
 -- Companies Nathan has asked to keep tracking beyond their initial S-1 —
 -- checked daily for any new filing (amendments, the eventual 424B4
 -- pricing prospectus) via EDGAR's per-company submissions feed.
@@ -539,5 +545,19 @@ create table if not exists manual_bills (
   name text not null,
   amount numeric not null,
   due_day int not null check (due_day between 1 and 31),
+  created_at timestamptz not null default now()
+);
+
+-- Recurring charges themselves are fully computed from transactions on
+-- every load (src/finance/recurringCharges.ts), not stored — this table
+-- only holds the per-merchant *overrides* on top of that: a renamed
+-- label, a corrected average amount, or a dismissal. Keyed by the same
+-- lowercased/trimmed merchant name the detector groups charges under
+-- (RecurringCharge.merchantKey), which stays stable across re-detections.
+create table if not exists recurring_charge_overrides (
+  merchant_key text primary key,
+  display_name text,
+  amount_override numeric,
+  dismissed boolean not null default false,
   created_at timestamptz not null default now()
 );

@@ -132,7 +132,7 @@ export function renderLibraryTable(rows: LibraryRow[], returnTo: string, classFo
               </select>
               <button type="submit" class="btn-secondary btn-small">Move</button>
             </form>
-            <form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage — it can\\'t be undone.');">
+            <form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage and can\\'t be undone.');">
               <input type="hidden" name="action" value="delete-upload" />
               <input type="hidden" name="id" value="${r.uploadId}" />
               <button type="submit" class="btn-danger btn-small">Remove</button>
@@ -259,8 +259,8 @@ export function buildFilesHtml(data: FilesPageData): string {
     rows.length === 0 && classFolders.length === 0
       ? `<p class="empty">${
           googleConfigured
-            ? "No classes set up yet — add one in Settings."
-            : "Not connected yet — finish Google Drive setup, then add classes in Settings."
+            ? "No classes set up yet. Add one in Settings."
+            : "Not connected yet. Finish Google Drive setup, then add classes in Settings."
         }</p>`
       : renderLibraryTable(rows, "/donna/files", classFolders);
 
@@ -299,7 +299,7 @@ export function buildFilesHtml(data: FilesPageData): string {
         <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;" />
 
         <h1 class="section-title">Upload a file</h1>
-        <div class="hint">Any file type — PDF, slides, docs, whatever. Stored as-is, no transcription or text extraction. Mirrored to the class's Drive folder if one's selected${googleConfigured ? "" : " (once Drive write access is set up)"}.</div>
+        <div class="hint">Any file type: PDF, slides, docs, whatever. Stored as-is, no transcription or text extraction. Mirrored to the class's Drive folder if one's selected${googleConfigured ? "" : " (once Drive write access is set up)"}.</div>
         <div class="upload-form">
           <select id="file-class">${renderClassOptions(classFolders)}</select>
           <input type="file" id="file-file" />

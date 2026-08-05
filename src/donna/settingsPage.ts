@@ -5,6 +5,8 @@ import type { ReminderGroup } from "../reminders/groups.js";
 import type { CommunityFeedSource } from "../news/communityFeeds.js";
 import type { SessionInfo } from "../auth/session.js";
 import type { ManualBill } from "../finance/manualBills.js";
+import type { RecurringCharge } from "../finance/recurringCharges.js";
+import type { RecurringChargeOverride } from "../finance/recurringChargeOverrides.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
@@ -28,17 +30,17 @@ const HOW_THIS_WORKS: HowThisWorksSection[] = [
   {
     title: "Newsletters",
     description:
-      "Today's newsletters show up right on Home, collapsed by default — click one to read the full email inline. Only today's are kept here; anything older gets pruned automatically.",
+      "Today's newsletters show up right on Home, collapsed by default. Click one to read the full email inline. Only today's are kept here; anything older gets pruned automatically.",
   },
   {
     title: "Calendar",
     description:
-      "A 14-day agenda view of your Google Calendar. It's read-only from this page, but you can ask Donna in chat to find a free slot and book something directly — e.g. \"find 30 minutes for a workout tomorrow.\"",
+      "A 14-day agenda view of your Google Calendar. It's read-only from this page, but you can ask Donna in chat to find a free slot and book something directly, e.g. \"find 30 minutes for a workout tomorrow.\"",
   },
   {
     title: "Reminders",
     description:
-      "Backed by Google Tasks, so anything you add also shows up in your real Tasks app — including from the Tasks tab built into the Google Calendar app itself, as long as you file it under the \"Donna Reminders\" list there. Give a reminder a specific time and Donna will actually text you then, not just show a due date. Color-coded groups (School, Life, Personal, etc. — manage them below) organize reminders independently of class links: sort by due date or switch to grouped view, and the \"+\" button opens a quick add form. You can also link a reminder to a class — linked ones power the \"Upcoming Deadlines\" glance on the Files page.",
+      "Backed by Google Tasks, so anything you add also shows up in your real Tasks app, including from the Tasks tab built into the Google Calendar app itself, as long as you file it under the \"Donna Reminders\" list there. Give a reminder a specific time and Donna will actually text you then, not just show a due date. Color-coded groups (School, Life, Personal, etc., managed below) organize reminders independently of class links: sort by due date or switch to grouped view, and the \"+\" button opens a quick add form. You can also link a reminder to a class; linked ones power the \"Upcoming Deadlines\" glance on the Files page.",
   },
   {
     title: "Files",
@@ -48,17 +50,17 @@ const HOW_THIS_WORKS: HowThisWorksSection[] = [
   {
     title: "Contacts",
     description:
-      "A recruiting/networking tracker — name, firm, bio, a relationship tag (Recruiter, Alum, Mentor, etc.), and a running log of interactions (call, email, coffee chat…) each with its own date and notes. \"Time since last contact\" updates automatically from whichever was most recent. Each contact also has a one-click \"+ Reminder\" button for a follow-up.",
+      "A recruiting/networking tracker: name, firm, bio, a relationship tag (Recruiter, Alum, Mentor, etc.), and a running log of interactions (call, email, coffee chat…) each with its own date and notes. \"Time since last contact\" updates automatically from whichever was most recent. Each contact also has a one-click \"+ Reminder\" button for a follow-up.",
   },
   {
     title: "IPOs",
     description:
-      "Once a day Donna checks SEC EDGAR for newly-filed S-1 IPO registrations, reads the filing, and summarizes the business, key financials, deal terms, and notable risk factors — shown here and as a Home glance, with a callout in the morning text when something new filed. It's a best-effort digest of a large document, not a substitute for reading the real filing. \"Follow\" a specific company (from this page or by asking Donna in chat) to also get flagged on its later filings — amendments, or the final priced prospectus, which usually lands well after the initial S-1.",
+      "Once a day Donna checks SEC EDGAR for newly-filed S-1 IPO registrations, reads the filing, and summarizes the business, key financials, deal terms, and notable risk factors, shown here and as a Home glance, with a callout in the morning text when something new filed. It's a best-effort digest of a large document, not a substitute for reading the real filing. \"Follow\" a specific company (from this page or by asking Donna in chat) to also get flagged on its later filings: amendments, or the final priced prospectus, which usually lands well after the initial S-1.",
   },
   {
     title: "Finances",
     description:
-      "Link any Plaid-compatible bank, card, or brokerage (Amex, Marcus, PNC, and thousands of others — Fidelity isn't currently supported by Plaid) via the \"+ Link an account\" button. Donna only ever reads balances and recent transactions — she can't move money, initiate a transfer, or place a trade. Access tokens are encrypted before storage, and updates arrive in real time via Plaid's webhooks rather than needing a manual refresh. Unlink an account any time from this page to remove it and its data.",
+      "Link any Plaid-compatible bank, card, or brokerage (Amex, Marcus, PNC, and thousands of others; Fidelity isn't currently supported by Plaid) via the \"+ Link an account\" button. Donna only ever reads balances and recent transactions. She can't move money, initiate a transfer, or place a trade. Access tokens are encrypted before storage, and updates arrive in real time via Plaid's webhooks rather than needing a manual refresh. Unlink an account any time from this page to remove it and its data.",
   },
   {
     title: "School",
@@ -68,12 +70,12 @@ const HOW_THIS_WORKS: HowThisWorksSection[] = [
   {
     title: "Chat",
     description:
-      "Donna's the same assistant everywhere — Telegram, the floating chat bubble on every page, and the dedicated Chat tab, which adds a mode switcher across the top: General (full tool access — reminders, email search, calendar, IPO lookups) or any class you've set up (auto-loaded Drive context, its own separate history, a one-click \"Generate practice problems\"). The floating bubble is always General mode and shares that same conversation with the Chat tab's General mode, so switching between them mid-conversation is seamless.",
+      "Donna's the same assistant everywhere: Telegram, the floating chat bubble on every page, and the dedicated Chat tab, which adds a mode switcher across the top. General mode has full tool access (reminders, email search, calendar, IPO lookups); any class you've set up gets auto-loaded Drive context, its own separate history, and a one-click \"Generate practice problems\". The floating bubble is always General mode and shares that same conversation with the Chat tab's General mode, so switching between them mid-conversation picks up right where you left off.",
   },
   {
     title: "Markets & Economic Calendar",
     description:
-      "The Markets card (off by default — turn it on above) shows a live price and day change for each ticker on your Watchlist, via Finnhub's free tier — set FINNHUB_API_KEY to use it. The Upcoming Econ Events card needs no setup: it's a small manually-seeded calendar of FOMC meetings and CPI/jobs/GDP release dates, sourced from the Fed/BLS/BEA's own published schedules rather than a live feed (those dates are published many months ahead, so there's nothing to poll). It only covers what was seeded on 2026-08-01 — refresh it once a year with the next year's official schedule.",
+      "The Markets card (off by default, turn it on above) shows a live price and day change for each ticker on your Watchlist, via Finnhub's free tier. Set FINNHUB_API_KEY to use it. The Upcoming Econ Events card needs no setup: it's a small manually-seeded calendar of FOMC meetings and CPI/jobs/GDP release dates, sourced from the Fed/BLS/BEA's own published schedules rather than a live feed (those dates are published many months ahead, so there's nothing to poll). It only covers what was seeded on 2026-08-01. Refresh it once a year with the next year's official schedule.",
   },
 ];
 
@@ -149,14 +151,81 @@ function renderManualBillRows(bills: ManualBill[]): string {
     .map(
       (b) => `
         <div class="class-row">
-          <span>${escapeHtml(b.name)} — $${escapeHtml(b.amount.toFixed(2))}, due the ${escapeHtml(String(b.dueDay))}${escapeHtml(ordinalSuffix(b.dueDay))}</span>
-          <form method="POST" action="/api/donna-settings">
-            <input type="hidden" name="action" value="delete-manual-bill" />
-            <input type="hidden" name="id" value="${b.id}" />
-            <button class="btn btn-danger" type="submit">Remove</button>
-          </form>
-        </div>`
+          <span>${escapeHtml(b.name)}: $${escapeHtml(b.amount.toFixed(2))}, due the ${escapeHtml(String(b.dueDay))}${escapeHtml(ordinalSuffix(b.dueDay))}</span>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="reminder-edit-link" onclick="toggleBillEdit(${b.id})">Edit</button>
+            <form method="POST" action="/api/donna-settings">
+              <input type="hidden" name="action" value="delete-manual-bill" />
+              <input type="hidden" name="id" value="${b.id}" />
+              <button class="btn btn-danger" type="submit">Remove</button>
+            </form>
+          </div>
+        </div>
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="bill-edit-form-${b.id}" style="display:none; margin-top:6px;">
+          <input type="hidden" name="action" value="update-manual-bill" />
+          <input type="hidden" name="id" value="${b.id}" />
+          <input type="text" name="name" value="${escapeHtml(b.name)}" required />
+          <input type="number" name="amount" value="${b.amount}" min="0" step="0.01" required style="width:100px;" />
+          <input type="number" name="dueDay" value="${b.dueDay}" min="1" max="31" required style="width:90px;" />
+          <button class="btn btn-small" type="submit">Save</button>
+        </form>`
     )
+    .join("\n");
+}
+
+// Not stored rows — merged from a fresh detection pass (recurringCharges)
+// against any saved overrides, so a dismissed merchant still shows up
+// here (to restore) even though it's filtered out of the Finances widget.
+function renderRecurringChargeOverrideRows(
+  recurringCharges: RecurringCharge[],
+  overrides: RecurringChargeOverride[]
+): string {
+  if (recurringCharges.length === 0) {
+    return `<p class="empty">No recurring charges detected yet.</p>`;
+  }
+
+  const overrideByKey = new Map(overrides.map((o) => [o.merchantKey, o]));
+
+  return recurringCharges
+    .map((c) => {
+      const override = overrideByKey.get(c.merchantKey);
+      const dismissed = override?.dismissed ?? false;
+      const displayName = override?.displayName ?? c.label;
+      const displayAmount = override?.amountOverride ?? c.averageAmount;
+      // Merchant keys can contain characters (quotes, etc.) that would
+      // break a bare JS identifier if inlined into onclick — passed as a
+      // proper JSON string literal instead.
+      const keyArg = JSON.stringify(c.merchantKey);
+      const formId = `rc-edit-form-${escapeHtml(encodeURIComponent(c.merchantKey))}`;
+
+      return `
+        <div class="class-row"${dismissed ? ' style="opacity:0.55;"' : ""}>
+          <span>${escapeHtml(displayName)}: $${escapeHtml(displayAmount.toFixed(2))}/mo${dismissed ? " (dismissed)" : ""}</span>
+          <div style="display:flex; gap:8px;">
+            ${
+              dismissed
+                ? `<form method="POST" action="/api/donna-settings">
+                    <input type="hidden" name="action" value="restore-recurring-charge" />
+                    <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
+                    <button class="btn btn-small" type="submit">Restore</button>
+                  </form>`
+                : `<button type="button" class="reminder-edit-link" onclick="toggleRecurringChargeEdit(${keyArg})">Edit</button>
+                  <form method="POST" action="/api/donna-settings">
+                    <input type="hidden" name="action" value="dismiss-recurring-charge" />
+                    <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
+                    <button class="btn btn-danger" type="submit">Dismiss</button>
+                  </form>`
+            }
+          </div>
+        </div>
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="${formId}" style="display:none; margin-top:6px;">
+          <input type="hidden" name="action" value="update-recurring-charge-override" />
+          <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
+          <input type="text" name="displayName" value="${escapeHtml(displayName)}" required />
+          <input type="number" name="amountOverride" value="${displayAmount}" min="0" step="0.01" required style="width:100px;" />
+          <button class="btn btn-small" type="submit">Save</button>
+        </form>`;
+    })
     .join("\n");
 }
 
@@ -349,7 +418,9 @@ function buildJumpSections(
   communityFeedSources: CommunityFeedSource[],
   sessions: SessionInfo[],
   currentSessionId: string | null,
-  manualBills: ManualBill[]
+  manualBills: ManualBill[],
+  recurringCharges: RecurringCharge[],
+  recurringChargeOverrides: RecurringChargeOverride[]
 ): { id: string; label: string; html: string }[] {
   return [
     jumpSection(
@@ -373,7 +444,7 @@ function buildJumpSections(
 
         <button class="btn" type="submit">Save</button>
       </form>
-      <p class="hint">Reminders now live in Google Tasks — check the Reminders page, or ask Donna to add or check them off.</p>`
+      <p class="hint">Reminders now live in Google Tasks. Check the Reminders page, or ask Donna to add or check them off.</p>`
     ),
     jumpSection(
       "settings-dashboard",
@@ -411,7 +482,7 @@ function buildJumpSections(
               .map((tab) => renderNavRow(tab, settings.dashboardConfig.navVisibility[tab as keyof NavVisibility]))
               .join("\n")}
           </div>
-          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or drag the handle to reorder — same order on the sidebar and the mobile tab strip.</div>
+          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or drag the handle to reorder: same order on the sidebar and the mobile tab strip.</div>
         </div>
 
         <button class="btn" type="submit" name="action" value="save-dashboard-settings">Save</button>
@@ -446,7 +517,7 @@ function buildJumpSections(
             <input type="checkbox" name="ipos" ${settings.briefConfig.ipos ? "checked" : ""} />
             IPO filings
           </label>
-          <div class="hint">News and newsletters still show up on the dashboard either way — this only controls what gets texted.</div>
+          <div class="hint">News and newsletters still show up on the dashboard either way. This only controls what gets texted.</div>
         </div>
 
         <div class="field">
@@ -459,7 +530,7 @@ function buildJumpSections(
             <input type="checkbox" name="weeklyDigestEnabled" ${settings.briefConfig.weeklyDigestEnabled ? "checked" : ""} />
             Weekly digest
           </label>
-          <div class="hint">An extra "week ahead" text alongside the regular morning brief — upcoming calendar events and reminders due that week.</div>
+          <div class="hint">An extra "week ahead" text alongside the regular morning brief, covering upcoming calendar events and reminders due that week.</div>
           <label for="weeklyDigestDay" style="margin-top: 8px;">Send on</label>
           <select id="weeklyDigestDay" name="weeklyDigestDay">
             ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -499,7 +570,7 @@ function buildJumpSections(
         <input type="text" name="url" placeholder="RSS feed URL" required style="flex: 2 1 220px;" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Raw RSS sources for the News tab's Community tab — no curation, just a chronological list.</div>`
+      <div class="hint">Raw RSS sources for the News tab's Community tab: no curation, just a chronological list.</div>`
     ),
     jumpSection(
       "settings-classes",
@@ -513,7 +584,7 @@ function buildJumpSections(
         <input type="text" name="driveFolderLink" placeholder="Paste Drive folder link" required />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Paste a Drive folder's share link — Donna extracts the folder ID automatically.</div>`
+      <div class="hint">Paste a Drive folder's share link and Donna extracts the folder ID automatically.</div>`
     ),
     jumpSection(
       "settings-reminder-groups",
@@ -527,7 +598,7 @@ function buildJumpSections(
         <input type="color" name="color" value="#b86b45" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Color-codes and groups your reminders — independent of class links, so a reminder can have both.</div>`
+      <div class="hint">Color-codes and groups your reminders, independent of class links, so a reminder can have both.</div>`
     ),
     jumpSection(
       "settings-manual-bills",
@@ -542,7 +613,14 @@ function buildJumpSections(
         <input type="number" name="dueDay" placeholder="Due day" min="1" max="31" required style="width:90px;" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">For bills Plaid can't see (rent paid outside a linked account, etc.) — shows up alongside auto-detected recurring charges in the Finances page's Upcoming Payments widget.</div>`
+      <div class="hint">For bills Plaid can't see (rent paid outside a linked account, etc.). Shows up alongside auto-detected recurring charges in the Finances page's Upcoming Payments widget.</div>`
+    ),
+    jumpSection(
+      "settings-recurring-charges",
+      "Recurring Charges",
+      `
+      ${renderRecurringChargeOverrideRows(recurringCharges, recurringChargeOverrides)}
+      <div class="hint">Detected automatically from your transactions. Rename one, correct its amount, or dismiss it if it's not actually recurring.</div>`
     ),
     jumpSection(
       "settings-sessions",
@@ -561,7 +639,7 @@ function buildJumpSections(
             : ""
         }
       </div>
-      <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device — it takes effect immediately, without changing your password.</div>`
+      <div class="hint">If your phone or laptop is ever lost, sign it out here from any other device. It takes effect immediately, without changing your password.</div>`
     ),
     {
       id: "how-this-works",
@@ -601,6 +679,8 @@ export function buildSettingsHtml(
   sessions: SessionInfo[],
   currentSessionId: string | null,
   manualBills: ManualBill[],
+  recurringCharges: RecurringCharge[],
+  recurringChargeOverrides: RecurringChargeOverride[],
   saved: boolean,
   error?: string
 ): string {
@@ -612,7 +692,9 @@ export function buildSettingsHtml(
     communityFeedSources,
     sessions,
     currentSessionId,
-    manualBills
+    manualBills,
+    recurringCharges,
+    recurringChargeOverrides
   );
 
   const body = `
@@ -620,7 +702,7 @@ export function buildSettingsHtml(
       <h1 class="page-title">Settings</h1>
     </div>
     ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
-    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link — paste the full share link.</p>` : ""}
+    ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link. Paste the full share link.</p>` : ""}
 
     ${renderSettingsNav(jumpSections)}
 
@@ -651,6 +733,18 @@ const SETTINGS_CLIENT_SCRIPT = `
     if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
   }
   window.toggleClassRename = toggleClassRename;
+
+  function toggleBillEdit(id) {
+    const form = document.getElementById("bill-edit-form-" + id);
+    if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
+  }
+  window.toggleBillEdit = toggleBillEdit;
+
+  function toggleRecurringChargeEdit(merchantKey) {
+    const form = document.getElementById("rc-edit-form-" + encodeURIComponent(merchantKey));
+    if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
+  }
+  window.toggleRecurringChargeEdit = toggleRecurringChargeEdit;
 
   // Moved here from the sidebar/mobile menu — this button and its icon
   // are part of Settings' own swapped content, so (unlike the old

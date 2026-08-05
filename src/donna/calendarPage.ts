@@ -214,7 +214,7 @@ export function buildCalendarHtml(data: CalendarPageData): string {
     </div>
     ${gridHtml}
     ${renderTodayReminders(todayReminders, reminderNotifications, timezone)}`
-        : `<p class="empty">Calendar isn't connected yet — set GOOGLE_CALENDAR_ICS_URL to see your schedule here.</p>`
+        : `<p class="empty">Calendar isn't connected yet. Set GOOGLE_CALENDAR_ICS_URL to see your schedule here.</p>`
     }`;
 
   return renderLayout({

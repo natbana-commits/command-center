@@ -127,7 +127,7 @@ function renderCommunityRow(item: CommunityFeedItem): string {
 
 function renderCommunitySection(items: CommunityFeedItem[]): string {
   if (items.length === 0) {
-    return `<p class="empty">No community sources configured yet — add some from Settings.</p>`;
+    return `<p class="empty">No community sources configured yet. Add some from Settings.</p>`;
   }
   return items.map(renderCommunityRow).join("\n");
 }

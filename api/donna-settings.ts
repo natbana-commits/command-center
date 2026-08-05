@@ -5,7 +5,14 @@ import { getClassFolders, addClassFolder, renameClassFolder, deleteClassFolder }
 import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
-import { getManualBills, addManualBill, deleteManualBill } from "../src/finance/manualBills.js";
+import { getManualBills, addManualBill, deleteManualBill, updateManualBill } from "../src/finance/manualBills.js";
+import { isPlaidConfigured } from "../src/finance/plaidClient.js";
+import { getRecentTransactions } from "../src/finance/transactionsStore.js";
+import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
+import {
+  getRecurringChargeOverrides,
+  upsertRecurringChargeOverride,
+} from "../src/finance/recurringChargeOverrides.js";
 import {
   getCommunityFeedSources,
   addCommunityFeedSource,
@@ -138,10 +145,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      if (action === "update-manual-bill") {
+        const id = Number(body.id);
+        const name = body.name?.trim();
+        const amount = Number(body.amount);
+        const dueDay = Number(body.dueDay);
+        if (Number.isFinite(id) && name && Number.isFinite(amount) && amount >= 0 && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31) {
+          await updateManualBill(id, name, amount, dueDay);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
       if (action === "delete-manual-bill") {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteManualBill(id);
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "update-recurring-charge-override") {
+        const merchantKey = body.merchantKey;
+        const displayName = body.displayName?.trim();
+        const amountOverride = Number(body.amountOverride);
+        if (merchantKey && displayName && Number.isFinite(amountOverride) && amountOverride >= 0) {
+          await upsertRecurringChargeOverride(merchantKey, { displayName, amountOverride });
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "dismiss-recurring-charge") {
+        if (body.merchantKey) {
+          await upsertRecurringChargeOverride(body.merchantKey, { dismissed: true });
+        }
+        res.redirect(303, "/donna/settings?saved=1");
+        return;
+      }
+
+      if (action === "restore-recurring-charge") {
+        if (body.merchantKey) {
+          await upsertRecurringChargeOverride(body.merchantKey, { dismissed: false });
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -261,7 +307,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources, sessions, manualBills] =
+  const [settings, classFolders, watchlistEntries, reminderGroups, communityFeedSources, sessions, manualBills, recurringChargeOverrides, recurringChargeTransactions] =
     await Promise.all([
       loadSettings(),
       getClassFolders(),
@@ -270,7 +316,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       getCommunityFeedSources(),
       listActiveSessions(),
       getManualBills(),
+      getRecurringChargeOverrides().catch(() => []),
+      // Same 300-transaction pull donna-finances.ts uses for its own
+      // recurring-charge detection — this page needs the raw (pre-
+      // dismissal) list so a dismissed merchant still shows up here to
+      // restore, unlike the Finances widget.
+      isPlaidConfigured() ? getRecentTransactions(300).catch(() => []) : Promise.resolve([]),
     ]);
+  const recurringCharges = detectRecurringCharges(recurringChargeTransactions);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;
   const currentSessionId = getCurrentSessionId(req);
@@ -284,6 +337,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     sessions,
     currentSessionId,
     manualBills,
+    recurringCharges,
+    recurringChargeOverrides,
     saved,
     error
   );

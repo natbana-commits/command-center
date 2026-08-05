@@ -402,7 +402,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
       </div>`;
   } else {
     const listHtml = !googleConfigured
-      ? `<p class="empty">Not connected yet — finish Google setup in Settings to use reminders.</p>`
+      ? `<p class="empty">Not connected yet. Finish Google setup in Settings to use reminders.</p>`
       : reminders.length === 0
         ? `<p class="empty">No reminders. Nice.</p>`
         : renderReminderList(reminders, timezone, notifications, earlyNotifications, reminderGroups, groupLinks, sortMode);

@@ -249,7 +249,6 @@ export const BASE_STYLES = `
   }
 
   .mobile-tab-strip { display: none; }
-  .mobile-topbar-btn { display: none; }
   .chat-mobile-bar { display: none; }
 
   @media (max-width: 860px) {
@@ -302,29 +301,6 @@ export const BASE_STYLES = `
     .mobile-tab-strip-link svg { width: 19px; height: 19px; }
     .mobile-tab-strip-link-active { color: var(--accent); background: var(--sidebar-bg); }
 
-    /* The sidebar's Settings icon is hidden on mobile — this fixed
-       top-right link is what stands in for it there. Info/theme/sign-out
-       all moved into the Settings page itself, so this is just a link,
-       no dropdown needed. */
-    .mobile-topbar-btn {
-      display: flex;
-      position: fixed;
-      top: max(12px, env(safe-area-inset-top));
-      right: 12px;
-      z-index: 950;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text-secondary);
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    .mobile-topbar-btn svg { width: 18px; height: 18px; }
-
     .chat-mobile-bar {
       display: flex;
       align-items: center;
@@ -365,11 +341,13 @@ export const BASE_STYLES = `
     border-radius: 12px;
     padding: var(--sp-2);
   }
-  /* Plain flex-wrap 3-per-row grouping — used by Finances' compact-widget
-     rows and similar. Home stopped using this (see .hw-grid) when it
-     moved to a fixed CSS grid, which is why there's no masonry JS behind
-     it anymore; a short card next to a tall one just leaves a gap below
-     it rather than packing gap-free. */
+  /* Plain flex-wrap 3-per-row grouping — used by Finances' summary cards
+     (Total Cash / Credit Card Balances) and its Accounts section
+     (2-3 institution cards per row). Compact widgets moved to .fw-grid
+     below. A short card next to a tall one just leaves a gap below it
+     rather than packing gap-free — no masonry JS behind this, unlike
+     Home's grid (.hw-grid), which sidesteps the problem with fixed
+     per-widget sizing instead. */
   .card-row {
     display: flex;
     flex-wrap: wrap;
@@ -381,6 +359,31 @@ export const BASE_STYLES = `
   @media (max-width: 860px) {
     .card-row { flex-direction: column; flex-wrap: nowrap; }
     .card-row > .card { flex: 1 1 auto; min-width: 0; }
+  }
+
+  /* Finances' compact-widget grid — Net Worth and Spending Over Time get
+     a wide (2-column) priority tile, the rest sit as normal single cells.
+     No exact-viewport-fill requirement here (unlike Home's .hw-grid),
+     just a plain auto-flowing grid that reflows at narrower widths. */
+  .fw-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--sp-2);
+  }
+  .fw-tile {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: var(--sp-2);
+    min-width: 0;
+  }
+  .fw-tile-wide { grid-column: span 2; }
+  @media (max-width: 1100px) {
+    .fw-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 700px) {
+    .fw-grid { grid-template-columns: 1fr; }
+    .fw-tile-wide { grid-column: span 1; }
   }
   .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {
@@ -620,7 +623,6 @@ export const BASE_STYLES = `
   .cal-day-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(240px, 1fr));
-    max-width: 900px;
     gap: var(--sp-2);
     overflow-x: auto;
     padding-bottom: 4px;

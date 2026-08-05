@@ -29,6 +29,11 @@ const COMPACT_WIDGET_IDS: readonly FinanceWidgetId[] = [
   "upcoming-payments",
 ];
 
+// The two headline graphs get a wider tile in the compact grid, same idea
+// as Home's one pinned priority widget — everything else in the grid is a
+// normal single-cell tile.
+const PRIORITY_WIDGET_IDS: readonly FinanceWidgetId[] = ["net-worth", "spending-over-time"];
+
 function formatMoney(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
   return new Intl.NumberFormat("en-US", {
@@ -126,9 +131,13 @@ function renderTransactionsList(transactions: PlaidTransaction[], accountNameByI
     <button type="button" class="btn-secondary btn-small" style="margin-top: var(--sp-2);" onclick="toggleExtraTransactions(this)">Show ${rest.length} more</button>`;
 }
 
+function chartDateLabel(dateStr: string): string {
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function renderNetWorthSection(history: NetWorthPoint[]): string {
   if (history.length === 0) {
-    return `<p class="empty">No history yet — net worth is snapshotted once a day, so the chart fills in starting today.</p>`;
+    return `<p class="empty">No history yet. Net worth is snapshotted once a day, so the chart fills in starting today.</p>`;
   }
 
   const latest = history[history.length - 1];
@@ -142,7 +151,10 @@ function renderNetWorthSection(history: NetWorthPoint[]): string {
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(latest.netWorth, "USD"))}</p>
     ${changeLabel ? `<p class="hint" style="margin: 0 0 12px;">${escapeHtml(changeLabel)}</p>` : ""}
-    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.netWorth })))}`;
+    ${renderLineChart(
+      history.map((h) => ({ label: h.date, value: h.netWorth })),
+      { showAxes: true, height: 240, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    )}`;
 }
 
 function renderSpendingHistorySection(history: SpendingPoint[]): string {
@@ -153,7 +165,10 @@ function renderSpendingHistorySection(history: SpendingPoint[]): string {
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
     <p class="hint" style="margin: 0 0 12px;">Total spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
-    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.amount })))}`;
+    ${renderLineChart(
+      history.map((h) => ({ label: h.date, value: h.amount })),
+      { showAxes: true, height: 240, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    )}`;
 }
 
 function renderSpendingByCategorySection(categories: CategorySpend[]): string {
@@ -163,7 +178,7 @@ function renderSpendingByCategorySection(categories: CategorySpend[]): string {
   const top = categories.slice(0, 8);
   return renderBarChart(
     top.map((c) => ({ label: c.category, value: c.amount })),
-    { formatValue: (v) => formatMoney(v, "USD") }
+    { formatValue: (v) => formatMoney(v, "USD"), showAxes: true }
   );
 }
 
@@ -175,7 +190,10 @@ function renderCreditCardSpendingSection(history: SpendingPoint[]): string {
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
     <p class="hint" style="margin: 0 0 12px;">Credit card spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
-    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.amount })))}`;
+    ${renderLineChart(
+      history.map((h) => ({ label: h.date, value: h.amount })),
+      { showAxes: true, height: 200, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    )}`;
 }
 
 function renderTopMerchantsSection(merchants: MerchantSpend[]): string {
@@ -184,7 +202,7 @@ function renderTopMerchantsSection(merchants: MerchantSpend[]): string {
   }
   return renderBarChart(
     merchants.map((m) => ({ label: m.merchant, value: m.amount })),
-    { formatValue: (v) => formatMoney(v, "USD") }
+    { formatValue: (v) => formatMoney(v, "USD"), showAxes: true }
   );
 }
 
@@ -288,7 +306,7 @@ function renderAccountDetail(detail: AccountDetailData): string {
               // around it to explain what it is — reads as broken rather than
               // "there's only one snapshot so far," so it gets the same
               // explanatory empty-state as zero points instead of the chart.
-              `<p class="empty">${balanceHistory.length === 1 ? `Only one snapshot so far (today, ${escapeHtml(formatMoney(balanceHistory[0].balance, account.isoCurrencyCode))}) — the trend will start showing once a few more days are recorded.` : "No history yet — balances are snapshotted once a day, so the chart fills in starting today."}</p>`
+              `<p class="empty">${balanceHistory.length === 1 ? `Only one snapshot so far (today, ${escapeHtml(formatMoney(balanceHistory[0].balance, account.isoCurrencyCode))}). The trend will start showing once a few more days are recorded.` : "No history yet. Balances are snapshotted once a day, so the chart fills in starting today."}</p>`
             : renderLineChart(balanceHistory.map((p) => ({ label: p.date, value: p.balance })))
         }
       </div>
@@ -367,7 +385,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       }
     </div>`;
 
-  const sectionsById: Record<FinanceWidgetId, { title: string; content: string } | null> = {
+  const sectionsById: Record<FinanceWidgetId, { title: string; content: string; editAnchor?: string } | null> = {
     "net-worth": accounts.length === 0 ? null : { title: "Net Worth", content: renderNetWorthSection(netWorthHistory) },
     "spending-over-time": accounts.length === 0 ? null : { title: "Spending Over Time", content: renderSpendingHistorySection(spendingHistory) },
     "spending-by-category": accounts.length === 0 ? null : { title: "Spending by Category", content: renderSpendingByCategorySection(spendingByCategory) },
@@ -381,17 +399,25 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       content: `${summaryCard}${
         items.length === 0
           ? `<p class="empty">No accounts linked yet.</p>`
-          : items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")
+          : `<div class="card-row">${items.map((item) => renderItemCard(item, accountsByItem.get(item.itemId) ?? [])).join("\n")}</div>`
       }`,
     },
     "recurring-charges":
       recurringCharges.length === 0
         ? null
-        : { title: "Recurring Charges", content: recurringCharges.map(renderRecurringChargeRow).join("\n") },
+        : {
+            title: "Recurring Charges",
+            content: recurringCharges.map(renderRecurringChargeRow).join("\n"),
+            editAnchor: "settings-recurring-charges",
+          },
     "upcoming-payments":
       upcomingPayments.length === 0
         ? null
-        : { title: "Upcoming Payments", content: upcomingPayments.map(renderUpcomingPaymentRow).join("\n") },
+        : {
+            title: "Upcoming Payments",
+            content: upcomingPayments.map(renderUpcomingPaymentRow).join("\n"),
+            editAnchor: "settings-manual-bills",
+          },
     transactions: {
       title: "Recent Transactions",
       content: renderTransactionsList(transactions, accountNameById),
@@ -400,47 +426,49 @@ export function buildFinancesHtml(data: FinancesPageData): string {
 
   const visibleWidgets = financeWidgets.filter((w) => w.visible && sectionsById[w.id]);
   const isCompact = (id: FinanceWidgetId) => (COMPACT_WIDGET_IDS as readonly string[]).includes(id);
+  const isWide = (id: FinanceWidgetId) => (PRIORITY_WIDGET_IDS as readonly string[]).includes(id);
 
-  const blocks: string[] = [];
-  let compactRun: { title: string; content: string }[] = [];
-  const flushCompactRun = () => {
-    if (compactRun.length === 0) return;
-    blocks.push(
-      `<div class="card-row" style="margin-top: var(--sp-3);">
-        ${compactRun
-          .map(
-            (section) =>
-              `<div class="card">
-                <div class="card-title" style="margin-bottom: var(--sp-2);">${escapeHtml(section.title)}</div>
-                ${section.content}
-              </div>`
-          )
-          .join("\n")}
-      </div>`
-    );
-    compactRun = [];
-  };
+  // Every compact widget renders together as one grid, always first,
+  // regardless of where a full-width widget (Accounts, Transactions)
+  // falls in the configured order — previously grouping only batched
+  // *consecutive* compact widgets, so Accounts sitting in the middle of
+  // the default order split them into two separate rows.
+  const compactSections = visibleWidgets.filter((w) => isCompact(w.id)).map((w) => ({ id: w.id, ...sectionsById[w.id]! }));
+  const fullWidthSections = visibleWidgets.filter((w) => !isCompact(w.id)).map((w) => ({ id: w.id, ...sectionsById[w.id]! }));
 
-  for (const w of visibleWidgets) {
-    const section = sectionsById[w.id]!;
-    if (isCompact(w.id)) {
-      compactRun.push(section);
-      continue;
-    }
-    flushCompactRun();
-    // Accounts (the summary cards + item cards) already renders its own
-    // .card elements, unlike the other full-width widgets, which need one
-    // wrapped around their content — matching each section's prior markup.
-    const wrapped = w.id === "accounts" ? section.content : `<div class="card">${section.content}</div>`;
-    blocks.push(
-      `<div class="section" style="margin-top: var(--sp-3);">
+  const compactGridHtml =
+    compactSections.length === 0
+      ? ""
+      : `<div class="fw-grid" style="margin-top: var(--sp-3);">
+      ${compactSections
+        .map(
+          (section) =>
+            `<div class="fw-tile${isWide(section.id) ? " fw-tile-wide" : ""}">
+              <div class="card-title" style="margin-bottom: var(--sp-2); display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span>${escapeHtml(section.title)}</span>
+                ${section.editAnchor ? renderPageEditLink(section.editAnchor, section.title) : ""}
+              </div>
+              ${section.content}
+            </div>`
+        )
+        .join("\n")}
+    </div>`;
+
+  const fullWidthHtml = fullWidthSections
+    .map((section) => {
+      // Accounts (the summary cards + item cards) already renders its own
+      // .card elements, unlike the other full-width widgets, which need
+      // one wrapped around their content — matching each section's prior
+      // markup.
+      const wrapped = section.id === "accounts" ? section.content : `<div class="card">${section.content}</div>`;
+      return `<div class="section" style="margin-top: var(--sp-3);">
         <h1 class="section-title">${escapeHtml(section.title)}</h1>
         ${wrapped}
-      </div>`
-    );
-  }
-  flushCompactRun();
-  const widgetSections = blocks.join("\n");
+      </div>`;
+    })
+    .join("\n");
+
+  const widgetSections = compactGridHtml + fullWidthHtml;
 
   const body = !plaidConfigured
     ? `
@@ -448,7 +476,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       <h1 class="page-title">Finances</h1>
       <p class="page-sub">Not set up yet</p>
     </div>
-    <p class="empty">Finance linking needs Plaid API credentials set up first — see the Info page for details.</p>`
+    <p class="empty">Finance linking needs Plaid API credentials set up first. See Settings' "How this works" section for details.</p>`
     : selectedAccount
       ? renderAccountDetail(selectedAccount)
       : `
@@ -463,7 +491,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     ${widgetSections}`;
 
   return renderLayout({
-    title: "Donna — Finances",
+    title: "Donna · Finances",
     activeTab: "finances",
     bodyHtml: body,
     showChatFab: true,
@@ -543,7 +571,7 @@ const CLIENT_SCRIPT = `
     } catch (err) {
       btn.disabled = false;
       btn.textContent = "+ Link an account";
-      alert("Couldn't start linking an account — try again in a bit.");
+      alert("Couldn't start linking an account. Try again in a bit.");
     }
   }
 

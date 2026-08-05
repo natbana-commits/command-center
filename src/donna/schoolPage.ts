@@ -45,7 +45,7 @@ function renderProjectPrepResult(result: NonNullable<ProjectPrepView["result"]>)
       <div class="card-title">Files to attach</div>
       ${
         result.files.length === 0
-          ? `<p class="empty">No specific files picked — attach whatever feels relevant, or none.</p>`
+          ? `<p class="empty">No specific files picked. Attach whatever feels relevant, or none.</p>`
           : result.files
               .map(
                 (f) => `
@@ -63,7 +63,7 @@ function renderProjectPrep(classId: number, view: ProjectPrepView | undefined): 
   return `
     <div class="section" style="margin-top: var(--sp-3);" id="school-project-prep">
       <h1 class="section-title">Prep a Project</h1>
-      <p class="hint" style="margin-top:-4px; margin-bottom: var(--sp-2);">Describe an assignment or task — Donna finds the relevant files here and writes tailored instructions + a starter prompt for a new Claude.ai Project.</p>
+      <p class="hint" style="margin-top:-4px; margin-bottom: var(--sp-2);">Describe an assignment or task, and Donna finds the relevant files here and writes tailored instructions plus a starter prompt for a new Claude.ai Project.</p>
       <form method="POST" action="/donna/school" data-swap-target="school-project-prep" class="card">
         <input type="hidden" name="action" value="prep-project" />
         <input type="hidden" name="classId" value="${classId}" />
@@ -164,14 +164,14 @@ export function buildSchoolHtml(data: SchoolPageData): string {
 
   if (classFolders.length === 0) {
     return renderLayout({
-      title: "Donna — School",
+      title: "Donna · School",
       activeTab: "school",
       bodyHtml: `
         <div class="section">
           <h1 class="page-title">School</h1>
           <p class="page-sub">No classes set up yet</p>
         </div>
-        <p class="empty">Add a class and its Drive folder from <a href="/donna/settings">Settings</a> first — School auto-loads that folder's files as study context.</p>`,
+        <p class="empty">Add a class and its Drive folder from <a href="/donna/settings">Settings</a> first. School auto-loads that folder's files as study context.</p>`,
       showChatFab: true,
       navVisibility,
       navOrder,
@@ -190,7 +190,7 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     <div class="home-tabs">${renderClassTabs(classFolders, cls.id)}</div>
 
     <div class="card" style="margin-top: var(--sp-3); display:flex; align-items:center; justify-content:space-between;">
-      <p style="margin:0;">Ask questions, get practice problems, or work through material for ${escapeHtml(cls.className)} — the chat auto-loads this class's Drive files as context.</p>
+      <p style="margin:0;">Ask questions, get practice problems, or work through material for ${escapeHtml(cls.className)}. The chat auto-loads this class's Drive files as context.</p>
       <a class="btn" href="/donna/chat?mode=school&classId=${cls.id}">Chat about ${escapeHtml(cls.className)}</a>
     </div>
 
@@ -199,7 +199,7 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     ${renderStudyTimer(cls.id, studyStats)}
 
     <div class="section" style="margin-top: var(--sp-3);">
-      <h1 class="section-title">Flashcards${dueFlashcards.length > 0 ? ` — ${dueFlashcards.length} due` : ""}</h1>
+      <h1 class="section-title">Flashcards${dueFlashcards.length > 0 ? ` · ${dueFlashcards.length} due` : ""}</h1>
       ${
         dueFlashcards.length === 0
           ? `<p class="empty">Nothing due right now.</p>`
@@ -222,12 +222,12 @@ export function buildSchoolHtml(data: SchoolPageData): string {
 
     <div class="section" style="margin-top: var(--sp-3);">
       <h1 class="section-title">Lecture Uploads</h1>
-      <p class="hint" style="margin-top:-8px; margin-bottom: var(--sp-2);">Transcribed lectures can generate flashcards below — everything else for ${escapeHtml(cls.className)} (including plain Drive files) is in Files above.</p>
-      ${uploads.length === 0 ? `<p class="empty">No lecture uploads for ${escapeHtml(cls.className)} yet — upload one from the Files page.</p>` : uploads.map(renderUploadRow).join("\n")}
+      <p class="hint" style="margin-top:-8px; margin-bottom: var(--sp-2);">Transcribed lectures can generate flashcards below. Everything else for ${escapeHtml(cls.className)} (including plain Drive files) is in Files above.</p>
+      ${uploads.length === 0 ? `<p class="empty">No lecture uploads for ${escapeHtml(cls.className)} yet. Upload one from the Files page.</p>` : uploads.map(renderUploadRow).join("\n")}
     </div>`;
 
   return renderLayout({
-    title: "Donna — School",
+    title: "Donna · School",
     activeTab: "school",
     bodyHtml: body,
     showChatFab: true,

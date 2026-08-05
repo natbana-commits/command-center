@@ -1,6 +1,11 @@
 import type { PlaidTransaction } from "./transactionsStore.js";
 
 export interface RecurringCharge {
+  // The lowercased/trimmed merchant name this charge was grouped under —
+  // a stable key across re-detections (unlike `label`, which keeps its
+  // original casing from whichever transaction happened to be most
+  // recent), used to persist an edit/dismiss against a specific merchant.
+  merchantKey: string;
   label: string;
   averageAmount: number;
   lastChargeDate: string;
@@ -46,7 +51,7 @@ export function detectRecurringCharges(transactions: PlaidTransaction[]): Recurr
   }
 
   const results: RecurringCharge[] = [];
-  for (const group of groups.values()) {
+  for (const [merchantKey, group] of groups.entries()) {
     if (group.length < MIN_OCCURRENCES) continue;
     const sorted = [...group].sort(
       (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
@@ -76,6 +81,7 @@ export function detectRecurringCharges(transactions: PlaidTransaction[]): Recurr
     // flat 30 — gaps is non-empty here since MIN_OCCURRENCES is 2.
     const avgGapDays = gaps.reduce((sum, g) => sum + g, 0) / gaps.length;
     results.push({
+      merchantKey,
       label: last.merchantName ?? last.name,
       averageAmount: sorted.reduce((sum, t) => sum + t.amount, 0) / sorted.length,
       lastChargeDate: last.transactionDate,

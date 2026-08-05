@@ -34,6 +34,17 @@ export async function addManualBill(name: string, amount: number, dueDay: number
   }
 }
 
+export async function updateManualBill(id: number, name: string, amount: number, dueDay: number): Promise<void> {
+  const client = getSupabaseClient();
+  const { error } = await withSupabaseRetry(() =>
+    client.from("manual_bills").update({ name, amount, due_day: dueDay }).eq("id", id)
+  );
+
+  if (error) {
+    throw new Error(`Supabase update error: ${error.message}`);
+  }
+}
+
 export async function deleteManualBill(id: number): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() => client.from("manual_bills").delete().eq("id", id));

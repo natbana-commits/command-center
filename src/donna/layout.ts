@@ -630,7 +630,6 @@ ${BASE_STYLES}
 </head>
 <body>
   <div class="nav-progress-bar" id="nav-progress-bar"></div>
-  <a class="mobile-topbar-btn" href="/donna/settings" aria-label="Settings">${iconSettings}</a>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="sidebar-logo">

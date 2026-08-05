@@ -10,6 +10,7 @@ import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/syn
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
 import { getNetWorthHistory, getAccountBalanceHistory, bucketBalancePoints, type BalanceGranularity } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
+import { getRecurringChargeOverrides, applyRecurringChargeOverrides } from "../src/finance/recurringChargeOverrides.js";
 import { getSpendingHistory, getSpendingByCategory, getSpendingHistoryForAccounts, getTopMerchants } from "../src/finance/spendingAnalytics.js";
 import { getManualBills } from "../src/finance/manualBills.js";
 import { buildUpcomingPayments } from "../src/finance/upcomingPayments.js";
@@ -295,7 +296,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [settings, manualBills] = await Promise.all([loadSettings(), getManualBills().catch(() => [])]);
+  const [settings, manualBills, recurringChargeOverrides] = await Promise.all([
+    loadSettings(),
+    getManualBills().catch(() => []),
+    getRecurringChargeOverrides().catch(() => []),
+  ]);
   const timezone = resolveTimezone(settings.timezone);
   const [items, accounts, transactions, netWorthHistory, recurringChargeTransactions] = plaidConfigured
     ? await Promise.all([
@@ -309,7 +314,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         getRecentTransactions(300).catch(() => []),
       ])
     : [[], [], [], [], []];
-  const recurringCharges = detectRecurringCharges(recurringChargeTransactions);
+  // Applied before this flows anywhere else — both the Recurring Charges
+  // widget and buildUpcomingPayments below need a dismissed merchant to
+  // already be gone, not just hidden in its own widget.
+  const recurringCharges = applyRecurringChargeOverrides(detectRecurringCharges(recurringChargeTransactions), recurringChargeOverrides);
   const creditAccountIds = new Set(accounts.filter((a) => a.type === "credit").map((a) => a.accountId));
 
   const html = buildFinancesHtml({

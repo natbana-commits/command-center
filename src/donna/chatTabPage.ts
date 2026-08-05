@@ -68,7 +68,7 @@ export function buildChatTabHtml(data: ChatTabPageData): string {
     </div>`;
 
   return renderLayout({
-    title: "Donna — Chat",
+    title: "Donna · Chat",
     activeTab: "chat",
     bodyHtml: body,
     navVisibility,

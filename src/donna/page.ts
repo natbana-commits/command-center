@@ -109,7 +109,7 @@ function renderRemindersTile(
     return `
       <div class="hw-tile hw-gw-reminders" data-tint="reminders" onclick="navigateCard(event, '${href}')">
         <div class="hw-pad"><div class="hw-head"><div class="hw-head-left">${widgetHeadIcon(iconBell)}<div class="hw-title">Reminders</div></div></div>
-        <p class="empty">Not connected yet — finish Google setup to use reminders.</p></div>
+        <p class="empty">Not connected yet. Finish Google setup to use reminders.</p></div>
       </div>`;
   }
 
@@ -304,7 +304,7 @@ function renderMarketsTile(quotes: Quote[]): string {
   if (quotes.length === 0) {
     return `
       <div class="hw-tile hw-gw-markets" data-tint="markets" onclick="navigateCard(event, '${href}')">
-        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No quotes yet — add tickers to your Watchlist in Settings.</p></div>
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No quotes yet. Add tickers to your Watchlist in Settings.</p></div>
       </div>`;
   }
   const top = [...quotes].sort((a, b) => b.changePercent - a.changePercent)[0];
@@ -380,7 +380,7 @@ function renderClassesTile(classFolders: ClassFolder[]): string {
   if (classFolders.length === 0) {
     return `
       <div class="hw-tile hw-gw-classes" data-tint="classes" onclick="navigateCard(event, '${href}')">
-        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No classes set up yet — add one in Settings.</p></div>
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No classes set up yet. Add one in Settings.</p></div>
       </div>`;
   }
   const realTiles = classFolders

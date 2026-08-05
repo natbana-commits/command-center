@@ -9,7 +9,7 @@ export function buildLoginHtml(error?: string): string {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Donna — Sign in</title>
+<title>Donna · Sign in</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }

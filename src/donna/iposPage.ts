@@ -26,7 +26,7 @@ function renderFollowingSection(followedCompanies: FollowedCompany[]): string {
       <h1 class="section-title">Following</h1>
       ${
         followedCompanies.length === 0
-          ? `<p class="empty">Not following any companies yet — use the Follow button below a filing, or ask Donna in chat.</p>`
+          ? `<p class="empty">Not following any companies yet. Use the Follow button below a filing, or ask Donna in chat.</p>`
           : followedCompanies.map(renderFollowedRow).join("\n")
       }
     </div>`;
@@ -44,10 +44,19 @@ function renderFollowToggle(filing: IpoFiling, followedCiks: Set<string>): strin
     </form>`;
 }
 
+const OFFERING_TYPE_LABELS: Record<"primary" | "secondary" | "mixed", string> = {
+  primary: "Initial",
+  secondary: "Re-sale",
+  mixed: "Initial + Re-sale",
+};
+
 function renderIpoBadges(filing: IpoFiling): string {
   const badges: string[] = [];
   if (filing.isSpac) {
     badges.push(`<span class="day-badge-pill" style="color:var(--text-secondary); background:var(--sidebar-bg);">SPAC</span>`);
+  }
+  if (filing.offeringType) {
+    badges.push(`<span class="day-badge-pill" style="color:var(--accent); background:rgba(184,107,69,0.1);">${escapeHtml(OFFERING_TYPE_LABELS[filing.offeringType])}</span>`);
   }
   if (filing.industry) {
     badges.push(`<span class="day-badge-pill" style="color:var(--accent); background:rgba(184,107,69,0.1);">${escapeHtml(filing.industry)}</span>`);
@@ -72,7 +81,7 @@ function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
       </summary>
       <div class="news-expanded">
         <h1 class="section-title">Business</h1>
-        <p><strong>${escapeHtml(filing.companyName)}</strong> — ${escapeHtml(filing.businessSummary ?? "Not summarized.")}</p>
+        <p><strong>${escapeHtml(filing.companyName)}:</strong> ${escapeHtml(filing.businessSummary ?? "Not summarized.")}</p>
         <h1 class="section-title">Financials</h1>
         <p>${escapeHtml(filing.financialsSummary ?? "Not summarized.")}</p>
         <h1 class="section-title">Deal terms</h1>
@@ -95,10 +104,18 @@ export interface IposPageData {
 export function buildIposHtml(data: IposPageData): string {
   const { filings, followedCompanies, navVisibility, navOrder } = data;
   const followedCiks = new Set(followedCompanies.map((c) => c.cik));
-  // Blank-check SPACs are less interesting to skim than operating companies
-  // (no real business to summarize) — push them down, otherwise keep the
-  // incoming filed-date order (JS sort is stable).
-  const sortedFilings = [...filings].sort((a, b) => Number(a.isSpac) - Number(b.isSpac));
+  // Initial offerings (new shares from the company) are more interesting
+  // than a pure secondary sale (existing holders cashing out) — push
+  // secondary-only filings down first, then blank-check SPACs (no real
+  // business to summarize) down within each group, otherwise keep the
+  // incoming filed-date order (JS sort is stable). Unclassified
+  // (offeringType null) filings rank alongside primary/mixed rather than
+  // being penalized for a gap in the data.
+  const sortedFilings = [...filings].sort((a, b) => {
+    const offeringDiff = Number(a.offeringType === "secondary") - Number(b.offeringType === "secondary");
+    if (offeringDiff !== 0) return offeringDiff;
+    return Number(a.isSpac) - Number(b.isSpac);
+  });
 
   const body = `
     <div class="section">
@@ -109,7 +126,7 @@ export function buildIposHtml(data: IposPageData): string {
     <div class="card">
       ${
         sortedFilings.length === 0
-          ? `<p class="empty">No IPO filings tracked yet — check back after tomorrow's daily check.</p>`
+          ? `<p class="empty">No IPO filings tracked yet. Check back after tomorrow's daily check.</p>`
           : sortedFilings.map((f) => renderFilingRow(f, followedCiks)).join("\n")
       }
     </div>`;
