@@ -81,23 +81,29 @@ async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
     // A month-grid cell click passes an absolute ?date=; Prev/Next passes a
     // relative ?day= offset from today. Either way, the resulting offset is
     // recomputed from today so this page's own Prev/Next links keep working
-    // in relative terms regardless of how the day was reached.
+    // in relative terms regardless of how the day was reached. Shows the
+    // target day plus the next one — a rolling 2-day window, so Prev/Next
+    // (stepping the offset by 1, unchanged) scrolls smoothly a day at a
+    // time rather than jumping in non-overlapping pairs.
     const dateParam = typeof req.query.date === "string" ? req.query.date : undefined;
     const targetStart =
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
         ? dayBounds(new Date(`${dateParam}T12:00:00`), timezone).start
         : addLocalDays(todayStart, Number.isFinite(Number(req.query.day)) ? Math.trunc(Number(req.query.day)) : 0, timezone);
     offset = Math.round((targetStart.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000));
+    const secondDayStart = addLocalDays(targetStart, 1, timezone);
 
-    const rangeEnd = new Date(targetStart.getTime() + 24 * 60 * 60 * 1000);
+    const rangeEnd = new Date(secondDayStart.getTime() + 24 * 60 * 60 * 1000);
     let events: CalendarEvent[] = [];
     try {
       events = (await getEventsInRange(timezone, targetStart, rangeEnd)).events;
     } catch {
       configured = false;
     }
-    days = groupEventsByDay([targetStart], events, timezone, todayKey);
-    headerLabel = days[0].dateLabel;
+    days = groupEventsByDay([targetStart, secondDayStart], events, timezone, todayKey);
+    // Short form ("Aug 4 – Aug 5") for the page header — the full weekday
+    // names are already shown in each day column's own mini header below.
+    headerLabel = `${targetStart.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })} – ${secondDayStart.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })}`;
   } else if (view === "month") {
     const parsedMonthOffset = Number(req.query.month);
     const monthOffset = Number.isFinite(parsedMonthOffset) ? Math.trunc(parsedMonthOffset) : 0;

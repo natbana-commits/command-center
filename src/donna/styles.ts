@@ -634,7 +634,7 @@ export const BASE_STYLES = `
   }
 
   /* --- Calendar: day view (single wide column, week view's box reused) --- */
-  .cal-day-grid { display: grid; grid-template-columns: minmax(280px, 520px); }
+  .cal-day-grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); max-width: 900px; }
 
   /* --- Calendar: month view --- */
   .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
