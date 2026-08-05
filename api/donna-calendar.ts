@@ -13,10 +13,13 @@ import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { buildFilesHtml } from "../src/donna/filesPage.js";
 import { invalidateCache } from "../src/util/cache.js";
-import { buildSchoolHtml } from "../src/donna/schoolPage.js";
+import { buildSchoolHtml, type ProjectPrepView, type ProjectPrepFileView } from "../src/donna/schoolPage.js";
 import { getFlashcardsForClass, createFlashcards, reviewFlashcard } from "../src/school/flashcards.js";
 import { generateFlashcardsFromTranscript } from "../src/school/generateFlashcards.js";
 import { logStudySession, getStudyStats } from "../src/school/studySessions.js";
+import { generateProjectPrep, type ProjectPrepFileCandidate } from "../src/school/generateProjectPrep.js";
+import type { ClassFolder } from "../src/drive/classFolders.js";
+import type { Settings } from "../src/config.js";
 
 const DAYS_PER_WEEK = 7;
 
@@ -182,6 +185,122 @@ async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
   res.status(200).send(html);
 }
 
+async function buildProjectPrepView(
+  cls: ClassFolder,
+  description: string,
+  googleConfigured: boolean
+): Promise<ProjectPrepView> {
+  const [driveFiles, uploads] = await Promise.all([
+    googleConfigured ? listFilesInFolder(cls.driveFolderId).catch(() => []) : Promise.resolve([]),
+    getUploadsForClass(cls.id).catch(() => []),
+  ]);
+
+  const candidates: ProjectPrepFileCandidate[] = [
+    ...driveFiles.map((f) => ({ id: `drive:${f.id}`, title: f.name })),
+    ...uploads.map((u) => ({
+      id: `upload:${u.id}`,
+      title: u.originalFilename,
+      snippet: u.transcript ?? u.notes ?? undefined,
+    })),
+  ];
+
+  const result = await generateProjectPrep(description, cls.className, candidates);
+
+  const driveById = new Map(driveFiles.map((f) => [`drive:${f.id}`, f]));
+  const uploadById = new Map(uploads.map((u) => [`upload:${u.id}`, u]));
+  const files: ProjectPrepFileView[] = result.selectedFileIds.map(({ id, reason }) => {
+    const driveFile = driveById.get(id);
+    if (driveFile) return { title: driveFile.name, reason, link: driveFile.webViewLink };
+    const upload = uploadById.get(id);
+    if (upload) return { title: upload.originalFilename, reason, link: upload.status === "done" ? `/api/donna-upload?view=${upload.id}` : undefined };
+    return { title: id, reason };
+  });
+
+  return { description, result: { instructions: result.instructions, starterPrompt: result.starterPrompt, files } };
+}
+
+// Shares class_folders/uploads data with the Files page above, which is
+// why it's grouped in this same function rather than off on its own. The
+// per-class chat itself lives on the dedicated Chat tab (api/donna-chat.ts)
+// instead of here — this page links out to it rather than embedding its
+// own copy of the same conversation.
+async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
+  const classFolders = await getClassFolders();
+  const settings = await loadSettings();
+
+  if (req.method === "POST") {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const action = body.action as string | undefined;
+
+    try {
+      if (action === "generate-flashcards") {
+        const classId = Number(body.classId);
+        const uploadId = Number(body.uploadId);
+        const cls = classFolders.find((c) => c.id === classId);
+        const upload = cls && Number.isFinite(uploadId) ? await getUpload(uploadId) : null;
+        if (cls && upload?.transcript) {
+          const cards = await generateFlashcardsFromTranscript(upload.transcript, cls.className);
+          await createFlashcards(classId, uploadId, cards);
+        }
+        res.redirect(303, `/donna/school?classId=${classId}`);
+        return;
+      }
+
+      if (action === "review-flashcard") {
+        const flashcardId = Number(body.flashcardId);
+        const classId = Number(body.classId);
+        const gotIt = body.gotIt === "1" || body.gotIt === true;
+        if (Number.isFinite(flashcardId)) {
+          await reviewFlashcard(flashcardId, gotIt);
+        }
+        res.redirect(303, `/donna/school?classId=${classId}`);
+        return;
+      }
+
+      if (action === "log-study-session") {
+        const classId = Number(body.classId);
+        const durationMinutes = Number(body.durationMinutes);
+        if (Number.isFinite(classId) && Number.isFinite(durationMinutes) && durationMinutes > 0) {
+          await logStudySession(classId, Math.round(durationMinutes));
+        }
+        res.redirect(303, `/donna/school?classId=${classId}`);
+        return;
+      }
+
+      if (action === "prep-project") {
+        const classId = Number(body.classId);
+        const description = String(body.description ?? "").trim();
+        const cls = classFolders.find((c) => c.id === classId);
+
+        let projectPrep: ProjectPrepView;
+        if (!cls || !description) {
+          projectPrep = { description, error: "Missing a class or task description." };
+        } else {
+          try {
+            projectPrep = await buildProjectPrepView(cls, description, isGoogleConfigured());
+          } catch (err) {
+            console.error("Project prep failed:", err);
+            projectPrep = { description, error: "Something went wrong generating this — try again." };
+          }
+        }
+
+        await renderSchoolPage(res, classFolders, settings, classId, projectPrep);
+        return;
+      }
+
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("School action failed:", err);
+      const classId = Number(body.classId);
+      res.redirect(303, Number.isFinite(classId) ? `/donna/school?classId=${classId}` : "/donna/school");
+    }
+    return;
+  }
+
+  const requestedClassId = typeof req.query.classId === "string" ? Number(req.query.classId) : undefined;
+  await renderSchoolPage(res, classFolders, settings, requestedClassId);
+}
+
 async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
   const googleConfigured = isGoogleConfigured();
   const [settings, classFolders, reminders] = await Promise.all([
@@ -235,64 +354,13 @@ async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
   res.status(200).send(html);
 }
 
-// Shares class_folders/uploads data with the Files page above, which is
-// why it's grouped in this same function rather than off on its own. The
-// per-class chat itself lives on the dedicated Chat tab (api/donna-chat.ts)
-// instead of here — this page links out to it rather than embedding its
-// own copy of the same conversation.
-async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
-  const classFolders = await getClassFolders();
-
-  if (req.method === "POST") {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const action = body.action as string | undefined;
-
-    try {
-      if (action === "generate-flashcards") {
-        const classId = Number(body.classId);
-        const uploadId = Number(body.uploadId);
-        const cls = classFolders.find((c) => c.id === classId);
-        const upload = cls && Number.isFinite(uploadId) ? await getUpload(uploadId) : null;
-        if (cls && upload?.transcript) {
-          const cards = await generateFlashcardsFromTranscript(upload.transcript, cls.className);
-          await createFlashcards(classId, uploadId, cards);
-        }
-        res.redirect(303, `/donna/school?classId=${classId}`);
-        return;
-      }
-
-      if (action === "review-flashcard") {
-        const flashcardId = Number(body.flashcardId);
-        const classId = Number(body.classId);
-        const gotIt = body.gotIt === "1" || body.gotIt === true;
-        if (Number.isFinite(flashcardId)) {
-          await reviewFlashcard(flashcardId, gotIt);
-        }
-        res.redirect(303, `/donna/school?classId=${classId}`);
-        return;
-      }
-
-      if (action === "log-study-session") {
-        const classId = Number(body.classId);
-        const durationMinutes = Number(body.durationMinutes);
-        if (Number.isFinite(classId) && Number.isFinite(durationMinutes) && durationMinutes > 0) {
-          await logStudySession(classId, Math.round(durationMinutes));
-        }
-        res.redirect(303, `/donna/school?classId=${classId}`);
-        return;
-      }
-
-      res.status(400).json({ error: "Unknown action" });
-    } catch (err) {
-      console.error("School action failed:", err);
-      const classId = Number(body.classId);
-      res.redirect(303, Number.isFinite(classId) ? `/donna/school?classId=${classId}` : "/donna/school");
-    }
-    return;
-  }
-
-  const settings = await loadSettings();
-
+async function renderSchoolPage(
+  res: VercelResponse,
+  classFolders: ClassFolder[],
+  settings: Settings,
+  requestedClassId: number | undefined,
+  projectPrep?: ProjectPrepView
+) {
   if (classFolders.length === 0) {
     const html = buildSchoolHtml({
       classFolders: [],
@@ -310,7 +378,6 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const requestedClassId = typeof req.query.classId === "string" ? Number(req.query.classId) : undefined;
   const activeClass = classFolders.find((c) => c.id === requestedClassId) ?? classFolders[0];
 
   const googleConfigured = isGoogleConfigured();
@@ -335,6 +402,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
     studyStats,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
+    projectPrep,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

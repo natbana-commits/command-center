@@ -9,6 +9,72 @@ import { renderLayout } from "./layout.js";
 import { renderPageEditLink } from "./editLink.js";
 import { buildLibraryRows, renderLibraryTable, FILE_TABLE_SCRIPT } from "./filesPage.js";
 
+export interface ProjectPrepFileView {
+  title: string;
+  reason: string;
+  link?: string;
+}
+
+export interface ProjectPrepView {
+  description: string;
+  error?: string;
+  result?: {
+    instructions: string;
+    starterPrompt: string;
+    files: ProjectPrepFileView[];
+  };
+}
+
+function renderProjectPrepResult(result: NonNullable<ProjectPrepView["result"]>): string {
+  return `
+    <div class="card" style="margin-top: var(--sp-2);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
+        <div class="card-title" style="margin:0;">Project Instructions</div>
+        <button type="button" class="btn-secondary btn-small" onclick="copyPrepText(this, 'prep-instructions')">Copy</button>
+      </div>
+      <pre id="prep-instructions" style="white-space:pre-wrap; font-family:var(--sans); font-size:14px; margin: var(--sp-2) 0 0;">${escapeHtml(result.instructions)}</pre>
+    </div>
+    <div class="card" style="margin-top: var(--sp-2);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
+        <div class="card-title" style="margin:0;">Starter Prompt</div>
+        <button type="button" class="btn-secondary btn-small" onclick="copyPrepText(this, 'prep-starter')">Copy</button>
+      </div>
+      <pre id="prep-starter" style="white-space:pre-wrap; font-family:var(--sans); font-size:14px; margin: var(--sp-2) 0 0;">${escapeHtml(result.starterPrompt)}</pre>
+    </div>
+    <div class="card" style="margin-top: var(--sp-2);">
+      <div class="card-title">Files to attach</div>
+      ${
+        result.files.length === 0
+          ? `<p class="empty">No specific files picked — attach whatever feels relevant, or none.</p>`
+          : result.files
+              .map(
+                (f) => `
+        <div style="padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <div style="font-weight:500;">${f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.title)}</a>` : escapeHtml(f.title)}</div>
+          <div class="hint" style="margin-top:2px;">${escapeHtml(f.reason)}</div>
+        </div>`
+              )
+              .join("\n")
+      }
+    </div>`;
+}
+
+function renderProjectPrep(classId: number, view: ProjectPrepView | undefined): string {
+  return `
+    <div class="section" style="margin-top: var(--sp-3);" id="school-project-prep">
+      <h1 class="section-title">Prep a Project</h1>
+      <p class="hint" style="margin-top:-4px; margin-bottom: var(--sp-2);">Describe an assignment or task — Donna finds the relevant files here and writes tailored instructions + a starter prompt for a new Claude.ai Project.</p>
+      <form method="POST" action="/donna/school" data-swap-target="school-project-prep" class="card">
+        <input type="hidden" name="action" value="prep-project" />
+        <input type="hidden" name="classId" value="${classId}" />
+        <textarea name="description" placeholder="e.g. Problem set 4, covers monetary policy and the IS-LM model" required style="min-height:70px; width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:var(--sans); background:var(--card); color:var(--ink);">${view ? escapeHtml(view.description) : ""}</textarea>
+        <button class="btn" type="submit" style="margin-top: var(--sp-2);">Prep it</button>
+      </form>
+      ${view?.error ? `<p class="hint" style="color:var(--danger); margin-top: var(--sp-2);">${escapeHtml(view.error)}</p>` : ""}
+      ${view?.result ? renderProjectPrepResult(view.result) : ""}
+    </div>`;
+}
+
 function renderClassTabs(classFolders: ClassFolder[], activeClassId: number): string {
   return classFolders
     .map(
@@ -90,10 +156,11 @@ export interface SchoolPageData {
   studyStats: StudyStats;
   navVisibility: NavVisibility;
   navOrder: string[];
+  projectPrep?: ProjectPrepView;
 }
 
 export function buildSchoolHtml(data: SchoolPageData): string {
-  const { classFolders, activeClass, uploads, driveFiles, dueFlashcards, otherFlashcards, studyStats, navVisibility, navOrder } = data;
+  const { classFolders, activeClass, uploads, driveFiles, dueFlashcards, otherFlashcards, studyStats, navVisibility, navOrder, projectPrep } = data;
 
   if (classFolders.length === 0) {
     return renderLayout({
@@ -126,6 +193,8 @@ export function buildSchoolHtml(data: SchoolPageData): string {
       <p style="margin:0;">Ask questions, get practice problems, or work through material for ${escapeHtml(cls.className)} — the chat auto-loads this class's Drive files as context.</p>
       <a class="btn" href="/donna/chat?mode=school&classId=${cls.id}">Chat about ${escapeHtml(cls.className)}</a>
     </div>
+
+    ${renderProjectPrep(cls.id, projectPrep)}
 
     ${renderStudyTimer(cls.id, studyStats)}
 
@@ -164,9 +233,27 @@ export function buildSchoolHtml(data: SchoolPageData): string {
     showChatFab: true,
     navVisibility,
     navOrder,
-    pageScript: STUDY_TIMER_SCRIPT + FILE_TABLE_SCRIPT,
+    pageScript: STUDY_TIMER_SCRIPT + FILE_TABLE_SCRIPT + PROJECT_PREP_SCRIPT,
   });
 }
+
+const PROJECT_PREP_SCRIPT = `
+function copyPrepText(btn, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const original = btn.textContent;
+  navigator.clipboard
+    .writeText(el.textContent)
+    .then(function () {
+      btn.textContent = "Copied!";
+      setTimeout(function () { btn.textContent = original; }, 1500);
+    })
+    .catch(function () {
+      btn.textContent = "Copy failed";
+      setTimeout(function () { btn.textContent = original; }, 1500);
+    });
+}
+`;
 
 // Deliberately client-side-only: an in-progress or paused timer lives
 // entirely in page state and is lost on refresh — only a session that
