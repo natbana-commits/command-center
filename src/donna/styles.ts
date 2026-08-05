@@ -891,8 +891,14 @@ export const BASE_STYLES = `
   .file-icon { margin-right: 6px; }
   /* Actions column stays hidden until "Edit Files" is toggled on — most of
      the time you're just looking for something, not managing the list. */
-  .file-table-actions-cell { display: none; width: 90px; }
+  .file-table-actions-cell { display: none; width: 150px; }
   .file-table-editable.file-table-editing .file-table-actions-cell { display: table-cell; }
+  .file-table-actions-cell form { display: flex; gap: 4px; margin-bottom: 4px; }
+  .file-table-actions-cell form:last-child { margin-bottom: 0; }
+  .file-table-actions-cell select { min-width: 0; flex: 1; font-size: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--ink); }
+  .file-table-rename-form { display: none; gap: 6px; margin-top: 6px; }
+  .file-table-editable.file-table-editing .file-table-rename-form { display: flex; }
+  .file-table-rename-form input[type="text"] { font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--ink); flex: 1; min-width: 0; }
   .class-block { margin-bottom: var(--sp-3); }
   .class-title { font-weight: 600; margin-bottom: 8px; }
   .class-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }

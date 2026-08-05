@@ -129,13 +129,15 @@ export async function getUpload(id: number): Promise<Upload | null> {
 
 export async function updateUpload(
   id: number,
-  fields: Partial<Pick<Upload, "status" | "transcript" | "notes" | "error">>
+  fields: Partial<Pick<Upload, "status" | "transcript" | "notes" | "error" | "originalFilename" | "classId">>
 ): Promise<void> {
   const update: Record<string, unknown> = {};
   if (fields.status !== undefined) update.status = fields.status;
   if (fields.transcript !== undefined) update.transcript = fields.transcript;
   if (fields.notes !== undefined) update.notes = fields.notes;
   if (fields.error !== undefined) update.error = fields.error;
+  if (fields.originalFilename !== undefined) update.original_filename = fields.originalFilename;
+  if (fields.classId !== undefined) update.class_id = fields.classId;
 
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() =>

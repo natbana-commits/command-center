@@ -6,7 +6,7 @@ import { buildCalendarHtml, type CalendarDayGroup, type CalendarView } from "../
 import { requireAuth } from "../src/auth/session.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { listFilesInFolder, type DriveFile } from "../src/drive/list.js";
-import { getUploadsForClass, getGeneralUploads, getUpload, deleteUpload, type Upload } from "../src/storage/uploads.js";
+import { getUploadsForClass, getGeneralUploads, getUpload, deleteUpload, updateUpload, type Upload } from "../src/storage/uploads.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
@@ -273,10 +273,18 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      if (action === "delete-upload") {
+      if (action === "delete-upload" || action === "rename-upload" || action === "move-upload") {
         const uploadId = Number(body.id);
         if (Number.isFinite(uploadId)) {
-          await deleteUpload(uploadId);
+          if (action === "delete-upload") {
+            await deleteUpload(uploadId);
+          } else if (action === "rename-upload") {
+            const filename = String(body.filename ?? "").trim();
+            if (filename) await updateUpload(uploadId, { originalFilename: filename });
+          } else {
+            const newClassId = String(body.classId ?? "").trim();
+            await updateUpload(uploadId, { classId: newClassId ? Number(newClassId) : null });
+          }
         }
         const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
         res.redirect(303, classId ? `/donna/school?classId=${classId}` : "/donna/school");
@@ -320,15 +328,21 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
 async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    if (body.action === "delete-upload") {
-      const uploadId = Number(body.id);
-      try {
-        if (Number.isFinite(uploadId)) {
+    const uploadId = Number(body.id);
+    try {
+      if (Number.isFinite(uploadId)) {
+        if (body.action === "delete-upload") {
           await deleteUpload(uploadId);
+        } else if (body.action === "rename-upload") {
+          const filename = String(body.filename ?? "").trim();
+          if (filename) await updateUpload(uploadId, { originalFilename: filename });
+        } else if (body.action === "move-upload") {
+          const classId = String(body.classId ?? "").trim();
+          await updateUpload(uploadId, { classId: classId ? Number(classId) : null });
         }
-      } catch (err) {
-        console.error("Delete upload failed:", err);
       }
+    } catch (err) {
+      console.error("File library action failed:", err);
     }
     res.redirect(303, "/donna/files");
     return;

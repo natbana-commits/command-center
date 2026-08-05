@@ -19,10 +19,14 @@ export interface LibraryRow {
   link?: string;
   icon: string;
   // Only set for app-uploaded rows (lecture/photo/file) — real Drive rows
-  // have nothing for this app to delete (deleting from Drive itself is a
-  // bigger, more destructive action than this app owns yet, so those rows
-  // just don't get a delete control at all).
-  deleteId?: number;
+  // get no rename/move/delete controls in Edit Files mode. Editing or
+  // deleting a real Drive file is a bigger, more destructive action this
+  // app doesn't own; do that in Drive directly.
+  uploadId?: number;
+  // The upload's actual class_id (or null for general/unclassed) — kept
+  // separate from the display-only className label so the move dropdown
+  // can preselect the file's current class.
+  classId?: number | null;
 }
 
 function formatDate(iso: string): string {
@@ -50,7 +54,8 @@ function uploadToRow(u: Upload, className: string): LibraryRow {
     // failed row has nothing in place to view yet.
     link: u.status === "done" ? `/api/donna-upload?view=${u.id}` : undefined,
     icon: u.kind === "lecture" ? "\u{1F3A7}" : u.kind === "photo" ? "\u{1F5BC}\u{FE0F}" : "\u{1F4C4}",
-    deleteId: u.id,
+    uploadId: u.id,
+    classId: u.classId,
   };
 }
 
@@ -86,10 +91,13 @@ export function buildLibraryRows(
   return rows;
 }
 
-// returnTo is where the delete form posts back to — Files and School both
-// render this same table but need the resulting redirect to land back on
-// whichever page (and, for School, whichever class) it was opened from.
-export function renderLibraryTable(rows: LibraryRow[], returnTo: string): string {
+// returnTo is where the rename/move/delete forms post back to — Files and
+// School both render this same table but need the resulting redirect to
+// land back on whichever page (and, for School, whichever class) it was
+// opened from. classFolders backs the "move to class" dropdown — only
+// needed when at least one row is an app upload, but always accepted for
+// simplicity at the call sites.
+export function renderLibraryTable(rows: LibraryRow[], returnTo: string, classFolders: ClassFolder[]): string {
   if (rows.length === 0) {
     return `<p class="empty">Nothing in your library yet.</p>`;
   }
@@ -97,29 +105,47 @@ export function renderLibraryTable(rows: LibraryRow[], returnTo: string): string
   const classOptions = [...new Set(rows.map((r) => r.className))]
     .filter((c) => c !== "—")
     .sort((a, b) => a.localeCompare(b));
-  const anyDeletable = rows.some((r) => r.deleteId !== undefined);
+  const anyEditable = rows.some((r) => r.uploadId !== undefined);
 
   const trs = rows
     .map((r) => {
-      const titleCell = r.link
+      const titleDisplay = r.link
         ? `<a href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer"><span class="file-icon">${r.icon}</span>${escapeHtml(r.title)}</a>`
         : `<span class="file-icon">${r.icon}</span>${escapeHtml(r.title)}`;
+      const renameForm =
+        r.uploadId !== undefined
+          ? `<form method="POST" action="${escapeHtml(returnTo)}" class="file-table-rename-form">
+              <input type="hidden" name="action" value="rename-upload" />
+              <input type="hidden" name="id" value="${r.uploadId}" />
+              <input type="text" name="filename" value="${escapeHtml(r.title)}" required />
+              <button type="submit" class="btn-secondary btn-small">Save</button>
+            </form>`
+          : "";
       const actionCell =
-        r.deleteId !== undefined
-          ? `<form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage — it can\\'t be undone.');">
+        r.uploadId !== undefined
+          ? `<form method="POST" action="${escapeHtml(returnTo)}" class="file-table-move-form">
+              <input type="hidden" name="action" value="move-upload" />
+              <input type="hidden" name="id" value="${r.uploadId}" />
+              <select name="classId">
+                <option value="">General</option>
+                ${classFolders.map((c) => `<option value="${c.id}" ${c.id === r.classId ? "selected" : ""}>${escapeHtml(c.className)}</option>`).join("")}
+              </select>
+              <button type="submit" class="btn-secondary btn-small">Move</button>
+            </form>
+            <form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage — it can\\'t be undone.');">
               <input type="hidden" name="action" value="delete-upload" />
-              <input type="hidden" name="id" value="${r.deleteId}" />
+              <input type="hidden" name="id" value="${r.uploadId}" />
               <button type="submit" class="btn-danger btn-small">Remove</button>
             </form>`
           : "";
 
       return `
         <tr data-title="${escapeHtml(r.title.toLowerCase())}" data-class="${escapeHtml(r.className)}">
-          <td>${titleCell}</td>
+          <td>${titleDisplay}${renameForm}</td>
           <td>${escapeHtml(r.className)}</td>
           <td data-sort-value="${escapeHtml(r.dateIso)}">${escapeHtml(r.dateLabel)}</td>
           <td>${escapeHtml(r.status)}</td>
-          ${anyDeletable ? `<td class="file-table-actions-cell">${actionCell}</td>` : ""}
+          ${anyEditable ? `<td class="file-table-actions-cell">${actionCell}</td>` : ""}
         </tr>`;
     })
     .join("\n");
@@ -131,16 +157,16 @@ export function renderLibraryTable(rows: LibraryRow[], returnTo: string): string
         <option value="">All classes</option>
         ${classOptions.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
       </select>
-      ${anyDeletable ? `<button type="button" class="btn-secondary btn-small" id="file-table-edit-toggle" style="margin-left:auto;">Edit Files</button>` : ""}
+      ${anyEditable ? `<button type="button" class="btn-secondary btn-small" id="file-table-edit-toggle" style="margin-left:auto;">Edit Files</button>` : ""}
     </div>
-    <table class="file-table${anyDeletable ? " file-table-editable" : ""}" id="file-table">
+    <table class="file-table${anyEditable ? " file-table-editable" : ""}" id="file-table">
       <thead>
         <tr>
           <th data-key="title">Title</th>
           <th data-key="class">Class</th>
           <th data-key="date">Date Uploaded</th>
           <th data-key="status">Status</th>
-          ${anyDeletable ? `<th class="file-table-actions-cell"></th>` : ""}
+          ${anyEditable ? `<th class="file-table-actions-cell"></th>` : ""}
         </tr>
       </thead>
       <tbody id="file-table-body">
@@ -236,7 +262,7 @@ export function buildFilesHtml(data: FilesPageData): string {
             ? "No classes set up yet — add one in Settings."
             : "Not connected yet — finish Google Drive setup, then add classes in Settings."
         }</p>`
-      : renderLibraryTable(rows, "/donna/files");
+      : renderLibraryTable(rows, "/donna/files", classFolders);
 
   const body = `
     <div class="file-library-layout">
