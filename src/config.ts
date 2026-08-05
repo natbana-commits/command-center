@@ -130,6 +130,30 @@ const DEFAULT_SETTINGS: Settings = {
   briefConfig: DEFAULT_BRIEF_CONFIG,
 };
 
+// Inserts any entry present in `defaults` but missing from `stored` right
+// after its nearest preceding neighbor (in default order) that's still
+// present, instead of always tacking it onto the end — see loadSettings.
+function mergeMissingByDefaultOrder<T>(stored: T[], defaults: T[], getId: (item: T) => string): T[] {
+  const result = [...stored];
+  for (let defaultIndex = 0; defaultIndex < defaults.length; defaultIndex++) {
+    const item = defaults[defaultIndex]!;
+    const id = getId(item);
+    if (result.some((r) => getId(r) === id)) continue;
+
+    let insertAfter = -1;
+    for (let i = defaultIndex - 1; i >= 0; i--) {
+      const neighborId = getId(defaults[i]!);
+      const neighborIndex = result.findIndex((r) => getId(r) === neighborId);
+      if (neighborIndex !== -1) {
+        insertAfter = neighborIndex;
+        break;
+      }
+    }
+    result.splice(insertAfter + 1, 0, item);
+  }
+  return result;
+}
+
 export async function loadSettings(): Promise<Settings> {
   const client = getSupabaseClient();
   const { data, error } = await withSupabaseRetry(() =>
@@ -149,35 +173,26 @@ export async function loadSettings(): Promise<Settings> {
   // fall back to that field's default, not silently read as `undefined`
   // everywhere it's used.
   //
-  // homeWidgets is an array, not a keyed object, so a stored row saved
-  // before a new widget id existed (e.g. "contacts"/"files") wouldn't
-  // contain it at all — append any default widget missing from the
-  // stored list so newly added widgets show up without a migration.
+  // homeWidgets/financeWidgets/navOrder are arrays, not keyed objects, so a
+  // stored row saved before a new id existed (e.g. "contacts"/"files", or
+  // "credit-card-spending"/"top-merchants") wouldn't contain it at all.
+  // Self-heal by inserting any default entry missing from the stored list
+  // next to its nearest still-present neighbor in DEFAULT order, rather
+  // than always appending to the end — otherwise a widget added in the
+  // middle of the default order (e.g. between spending-by-category and
+  // accounts) would land far away from where it visually belongs for
+  // every user who already had settings saved before it existed.
   const storedWidgets = data.dashboard_config?.homeWidgets ?? DEFAULT_DASHBOARD_CONFIG.homeWidgets;
-  const missingWidgets = DEFAULT_DASHBOARD_CONFIG.homeWidgets.filter(
-    (w) => !storedWidgets.some((sw: { id: HomeWidgetId }) => sw.id === w.id)
-  );
-
-  // Same self-healing idea for financeWidgets — a stored row saved before
-  // this field existed at all just won't have it.
   const storedFinanceWidgets = data.dashboard_config?.financeWidgets ?? DEFAULT_DASHBOARD_CONFIG.financeWidgets;
-  const missingFinanceWidgets = DEFAULT_DASHBOARD_CONFIG.financeWidgets.filter(
-    (w) => !storedFinanceWidgets.some((sw: { id: FinanceWidgetId }) => sw.id === w.id)
-  );
-
-  // Same self-healing idea for navOrder: a stored row from before a tab
-  // existed (or before navOrder existed at all) just won't list it —
-  // append anything missing so a newly added tab still shows in nav.
   const storedNavOrder: string[] = data.dashboard_config?.navOrder ?? DEFAULT_DASHBOARD_CONFIG.navOrder;
-  const missingNavTabs = DEFAULT_DASHBOARD_CONFIG.navOrder.filter((t) => !storedNavOrder.includes(t));
 
   const dashboardConfig: DashboardConfig = {
     ...DEFAULT_DASHBOARD_CONFIG,
     ...data.dashboard_config,
-    homeWidgets: [...storedWidgets, ...missingWidgets],
-    financeWidgets: [...storedFinanceWidgets, ...missingFinanceWidgets],
+    homeWidgets: mergeMissingByDefaultOrder(storedWidgets, DEFAULT_DASHBOARD_CONFIG.homeWidgets, (w) => w.id),
+    financeWidgets: mergeMissingByDefaultOrder(storedFinanceWidgets, DEFAULT_DASHBOARD_CONFIG.financeWidgets, (w) => w.id),
     navVisibility: { ...DEFAULT_DASHBOARD_CONFIG.navVisibility, ...data.dashboard_config?.navVisibility },
-    navOrder: [...storedNavOrder, ...missingNavTabs],
+    navOrder: mergeMissingByDefaultOrder(storedNavOrder, DEFAULT_DASHBOARD_CONFIG.navOrder, (t) => t),
   };
   const briefConfig: BriefConfig = { ...DEFAULT_BRIEF_CONFIG, ...data.brief_config };
 

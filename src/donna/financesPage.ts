@@ -61,13 +61,13 @@ function renderAccountRow(account: PlaidAccount): string {
   const subtypeLabel = account.subtype ? `${account.subtype}` : "";
   const maskLabel = account.mask ? ` ••${account.mask}` : "";
   return `
-    <a class="finance-row finance-row-link" href="/donna/finances?accountId=${encodeURIComponent(account.accountId)}">
+    <a class="finance-account-tile" href="/donna/finances?accountId=${encodeURIComponent(account.accountId)}">
       <div class="finance-row-icon" style="background:${avatarColor(account.name)};">${escapeHtml(avatarInitial(account.name))}</div>
-      <div class="finance-row-body">
+      <div class="finance-account-tile-body">
         <div class="finance-row-title">${escapeHtml(account.name)}${escapeHtml(maskLabel)}</div>
         ${subtypeLabel ? `<div class="finance-row-meta">${escapeHtml(subtypeLabel)}</div>` : ""}
+        <div class="finance-account-tile-amount">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</div>
       </div>
-      <div class="finance-row-amount">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</div>
     </a>`;
 }
 
@@ -81,7 +81,7 @@ function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
         <h1 class="section-title" style="margin:0;">${escapeHtml(item.institutionName)}</h1>
         ${reauthBadge}
       </div>
-      ${accounts.map(renderAccountRow).join("\n")}
+      <div class="finance-account-grid">${accounts.map(renderAccountRow).join("\n")}</div>
       <form method="POST" action="/donna/finances" style="margin-top: var(--sp-2);" onsubmit="return confirm('Unlink ${escapeHtml(item.institutionName)}? This removes its accounts and transaction history from Donna.');">
         <input type="hidden" name="action" value="unlink" />
         <input type="hidden" name="itemId" value="${escapeHtml(item.itemId)}" />

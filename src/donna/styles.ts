@@ -633,8 +633,18 @@ export const BASE_STYLES = `
     .cal-day-col { min-height: max(calc(100vh - 340px), 360px); }
   }
 
-  /* --- Calendar: day view (single wide column, week view's box reused) --- */
-  .cal-day-grid { display: grid; grid-template-columns: repeat(2, minmax(240px, 1fr)); max-width: 900px; }
+  /* --- Calendar: day view (2-day side-by-side grid) --- */
+  .cal-day-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+    max-width: 900px;
+    gap: var(--sp-2);
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  @media (max-width: 860px) {
+    .cal-day-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+  }
 
   /* --- Calendar: month view --- */
   .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -755,6 +765,34 @@ export const BASE_STYLES = `
   }
   .finance-row-amount-inflow { color: var(--accent); }
   .finance-row-date { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+
+  /* Accounts within an institution card — condensed tiles (3/row web,
+     2/row mobile) instead of one full-width row per account. */
+  .finance-account-grid { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+  .finance-account-tile {
+    flex: 1 1 calc(33.333% - var(--sp-2) * 2 / 3);
+    min-width: 160px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .finance-account-tile:hover { background: var(--sidebar-bg); }
+  .finance-account-tile-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .finance-account-tile-amount {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+  @media (max-width: 860px) {
+    .finance-account-tile { flex: 1 1 calc(50% - var(--sp-2) / 2); min-width: 130px; }
+  }
 
   /* --- reminders page --- */
   .reminder-row {

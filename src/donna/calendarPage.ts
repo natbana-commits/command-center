@@ -192,7 +192,7 @@ export function buildCalendarHtml(data: CalendarPageData): string {
     view === "month"
       ? renderMonthGrid(monthWeeks)
       : view === "day"
-        ? `<div class="cal-week-grid cal-day-grid">${days.map((d) => renderDayColumn(d, timezone)).join("\n")}</div>`
+        ? `<div class="cal-day-grid">${days.map((d) => renderDayColumn(d, timezone)).join("\n")}</div>`
         : `<div class="cal-week-grid">${days.map((d) => renderDayColumn(d, timezone)).join("\n")}</div>`;
 
   const body = `
