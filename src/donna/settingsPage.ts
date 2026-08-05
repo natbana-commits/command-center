@@ -920,6 +920,16 @@ const SETTINGS_CLIENT_SCRIPT = `
 
       const ref = targetIndex < currentIndex ? allRows[targetIndex] : allRows[targetIndex].nextSibling;
       list.insertBefore(dragRow, ref);
+
+      // The row's own native (untransformed) position in the list just
+      // shifted by this swap — without folding that into startY/startIndex,
+      // the transform below keeps counting the move insertBefore already
+      // made, on top of itself, so the row visually jumps roughly double
+      // the intended distance on every swap ("shoots up" instead of
+      // tracking the pointer).
+      startIndex = targetIndex;
+      startY += shift * rowHeight;
+      dragRow.style.transform = "translateY(" + (e.clientY - startY) + "px)";
     });
 
     function endDrag() {

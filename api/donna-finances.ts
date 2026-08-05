@@ -205,11 +205,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(404).json({ error: "Account not found" });
       return;
     }
-    const [weekHistory, monthHistory] = await Promise.all([
+    const [weekHistory, monthHistory, recentTransactions] = await Promise.all([
       getAccountBalanceHistory(accountId, 7).catch(() => []),
       getAccountBalanceHistory(accountId, 30).catch(() => []),
+      getTransactionsForAccount(accountId, 2).catch(() => []),
     ]);
-    res.status(200).json(computeFinanceAccountSummary(account, weekHistory, monthHistory));
+    res.status(200).json(computeFinanceAccountSummary(account, weekHistory, monthHistory, recentTransactions));
     return;
   }
 
@@ -334,7 +335,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     spendingHistory: getSpendingHistory(recurringChargeTransactions),
     spendingByCategory: getSpendingByCategory(recurringChargeTransactions),
     creditCardSpendingHistory: getSpendingHistoryForAccounts(recurringChargeTransactions, creditAccountIds),
-    topMerchants: getTopMerchants(recurringChargeTransactions),
+    // Widget shows the top 8 by default and expands to the rest in place
+    // on click — fetch enough here to make that expansion meaningful.
+    topMerchants: getTopMerchants(recurringChargeTransactions, 30, 20),
     financeWidgets: settings.dashboardConfig.financeWidgets,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,

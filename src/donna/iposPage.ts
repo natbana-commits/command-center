@@ -4,6 +4,7 @@ import type { FollowedCompany } from "../ipos/followedCompanies.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { iconTrendingUp } from "./icons.js";
+import { tileColorForSeed } from "./tileColor.js";
 
 function formatDate(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -76,8 +77,9 @@ function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
     ? `<ul>${filing.riskHighlights.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`
     : `<p class="empty">Not summarized.</p>`;
 
+  const { accent, tint } = tileColorForSeed(filing.companyName);
   return `
-    <details class="ipo-row">
+    <details class="ipo-row" style="--accent: ${accent}; --tint: ${tint};">
       <summary>
         <div class="ipo-row-icon">${iconTrendingUp}</div>
         <div class="ipo-row-body">

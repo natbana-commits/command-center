@@ -7,6 +7,7 @@ import { localDateKey, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { effectiveDue, hasTime } from "./remindersPage.js";
 import { iconBell } from "./icons.js";
+import { tileColorForSeed } from "./tileColor.js";
 
 export type CalendarView = "day" | "week" | "month";
 
@@ -45,8 +46,9 @@ function renderEventBlock(e: CalendarEvent, timezone: string): string {
     ? `${formatEventTime(e.start, timezone)} – ${formatEventTime(e.end, timezone)}`
     : formatEventTime(e.start, timezone);
   const locationHtml = e.location ? `<span class="cal-event-location">${escapeHtml(e.location)}</span>` : "";
+  const { tint } = tileColorForSeed(e.summary);
   return `
-    <div class="cal-event-block">
+    <div class="cal-event-block" style="--tint: ${tint};">
       <span class="cal-event-time">${escapeHtml(timeLabel)}</span>
       <span class="cal-event-title">${escapeHtml(e.summary)}</span>
       ${locationHtml}
@@ -94,7 +96,7 @@ function renderMonthCell(day: CalendarDayGroup): string {
   const events = sortedEvents(day);
   const chips = events
     .slice(0, MAX_MONTH_CHIPS)
-    .map((e) => `<span class="cal-month-chip">${escapeHtml(e.summary)}</span>`)
+    .map((e) => `<span class="cal-month-chip" style="--tint: ${tileColorForSeed(e.summary).tint};">${escapeHtml(e.summary)}</span>`)
     .join("\n");
   const more = events.length > MAX_MONTH_CHIPS ? `<span class="cal-month-more">+${events.length - MAX_MONTH_CHIPS} more</span>` : "";
 

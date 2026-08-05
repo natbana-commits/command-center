@@ -58,6 +58,52 @@ function avatarInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase() || "?";
 }
 
+// A curated set of real institution brand colors, matched by a
+// case-insensitive substring on Plaid's institutionName — approximate,
+// not pixel-exact brand guidelines, but close enough that Chase reads
+// blue, Amex reads blue, Wells Fargo reads red, etc. instead of every
+// bank rendering as the same flat green. Falls back to avatarColor's
+// hash palette for anything not in this list.
+const INSTITUTION_COLORS: readonly [pattern: string, color: string][] = [
+  ["chase", "#117ACA"],
+  ["bank of america", "#012169"],
+  ["wells fargo", "#CC0000"],
+  ["citi", "#056DAE"],
+  ["american express", "#006FCF"],
+  ["amex", "#006FCF"],
+  ["capital one", "#004977"],
+  ["us bank", "#0C2074"],
+  ["pnc", "#F58025"],
+  ["td bank", "#54B948"],
+  ["discover", "#FF6000"],
+  ["ally", "#6C2EB5"],
+  ["sofi", "#00A9E0"],
+  ["chime", "#1DB955"],
+  ["charles schwab", "#00A0DF"],
+  ["schwab", "#00A0DF"],
+  ["fidelity", "#00754A"],
+  ["venmo", "#3D95CE"],
+  ["paypal", "#003087"],
+  ["marcus", "#005EB8"],
+  ["goldman sachs", "#7399C6"],
+  ["robinhood", "#00C805"],
+  ["truist", "#4B2E83"],
+  ["regions", "#00543D"],
+  ["navy federal", "#002D5B"],
+  ["usaa", "#002F6C"],
+  ["hsbc", "#DB0011"],
+  ["barclays", "#00AEEF"],
+  ["synchrony", "#661C68"],
+];
+
+function institutionColor(name: string): string {
+  const lower = name.toLowerCase();
+  for (const [pattern, color] of INSTITUTION_COLORS) {
+    if (lower.includes(pattern)) return color;
+  }
+  return avatarColor(name);
+}
+
 function renderAccountRow(account: PlaidAccount): string {
   const subtypeLabel = account.subtype ? `${account.subtype}` : "";
   const maskLabel = account.mask ? ` ••${account.mask}` : "";
@@ -76,8 +122,9 @@ function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
   const reauthBadge = item.needsReauth
     ? `<span class="reminder-due reminder-due-overdue">Needs re-authentication</span>`
     : "";
+  const accent = institutionColor(item.institutionName);
   return `
-    <div class="card fw-account-card" style="--accent: var(--fin-accounts);">
+    <div class="card fw-account-card" style="--accent: ${accent}; --tint: ${accent}1a;">
       <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
         <div style="display:flex; align-items:center; gap:8px; min-width:0;">
           <div class="fw-icon">${iconBank}</div>
@@ -134,6 +181,22 @@ function chartDateLabel(dateStr: string): string {
   return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// Click-to-expand for the 5 compact chart tiles: both the compact and
+// expanded views render server-side up front (matching the Week/Month
+// toggle pattern already used on Home's Finance widget), swapped
+// client-side purely by visibility — no new data fetch, no navigation,
+// no page swap. Expansion is height-only (line charts) or shows more
+// rows (bar charts) rather than a wider tile, since the tile lives inside
+// a JS-packed masonry column that can't cleanly break out to full width;
+// the masonry re-runs after each toggle so surrounding tiles reflow
+// around the new height either way.
+function renderExpandableChart(compactHtml: string, expandedHtml: string): string {
+  return `
+    <div class="fw-chart-compact">${compactHtml}</div>
+    <div class="fw-chart-expanded" style="display:none;">${expandedHtml}</div>
+    <button type="button" class="fw-expand-btn" onclick="toggleFwExpand(this)">Expand for more detail ⌄</button>`;
+}
+
 function renderNetWorthSection(history: NetWorthPoint[]): string {
   if (history.length === 0) {
     return `<p class="empty">No history yet. Net worth is snapshotted once a day, so the chart fills in starting today.</p>`;
@@ -146,13 +209,15 @@ function renderNetWorthSection(history: NetWorthPoint[]): string {
     history.length > 1
       ? `${change >= 0 ? "+" : ""}${formatMoney(change, "USD")} since ${formatTransactionDate(first.date)}`
       : "";
+  const points = history.map((h) => ({ label: h.date, value: h.netWorth }));
+  const chartOpts = { showAxes: true, formatValue: (v: number) => formatMoney(v, "USD"), formatLabel: chartDateLabel };
 
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(latest.netWorth, "USD"))}</p>
     ${changeLabel ? `<p class="hint" style="margin: 0 0 12px;">${escapeHtml(changeLabel)}</p>` : ""}
-    ${renderLineChart(
-      history.map((h) => ({ label: h.date, value: h.netWorth })),
-      { showAxes: true, height: 240, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    ${renderExpandableChart(
+      renderLineChart(points, { ...chartOpts, height: 240 }),
+      renderLineChart(points, { ...chartOpts, height: 440 })
     )}`;
 }
 
@@ -161,12 +226,15 @@ function renderSpendingHistorySection(history: SpendingPoint[]): string {
     return `<p class="empty">No spending yet in this window.</p>`;
   }
   const total = history.reduce((sum, p) => sum + p.amount, 0);
+  const points = history.map((h) => ({ label: h.date, value: h.amount }));
+  const chartOpts = { showAxes: true, formatValue: (v: number) => formatMoney(v, "USD"), formatLabel: chartDateLabel };
+
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
     <p class="hint" style="margin: 0 0 12px;">Total spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
-    ${renderLineChart(
-      history.map((h) => ({ label: h.date, value: h.amount })),
-      { showAxes: true, height: 240, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    ${renderExpandableChart(
+      renderLineChart(points, { ...chartOpts, height: 240 }),
+      renderLineChart(points, { ...chartOpts, height: 440 })
     )}`;
 }
 
@@ -174,10 +242,11 @@ function renderSpendingByCategorySection(categories: CategorySpend[]): string {
   if (categories.length === 0) {
     return `<p class="empty">No categorized spending yet in the last 30 days.</p>`;
   }
-  const top = categories.slice(0, 8);
-  return renderBarChart(
-    top.map((c) => ({ label: c.category, value: c.amount })),
-    { formatValue: (v) => formatMoney(v, "USD"), showAxes: true }
+  const barOpts = { formatValue: (v: number) => formatMoney(v, "USD"), showAxes: true };
+  const toPoints = (cs: CategorySpend[]) => cs.map((c) => ({ label: c.category, value: c.amount }));
+  return renderExpandableChart(
+    renderBarChart(toPoints(categories.slice(0, 8)), barOpts),
+    renderBarChart(toPoints(categories), barOpts)
   );
 }
 
@@ -186,12 +255,15 @@ function renderCreditCardSpendingSection(history: SpendingPoint[]): string {
     return `<p class="empty">No credit card spending yet in this window.</p>`;
   }
   const total = history.reduce((sum, p) => sum + p.amount, 0);
+  const points = history.map((h) => ({ label: h.date, value: h.amount }));
+  const chartOpts = { showAxes: true, formatValue: (v: number) => formatMoney(v, "USD"), formatLabel: chartDateLabel };
+
   return `
     <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
     <p class="hint" style="margin: 0 0 12px;">Credit card spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
-    ${renderLineChart(
-      history.map((h) => ({ label: h.date, value: h.amount })),
-      { showAxes: true, height: 200, formatValue: (v) => formatMoney(v, "USD"), formatLabel: chartDateLabel }
+    ${renderExpandableChart(
+      renderLineChart(points, { ...chartOpts, height: 200 }),
+      renderLineChart(points, { ...chartOpts, height: 400 })
     )}`;
 }
 
@@ -199,9 +271,11 @@ function renderTopMerchantsSection(merchants: MerchantSpend[]): string {
   if (merchants.length === 0) {
     return `<p class="empty">No merchant spending yet in the last 30 days.</p>`;
   }
-  return renderBarChart(
-    merchants.map((m) => ({ label: m.merchant, value: m.amount })),
-    { formatValue: (v) => formatMoney(v, "USD"), showAxes: true }
+  const barOpts = { formatValue: (v: number) => formatMoney(v, "USD"), showAxes: true };
+  const toPoints = (ms: MerchantSpend[]) => ms.map((m) => ({ label: m.merchant, value: m.amount }));
+  return renderExpandableChart(
+    renderBarChart(toPoints(merchants.slice(0, 8)), barOpts),
+    renderBarChart(toPoints(merchants), barOpts)
   );
 }
 
@@ -369,7 +443,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     accounts.length === 0
       ? ""
       : `
-    <div class="card-row" style="margin-bottom: var(--sp-3);">
+    <div class="card-row fin-summary-row" style="margin-bottom: var(--sp-3);">
       <div class="card">
         <div class="card-title">Total Cash</div>
         <p style="font-size: 22px; font-weight: 600; margin: 4px 0 0;">${escapeHtml(formatMoney(totalCash, "USD"))}</p>
@@ -537,6 +611,23 @@ const CLIENT_SCRIPT = `
     extra.style.display = showing ? "none" : "block";
     btn.textContent = showing ? "Show " + extra.children.length + " more" : "Show less";
   }
+
+  // Compact/expanded chart views are both already rendered server-side
+  // (see renderExpandableChart) — this just swaps which one shows and
+  // re-runs the masonry packing since the tile's height just changed.
+  function toggleFwExpand(btn) {
+    const wrap = btn.parentElement;
+    if (!wrap) return;
+    const compact = wrap.querySelector(".fw-chart-compact");
+    const expanded = wrap.querySelector(".fw-chart-expanded");
+    if (!compact || !expanded) return;
+    const isExpanded = expanded.style.display !== "none";
+    compact.style.display = isExpanded ? "" : "none";
+    expanded.style.display = isExpanded ? "none" : "";
+    btn.textContent = isExpanded ? "Expand for more detail ⌄" : "Show less ⌃";
+    if (typeof distributeFinanceMasonry === "function") distributeFinanceMasonry();
+  }
+  window.toggleFwExpand = toggleFwExpand;
 
   // Some institutions (most major banks, once PLAID_REDIRECT_URI is set)
   // require an OAuth handshake: Link redirects the whole tab out to the

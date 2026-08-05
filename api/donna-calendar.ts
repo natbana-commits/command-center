@@ -65,8 +65,8 @@ async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
     await invalidateCache("calendar:ics");
   }
 
-  const rawView = typeof req.query.view === "string" ? req.query.view : "week";
-  const view: CalendarView = rawView === "day" || rawView === "month" ? rawView : "week";
+  const rawView = typeof req.query.view === "string" ? req.query.view : "day";
+  const view: CalendarView = rawView === "week" || rawView === "month" ? rawView : "day";
 
   const { start: todayStart } = dayBounds(new Date(), timezone);
   const todayKey = localDateKey(todayStart, timezone);

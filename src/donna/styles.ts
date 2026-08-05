@@ -387,6 +387,19 @@ export const BASE_STYLES = `
     .card-row > .card { flex: 1 1 auto; min-width: 0; }
   }
 
+  /* Finances' Total Cash / Credit Card Balances pair — stays side-by-side
+     on mobile instead of inheriting .card-row's generic single-column
+     stack above; the compound selector's extra specificity is what wins
+     over that plain .card-row rule at the same breakpoint. */
+  @media (max-width: 860px) {
+    .fin-summary-row.card-row { flex-direction: row; flex-wrap: nowrap; }
+    .fin-summary-row.card-row > .card { flex: 1 1 0; min-width: 0; padding: var(--sp-2); }
+    /* !important: the money figure's font-size is set inline per the
+       codebase's usual convention, which otherwise beats any class
+       selector regardless of specificity. */
+    .fin-summary-row .card p { font-size: 18px !important; }
+  }
+
   /* Finances' masonry grid — shortest-column JS packing (CLIENT_SCRIPT in
      financesPage.ts), used for both the compact-widget grid and the
      Accounts institution cards. A fixed CSS grid can't guarantee a
@@ -432,11 +445,32 @@ export const BASE_STYLES = `
   .fw-icon svg { width: 13px; height: 13px; display: block; }
   .fw-tile-head { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
 
-  /* Institution cards in Accounts — same gradient-tile language, one
-     shared "accounts" color rather than a color per bank (the per-account
-     avatar colors inside already differentiate individual accounts). */
+  /* Click-to-expand on the 5 compact chart tiles (toggleFwExpand in
+     financesPage.ts) — both views already rendered, this button just
+     flips which one's visible. */
+  .fw-expand-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 4px 0 0;
+    border: none;
+    border-top: 1px solid var(--border);
+    background: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .fw-expand-btn:hover { color: var(--accent); }
+
+  /* Institution cards in Accounts — same gradient-tile language, tinted
+     per-bank (institutionColor() in financesPage.ts) via --tint/--accent
+     set inline, falling back to the generic finance color for anything
+     that somehow renders without one. */
   .fw-account-card {
-    background-image: linear-gradient(180deg, var(--fin-accounts-tint) 0%, var(--card) 40%);
+    background-image: linear-gradient(180deg, var(--tint, var(--fin-accounts-tint)) 0%, var(--card) 40%);
   }
   .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {
@@ -623,14 +657,14 @@ export const BASE_STYLES = `
     padding: var(--sp-2);
     margin-bottom: var(--sp-2);
     background: var(--card);
-    background-image: linear-gradient(135deg, var(--hw-ipos-tint) 0%, var(--card) 55%);
+    background-image: linear-gradient(135deg, var(--tint, var(--hw-ipos-tint)) 0%, var(--card) 55%);
   }
   .ipo-row summary { cursor: pointer; list-style: none; display: flex; align-items: flex-start; gap: 10px; }
   .ipo-row summary::-webkit-details-marker { display: none; }
   .ipo-row[open] summary { margin-bottom: var(--sp-2); }
   .ipo-row-icon {
     width: 26px; height: 26px; border-radius: 8px; margin-top: 1px;
-    background: var(--hw-ipos); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    background: var(--accent, var(--hw-ipos)); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
   }
   .ipo-row-icon svg { width: 14px; height: 14px; display: block; }
   .ipo-row-body { flex: 1; min-width: 0; }
@@ -677,10 +711,10 @@ export const BASE_STYLES = `
   .cal-day-num-today { color: var(--accent); }
   .cal-day-events { display: flex; flex-direction: column; gap: 6px; }
   .cal-event-block {
-    border-left: 3px solid var(--accent);
     padding: 6px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--sidebar-bg);
+    background-image: linear-gradient(135deg, var(--tint, var(--sidebar-bg)) 0%, var(--sidebar-bg) 65%);
   }
   .cal-event-time { display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
   .cal-event-title {
@@ -755,7 +789,7 @@ export const BASE_STYLES = `
     font-size: 10.5px;
     padding: 1px 5px;
     border-radius: 4px;
-    background: var(--sidebar-bg);
+    background: var(--tint, var(--sidebar-bg));
     color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1184,6 +1218,20 @@ export const BASE_STYLES = `
   .settings-nav-pill:hover { border-color: var(--accent); color: var(--ink); }
   .settings-nav-theme-btn { margin-left: auto; flex: 0 0 auto; }
   .settings-jump-target { scroll-margin-top: 68px; }
+  /* On mobile the wrapped pill grid ate several screens' worth of height
+     before any real Settings content showed — same horizontally-scrolling,
+     hidden-scrollbar treatment as .mobile-tab-strip (the app's top tab
+     bar), collapsed to one row instead. */
+  @media (max-width: 860px) {
+    .settings-nav-pills {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .settings-nav-pills::-webkit-scrollbar { display: none; }
+    .settings-nav-pill { padding: 5px 10px; font-size: 11.5px; }
+  }
 
   input:focus, select:focus, textarea:focus, button:focus-visible {
     outline: 2px solid rgba(184, 107, 69, 0.35);
@@ -1453,7 +1501,7 @@ export const BASE_STYLES = `
   .hw-fin-toggle { display: inline-flex; gap: 2px; background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px; flex: 0 0 auto; }
   .hw-fin-toggle-btn { font: inherit; font-size: 9.5px; font-weight: 700; border: none; background: transparent; color: var(--text-secondary); padding: 2px 8px; border-radius: 999px; cursor: pointer; }
   .hw-fin-toggle-active { background: var(--hw-finance); color: #fff; }
-  .hw-fin-chart { flex: 1; min-height: 0; display: flex; align-items: center; margin: 3px 0; }
+  .hw-fin-chart { flex: 1; min-height: 0; display: flex; align-items: flex-start; margin: 3px 0; }
   .hw-fin-chart svg { width: 100%; height: 100%; display: block; }
   .hw-fin-stat-row { display: flex; justify-content: space-between; font-size: 10.5px; padding: 2px 0; flex: 0 0 auto; }
 

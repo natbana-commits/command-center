@@ -37,10 +37,12 @@ function renderTagSelect(name: string, options: string[], current: string | null
 function renderContactRow(c: Contact): string {
   const lastContact = c.lastContactedAt ? formatRelativeTime(`${c.lastContactedAt}T12:00:00`) : "Never contacted";
   const meta = [c.firm, lastContact].filter(Boolean).join(" · ");
-  const { tint } = tileColorForSeed(c.name);
+  const { accent, tint } = tileColorForSeed(c.name);
+  const initial = c.name.trim().charAt(0).toUpperCase() || "?";
 
   return `
     <div class="reminder-row" style="background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 65%);">
+      <div class="finance-row-icon" style="background:${accent};">${escapeHtml(initial)}</div>
       <div class="reminder-body">
         <div class="interaction-meta">
           <span class="reminder-title">${escapeHtml(c.name)}</span>

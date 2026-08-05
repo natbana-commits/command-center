@@ -15,6 +15,7 @@ import { isPlaidConfigured } from "../src/finance/plaidClient.js";
 import { getAllAccounts, type PlaidAccount } from "../src/finance/accounts.js";
 import { getAllItems } from "../src/finance/items.js";
 import { getAccountBalanceHistory } from "../src/finance/balanceHistory.js";
+import { getTransactionsForAccount } from "../src/finance/transactionsStore.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { getWatchlistEntries } from "../src/news/watchlist.js";
 import { getWatchlistQuotes } from "../src/markets/quotes.js";
@@ -176,6 +177,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { todayEvents, tomorrowEvents },
     fidelityBalanceWeek,
     fidelityBalanceMonth,
+    fidelityRecentTransactions,
   ] = await Promise.all([
     getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
     getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
@@ -184,6 +186,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     calendarPromise,
     fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 7).catch(() => []) : Promise.resolve([]),
     fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 30).catch(() => []) : Promise.resolve([]),
+    fidelityAccount ? getTransactionsForAccount(fidelityAccount.accountId, 2).catch(() => []) : Promise.resolve([]),
   ]);
 
   const html = buildDonnaHtml({
@@ -200,6 +203,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fidelityAccount,
     fidelityBalanceWeek,
     fidelityBalanceMonth,
+    fidelityRecentTransactions,
     financeAccountOptions,
     totalCash,
     accountCount: financeAccounts.length,

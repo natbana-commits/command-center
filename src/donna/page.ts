@@ -9,6 +9,7 @@ import type { ReminderGroup } from "../reminders/groups.js";
 import type { Upload } from "../storage/uploads.js";
 import type { IpoFiling } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
+import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import type { BalancePoint } from "../finance/balanceHistory.js";
 import type { CalendarEvent } from "../calendar.js";
 import type { Quote } from "../markets/quotes.js";
@@ -188,19 +189,42 @@ export interface FinanceAccountSummary {
   monthChartHtml: string;
   monthAvailable: boolean;
   emptyMessage: string | null;
+  recentTransactionsHtml: string;
+}
+
+// Compact single-line rows, same .hw-row language as Markets/Reminders —
+// deliberately terser than financesPage.ts's own .finance-row (avatar
+// circle, category text, date), which has more room to work with than
+// this tile does.
+function renderFinTxnRow(t: PlaidTransaction): string {
+  const isInflow = t.amount < 0;
+  const amountLabel = isInflow ? `+${formatMoney(-t.amount, t.isoCurrencyCode)}` : formatMoney(t.amount, t.isoCurrencyCode);
+  return `
+    <div class="hw-row">
+      <div class="hw-row-main"><div class="hw-row-name">${escapeHtml(t.merchantName ?? t.name)}</div></div>
+      <div class="hw-row-val"${isInflow ? ' style="color:var(--hw-up);"' : ""}>${escapeHtml(amountLabel)}</div>
+    </div>`;
+}
+
+function renderFinRecentTransactions(transactions: PlaidTransaction[]): string {
+  if (transactions.length === 0) return "";
+  return `<div class="hw-row-divider">Recent</div>${transactions.map(renderFinTxnRow).join("\n")}`;
 }
 
 // Shared by the initial server render (renderFinancesTile below) and the
 // account-summary JSON endpoint the account picker calls into — one place
-// computing the balance/trend/chart so switching accounts client-side
-// can't drift from what a fresh page load would show for that account.
+// computing the balance/trend/chart/recent-transactions so switching
+// accounts client-side can't drift from what a fresh page load would show
+// for that account.
 export function computeFinanceAccountSummary(
   account: PlaidAccount,
   weekHistory: BalancePoint[],
-  monthHistory: BalancePoint[]
+  monthHistory: BalancePoint[],
+  recentTransactions: PlaidTransaction[] = []
 ): FinanceAccountSummary {
   const currency = account.isoCurrencyCode;
   const balanceLabel = formatMoney(account.currentBalance ?? 0, currency);
+  const recentTransactionsHtml = renderFinRecentTransactions(recentTransactions);
 
   if (weekHistory.length < 2) {
     return {
@@ -213,6 +237,7 @@ export function computeFinanceAccountSummary(
       monthChartHtml: "",
       monthAvailable: false,
       emptyMessage: "Balance history fills in once a few more days are recorded.",
+      recentTransactionsHtml,
     };
   }
 
@@ -233,6 +258,7 @@ export function computeFinanceAccountSummary(
     monthChartHtml: monthAvailable ? chartHtml(monthHistory) : "",
     monthAvailable,
     emptyMessage: null,
+    recentTransactionsHtml,
   };
 }
 
@@ -240,6 +266,7 @@ function renderFinancesTile(
   fidelityAccount: PlaidAccount | null,
   fidelityBalanceWeek: BalancePoint[],
   fidelityBalanceMonth: BalancePoint[],
+  fidelityRecentTransactions: PlaidTransaction[],
   totalCash: number,
   accountCount: number,
   financeAccountOptions: { accountId: string; label: string }[]
@@ -258,7 +285,7 @@ function renderFinancesTile(
       : "";
 
   const summary: FinanceAccountSummary = fidelityAccount
-    ? computeFinanceAccountSummary(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth)
+    ? computeFinanceAccountSummary(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, fidelityRecentTransactions)
     : {
         name: "Finances",
         balanceLabel: formatMoney(totalCash, "USD"),
@@ -269,6 +296,7 @@ function renderFinancesTile(
         monthChartHtml: "",
         monthAvailable: false,
         emptyMessage: financeAccountOptions.length > 0 ? "Pick an account above to see its balance trend." : "Link an account to see a balance trend here.",
+        recentTransactionsHtml: "",
       };
 
   // Always render the same skeleton (toggle/charts/stat-row present but
@@ -278,7 +306,7 @@ function renderFinancesTile(
   const hasChart = !summary.emptyMessage;
   return `${wrapOpen}
     <div class="hw-head">
-      <div class="hw-head-left" id="hw-fin-name">${widgetHeadIcon(iconWallet)}<div class="hw-title">${escapeHtml(summary.name)}</div></div>
+      <div class="hw-head-left" id="hw-fin-name">${widgetHeadIcon(iconWallet)}<div class="hw-title">Finances</div></div>
       ${accountSelect}
     </div>
     <div class="hw-head" style="margin-top:2px; display:${hasChart ? "" : "none"};" id="hw-fin-toggle-row">
@@ -291,6 +319,7 @@ function renderFinancesTile(
     <div class="hw-fin-chart" data-range-view="week" id="hw-fin-chart-week" style="display:${hasChart ? "" : "none"};">${summary.weekChartHtml}</div>
     <div class="hw-fin-chart" data-range-view="month" id="hw-fin-chart-month" style="display:none;">${summary.monthChartHtml}</div>
     <div class="hw-fin-stat-row" id="hw-fin-stat-row" style="display:${hasChart ? "" : "none"};"><span>Change</span><span id="hw-fin-change" style="${summary.trendUp ? "color:var(--hw-up);" : "color:var(--hw-down);"} font-weight:700;">${escapeHtml(summary.changeLabel)}</span></div>
+    <div id="hw-fin-txns">${summary.recentTransactionsHtml}</div>
     <p class="empty" style="margin-top:auto; display:${hasChart ? "none" : ""};" id="hw-fin-empty">${escapeHtml(summary.emptyMessage ?? "")}</p>
   ${wrapClose}`;
 }
@@ -617,6 +646,7 @@ export interface DonnaPageData {
   fidelityAccount: PlaidAccount | null;
   fidelityBalanceWeek: BalancePoint[];
   fidelityBalanceMonth: BalancePoint[];
+  fidelityRecentTransactions: PlaidTransaction[];
   financeAccountOptions: { accountId: string; label: string }[];
   totalCash: number;
   accountCount: number;
@@ -641,6 +671,7 @@ function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
     fidelityAccount,
     fidelityBalanceWeek,
     fidelityBalanceMonth,
+    fidelityRecentTransactions,
     financeAccountOptions,
     totalCash,
     accountCount,
@@ -656,7 +687,7 @@ function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
 
   const renderers: Record<HomeWidgetId, () => string> = {
     reminders: () => renderRemindersTile(reminders, googleConfigured, reminderNotifications, timezone, reminderGroups, groupLinks),
-    finances: () => renderFinancesTile(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, totalCash, accountCount, financeAccountOptions),
+    finances: () => renderFinancesTile(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, fidelityRecentTransactions, totalCash, accountCount, financeAccountOptions),
     markets: () => renderMarketsTile(watchlistQuotes),
     upcoming: () => renderUpcomingTile(todayEvents, tomorrowEvents, timezone),
     classes: () => renderClassesTile(classFolders),
@@ -743,8 +774,6 @@ const CLIENT_SCRIPT = `
       if (!res.ok) throw new Error("bad status");
       const data = await res.json();
 
-      const nameTitle = tile.querySelector("#hw-fin-name .hw-title");
-      if (nameTitle) nameTitle.textContent = data.name;
       const balanceEl = tile.querySelector("#hw-fin-balance");
       if (balanceEl) balanceEl.textContent = data.balanceLabel;
       const trendEl = tile.querySelector("#hw-fin-trend");
@@ -779,6 +808,8 @@ const CLIENT_SCRIPT = `
         monthChart.innerHTML = data.monthChartHtml || "";
         monthChart.style.display = "none";
       }
+      const txnsEl = tile.querySelector("#hw-fin-txns");
+      if (txnsEl) txnsEl.innerHTML = data.recentTransactionsHtml || "";
 
       // Rebuilt fresh (rather than just toggled) so a switch back to
       // "Week" is the selected state every time an account loads, even
