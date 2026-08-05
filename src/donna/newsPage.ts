@@ -89,7 +89,13 @@ function renderNewsletterRow(n: StoredNewsletter, openByDefault: boolean): strin
   // on the wire), but some browsers don't reliably default a sandboxed
   // srcdoc document's own encoding to UTF-8 — an explicit meta tag removes
   // any ambiguity rather than relying on that inherited default.
-  const srcdocContent = `<meta charset="utf-8">${n.html}`;
+  // The CSP's font-src ('self' data:) blocks whatever webfonts a
+  // newsletter's own HTML tries to pull in (Axios and others ship
+  // @font-face rules pointing at their CDN) — rather than loosening that
+  // policy for untrusted third-party email HTML, force system fonts
+  // inside the sandboxed doc so text still renders cleanly instead of
+  // silently falling back to whatever the browser's own default is.
+  const srcdocContent = `<meta charset="utf-8"><style>*,*::before,*::after{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif!important;}</style>${n.html}`;
   return `
     <details class="newsletter" id="newsletter-${escapeHtml(n.id)}"${openByDefault ? " open" : ""}>
       <summary>
