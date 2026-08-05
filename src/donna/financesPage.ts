@@ -258,8 +258,12 @@ function renderAccountDetail(detail: AccountDetailData): string {
       </div>
       <div class="card">
         ${
-          balanceHistory.length === 0
-            ? `<p class="empty">No history yet — balances are snapshotted once a day, so the chart fills in starting today.</p>`
+          balanceHistory.length <= 1
+            ? // A single point renders as one bare, unlabeled dot with nothing
+              // around it to explain what it is — reads as broken rather than
+              // "there's only one snapshot so far," so it gets the same
+              // explanatory empty-state as zero points instead of the chart.
+              `<p class="empty">${balanceHistory.length === 1 ? `Only one snapshot so far (today, ${escapeHtml(formatMoney(balanceHistory[0].balance, account.isoCurrencyCode))}) — the trend will start showing once a few more days are recorded.` : "No history yet — balances are snapshotted once a day, so the chart fills in starting today."}</p>`
             : renderLineChart(balanceHistory.map((p) => ({ label: p.date, value: p.balance })))
         }
       </div>
