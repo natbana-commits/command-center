@@ -3,6 +3,7 @@ import type { IpoFiling } from "../ipos/store.js";
 import type { FollowedCompany } from "../ipos/followedCompanies.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
+import { iconTrendingUp } from "./icons.js";
 
 function formatDate(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -22,8 +23,11 @@ function renderFollowedRow(company: FollowedCompany): string {
 
 function renderFollowingSection(followedCompanies: FollowedCompany[]): string {
   return `
-    <div class="card" style="margin-bottom: var(--sp-3);">
-      <h1 class="section-title">Following</h1>
+    <div class="ipo-following-card">
+      <div class="ipo-following-head">
+        <div class="ipo-row-icon">${iconTrendingUp}</div>
+        <h1 class="section-title" style="margin:0;">Following</h1>
+      </div>
       ${
         followedCompanies.length === 0
           ? `<p class="empty">Not following any companies yet. Use the Follow button below a filing, or ask Donna in chat.</p>`
@@ -73,13 +77,16 @@ function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
     : `<p class="empty">Not summarized.</p>`;
 
   return `
-    <details class="newsletter">
+    <details class="ipo-row">
       <summary>
-        <div class="newsletter-subject">${escapeHtml(filing.companyName)}${filing.ticker ? ` (${escapeHtml(filing.ticker)})` : ""}</div>
-        <div class="newsletter-sender">Filed ${escapeHtml(formatDate(filing.filedDate))}</div>
-        ${renderIpoBadges(filing)}
+        <div class="ipo-row-icon">${iconTrendingUp}</div>
+        <div class="ipo-row-body">
+          <div class="ipo-row-subject">${escapeHtml(filing.companyName)}${filing.ticker ? ` (${escapeHtml(filing.ticker)})` : ""}</div>
+          <div class="ipo-row-sender">Filed ${escapeHtml(formatDate(filing.filedDate))}</div>
+          ${renderIpoBadges(filing)}
+        </div>
       </summary>
-      <div class="news-expanded">
+      <div class="news-expanded" style="padding-left:0;">
         <h1 class="section-title">Business</h1>
         <p><strong>${escapeHtml(filing.companyName)}:</strong> ${escapeHtml(filing.businessSummary ?? "Not summarized.")}</p>
         <h1 class="section-title">Financials</h1>
@@ -123,13 +130,11 @@ export function buildIposHtml(data: IposPageData): string {
       <p class="page-sub">${filings.length} tracked</p>
     </div>
     ${renderFollowingSection(followedCompanies)}
-    <div class="card">
-      ${
-        sortedFilings.length === 0
-          ? `<p class="empty">No IPO filings tracked yet. Check back after tomorrow's daily check.</p>`
-          : sortedFilings.map((f) => renderFilingRow(f, followedCiks)).join("\n")
-      }
-    </div>`;
+    ${
+      sortedFilings.length === 0
+        ? `<p class="empty">No IPO filings tracked yet. Check back after tomorrow's daily check.</p>`
+        : sortedFilings.map((f) => renderFilingRow(f, followedCiks)).join("\n")
+    }`;
 
   return renderLayout({
     title: "Donna IPOs",

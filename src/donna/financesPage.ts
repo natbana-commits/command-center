@@ -11,6 +11,7 @@ import { renderLayout } from "./layout.js";
 import { renderLineChart, renderBarChart } from "./charts.js";
 import { renderDayBadge } from "./dayBadge.js";
 import { renderPageEditLink } from "./editLink.js";
+import { iconTrendingUp, iconBarChart, iconPieChart, iconCreditCard, iconStore, iconRepeat, iconCalendar, iconBank } from "./icons.js";
 
 const VISIBLE_TRANSACTIONS = 4;
 
@@ -76,9 +77,12 @@ function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
     ? `<span class="reminder-due reminder-due-overdue">Needs re-authentication</span>`
     : "";
   return `
-    <div class="card fw-account-card">
+    <div class="card fw-account-card" style="--accent: var(--fin-accounts);">
       <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
-        <h1 class="section-title" style="margin:0;">${escapeHtml(item.institutionName)}</h1>
+        <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+          <div class="fw-icon">${iconBank}</div>
+          <h1 class="section-title" style="margin:0;">${escapeHtml(item.institutionName)}</h1>
+        </div>
         ${reauthBadge}
       </div>
       <div class="finance-account-grid">${accounts.map(renderAccountRow).join("\n")}</div>
@@ -422,6 +426,25 @@ export function buildFinancesHtml(data: FinancesPageData): string {
   const visibleWidgets = financeWidgets.filter((w) => w.visible && sectionsById[w.id]);
   const isCompact = (id: FinanceWidgetId) => (COMPACT_WIDGET_IDS as readonly string[]).includes(id);
 
+  const TILE_TINT: Partial<Record<FinanceWidgetId, string>> = {
+    "net-worth": "net-worth",
+    "spending-over-time": "spend-time",
+    "spending-by-category": "spend-cat",
+    "credit-card-spending": "credit",
+    "top-merchants": "merchants",
+    "recurring-charges": "recurring",
+    "upcoming-payments": "upcoming",
+  };
+  const TILE_ICON: Partial<Record<FinanceWidgetId, string>> = {
+    "net-worth": iconTrendingUp,
+    "spending-over-time": iconBarChart,
+    "spending-by-category": iconPieChart,
+    "credit-card-spending": iconCreditCard,
+    "top-merchants": iconStore,
+    "recurring-charges": iconRepeat,
+    "upcoming-payments": iconCalendar,
+  };
+
   // Every compact widget renders together as one grid, always first,
   // regardless of where a full-width widget (Accounts, Transactions)
   // falls in the configured order — previously grouping only batched
@@ -444,9 +467,12 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       ${compactSections
         .map(
           (section) =>
-            `<div class="fw-tile">
-              <div class="card-title" style="margin-bottom: var(--sp-2); display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                <span>${escapeHtml(section.title)}</span>
+            `<div class="fw-tile" data-tint="${TILE_TINT[section.id] ?? ""}">
+              <div class="fw-tile-head" style="justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                  <div class="fw-icon">${TILE_ICON[section.id] ?? ""}</div>
+                  <span class="card-title" style="margin:0;">${escapeHtml(section.title)}</span>
+                </div>
                 ${section.editAnchor ? renderPageEditLink(section.editAnchor, section.title) : ""}
               </div>
               ${section.content}

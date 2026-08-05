@@ -58,6 +58,18 @@ export const BASE_STYLES = `
     --hw-news: #2f9ec9;      --hw-news-tint: #e6f5fa;
     --hw-up: #2f8f5b; --hw-down: #c1485c;
     --hw-ipo-1: #2f6fb0; --hw-ipo-2: #2f8f5b; --hw-ipo-3: #9a9330;
+    /* Finances page's own per-widget category colors — a fresh hue per
+       widget type rather than reusing --hw-finance for all of them, since
+       on this page they're 7 distinct metrics sitting side by side, not
+       one shared "Finances" category the way Home treats it. */
+    --fin-net-worth: #2f8f5b;  --fin-net-worth-tint: #e7f4ec;
+    --fin-spend-time: #c17a2f; --fin-spend-time-tint: #faf1e3;
+    --fin-spend-cat: #8a5bc9;  --fin-spend-cat-tint: #f3ecfa;
+    --fin-credit: #c9527d;     --fin-credit-tint: #fbebf1;
+    --fin-merchants: #1f8f8a;  --fin-merchants-tint: #e5f4f3;
+    --fin-recurring: #9a9330;  --fin-recurring-tint: #f6f5e3;
+    --fin-upcoming: #2f6fb0;   --fin-upcoming-tint: #e8f0fa;
+    --fin-accounts: #5b62c9;   --fin-accounts-tint: #ecedfa;
     /* Fixed dark surface for header bars/badges that pair with hardcoded
        white text (modal/chat headers, the logo mark, the ask popup) —
        deliberately NOT overridden in the dark theme below, since these
@@ -109,6 +121,14 @@ export const BASE_STYLES = `
       --hw-news: #7dd0ec;      --hw-news-tint: #182b31;
       --hw-up: #5fc98d; --hw-down: #ef8398;
       --hw-ipo-1: #7db3f2; --hw-ipo-2: #5fc98d; --hw-ipo-3: #cfc85f;
+      --fin-net-worth: #5fc98d;  --fin-net-worth-tint: #1c2b22;
+      --fin-spend-time: #e8a86a; --fin-spend-time-tint: #2f2417;
+      --fin-spend-cat: #bfa0ec;  --fin-spend-cat-tint: #251d33;
+      --fin-credit: #ef8fb5;     --fin-credit-tint: #2e1c26;
+      --fin-merchants: #5fc9c2;  --fin-merchants-tint: #1a2b2a;
+      --fin-recurring: #cfc85f;  --fin-recurring-tint: #2b2a17;
+      --fin-upcoming: #7db3f2;   --fin-upcoming-tint: #1b2531;
+      --fin-accounts: #9aa0ec;   --fin-accounts-tint: #22243a;
     }
   }
   :root[data-theme="dark"] {
@@ -138,6 +158,14 @@ export const BASE_STYLES = `
     --hw-news: #7dd0ec;      --hw-news-tint: #182b31;
     --hw-up: #5fc98d; --hw-down: #ef8398;
     --hw-ipo-1: #7db3f2; --hw-ipo-2: #5fc98d; --hw-ipo-3: #cfc85f;
+    --fin-net-worth: #5fc98d;  --fin-net-worth-tint: #1c2b22;
+    --fin-spend-time: #e8a86a; --fin-spend-time-tint: #2f2417;
+    --fin-spend-cat: #bfa0ec;  --fin-spend-cat-tint: #251d33;
+    --fin-credit: #ef8fb5;     --fin-credit-tint: #2e1c26;
+    --fin-merchants: #5fc9c2;  --fin-merchants-tint: #1a2b2a;
+    --fin-recurring: #cfc85f;  --fin-recurring-tint: #2b2a17;
+    --fin-upcoming: #7db3f2;   --fin-upcoming-tint: #1b2531;
+    --fin-accounts: #9aa0ec;   --fin-accounts-tint: #22243a;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -383,10 +411,32 @@ export const BASE_STYLES = `
   }
   .fw-tile {
     background: var(--card);
+    background-image: linear-gradient(180deg, var(--tint, transparent) 0%, var(--card) 45%);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: var(--sp-2);
     min-width: 0;
+  }
+  .fw-tile[data-tint="net-worth"]  { --tint: var(--fin-net-worth-tint);  --accent: var(--fin-net-worth); }
+  .fw-tile[data-tint="spend-time"] { --tint: var(--fin-spend-time-tint); --accent: var(--fin-spend-time); }
+  .fw-tile[data-tint="spend-cat"]  { --tint: var(--fin-spend-cat-tint);  --accent: var(--fin-spend-cat); }
+  .fw-tile[data-tint="credit"]     { --tint: var(--fin-credit-tint);     --accent: var(--fin-credit); }
+  .fw-tile[data-tint="merchants"]  { --tint: var(--fin-merchants-tint);  --accent: var(--fin-merchants); }
+  .fw-tile[data-tint="recurring"]  { --tint: var(--fin-recurring-tint);  --accent: var(--fin-recurring); }
+  .fw-tile[data-tint="upcoming"]   { --tint: var(--fin-upcoming-tint);   --accent: var(--fin-upcoming); }
+
+  .fw-icon {
+    width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    background: var(--accent, var(--text-muted)); color: #fff; flex: 0 0 auto;
+  }
+  .fw-icon svg { width: 13px; height: 13px; display: block; }
+  .fw-tile-head { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
+
+  /* Institution cards in Accounts — same gradient-tile language, one
+     shared "accounts" color rather than a color per bank (the per-account
+     avatar colors inside already differentiate individual accounts). */
+  .fw-account-card {
+    background-image: linear-gradient(180deg, var(--fin-accounts-tint) 0%, var(--card) 40%);
   }
   .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
   .card-title {
@@ -553,6 +603,39 @@ export const BASE_STYLES = `
   .newsletter-sender { font-size: 12px; color: var(--text-muted); }
   .ipo-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .newsletter-frame { width: 100%; height: 500px; border: none; }
+
+  /* --- IPO filing rows — own class rather than reusing .newsletter,
+     since that's shared with the News tab's actual email rows and
+     shouldn't pick up IPOs-specific styling (the gradient wash, the icon
+     badge) by accident. */
+  .ipo-following-card {
+    background: var(--card);
+    background-image: linear-gradient(135deg, var(--hw-ipos-tint) 0%, var(--card) 55%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+  .ipo-following-head { display: flex; align-items: center; gap: 8px; margin-bottom: var(--sp-2); }
+  .ipo-row {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: var(--sp-2);
+    margin-bottom: var(--sp-2);
+    background: var(--card);
+    background-image: linear-gradient(135deg, var(--hw-ipos-tint) 0%, var(--card) 55%);
+  }
+  .ipo-row summary { cursor: pointer; list-style: none; display: flex; align-items: flex-start; gap: 10px; }
+  .ipo-row summary::-webkit-details-marker { display: none; }
+  .ipo-row[open] summary { margin-bottom: var(--sp-2); }
+  .ipo-row-icon {
+    width: 26px; height: 26px; border-radius: 8px; margin-top: 1px;
+    background: var(--hw-ipos); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  }
+  .ipo-row-icon svg { width: 14px; height: 14px; display: block; }
+  .ipo-row-body { flex: 1; min-width: 0; }
+  .ipo-row-subject { font-weight: 600; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
+  .ipo-row-sender { font-size: 12px; color: var(--text-muted); }
 
   /* --- agenda rows: generic two-line row, reused well beyond just the
      calendar (Home widgets, Files, School) --- */

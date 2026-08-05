@@ -95,3 +95,23 @@ export const iconScan = svg(
 export const iconMic = svg(
   `<rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0" /><path d="M12 17v4" />`
 );
+
+export const iconPieChart = svg(
+  `<path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" />`
+);
+
+export const iconCreditCard = svg(
+  `<rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" />`
+);
+
+export const iconStore = svg(
+  `<path d="M4 8l1-4h14l1 4" /><path d="M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8Z" /><path d="M9 20v-5h6v5" />`
+);
+
+export const iconRepeat = svg(
+  `<path d="M17 2l4 4-4 4" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />`
+);
+
+export const iconBank = svg(
+  `<path d="M2 10l10-6 10 6" /><path d="M4 10v11M9 10v11M15 10v11M20 10v11" /><path d="M2 21h20" />`
+);
