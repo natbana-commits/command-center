@@ -385,7 +385,7 @@ function buildJumpSections(
           <div class="reorder-list" data-reorder-list data-reorder-action="reorder-widgets">
             ${settings.dashboardConfig.homeWidgets.map((w) => renderWidgetRow(w)).join("\n")}
           </div>
-          <div class="hint">Uncheck a card to hide it from Home, or drag the handle to reorder.</div>
+          <div class="hint">Uncheck a card to hide it from Home. Reminders is always the large pinned card; order below only affects the other cards' position on narrower screens.</div>
         </div>
 
         <div class="field">
@@ -411,7 +411,7 @@ function buildJumpSections(
               .map((tab) => renderNavRow(tab, settings.dashboardConfig.navVisibility[tab as keyof NavVisibility]))
               .join("\n")}
           </div>
-          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or drag the handle to reorder — order also decides which pages show directly on the mobile bottom bar vs. under "More".</div>
+          <div class="hint">Home and Settings always stay in nav (Home first, Settings last). Uncheck a page to hide it, or drag the handle to reorder — same order on the sidebar and the mobile tab strip.</div>
         </div>
 
         <button class="btn" type="submit" name="action" value="save-dashboard-settings">Save</button>
@@ -499,7 +499,7 @@ function buildJumpSections(
         <input type="text" name="url" placeholder="RSS feed URL" required style="flex: 2 1 220px;" />
         <button class="btn" type="submit">Add</button>
       </form>
-      <div class="hint">Raw RSS sources for Home's Community tab — no curation, just a chronological list.</div>`
+      <div class="hint">Raw RSS sources for the News tab's Community tab — no curation, just a chronological list.</div>`
     ),
     jumpSection(
       "settings-classes",

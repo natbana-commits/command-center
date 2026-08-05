@@ -192,6 +192,13 @@ export async function loadSettings(): Promise<Settings> {
   const storedFinanceWidgets = data.dashboard_config?.financeWidgets ?? DEFAULT_DASHBOARD_CONFIG.financeWidgets;
   const storedNavOrder: string[] = data.dashboard_config?.navOrder ?? DEFAULT_DASHBOARD_CONFIG.navOrder;
 
+  // defaultNewsTab replaced the old defaultHomeTab field when News split
+  // out of Home — a row saved under the old name (anyone who touched this
+  // setting before that change) has defaultNewsTab missing entirely, so
+  // read the legacy key as a fallback rather than silently reverting
+  // their preference back to the default.
+  const legacyDefaultHomeTab = (data.dashboard_config as { defaultHomeTab?: "news" | "newsletters" } | undefined)?.defaultHomeTab;
+
   const dashboardConfig: DashboardConfig = {
     ...DEFAULT_DASHBOARD_CONFIG,
     ...data.dashboard_config,
@@ -199,6 +206,7 @@ export async function loadSettings(): Promise<Settings> {
     financeWidgets: mergeMissingByDefaultOrder(storedFinanceWidgets, DEFAULT_DASHBOARD_CONFIG.financeWidgets, (w) => w.id),
     navVisibility: { ...DEFAULT_DASHBOARD_CONFIG.navVisibility, ...data.dashboard_config?.navVisibility },
     navOrder: mergeMissingByDefaultOrder(storedNavOrder, DEFAULT_DASHBOARD_CONFIG.navOrder, (t) => t),
+    defaultNewsTab: data.dashboard_config?.defaultNewsTab ?? legacyDefaultHomeTab ?? DEFAULT_DASHBOARD_CONFIG.defaultNewsTab,
   };
   const briefConfig: BriefConfig = { ...DEFAULT_BRIEF_CONFIG, ...data.brief_config };
 

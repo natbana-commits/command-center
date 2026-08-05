@@ -32,9 +32,9 @@ type NavEntry = { tab: Tab; label: string; href: string; icon: string };
 // way, but now lives as a small icon in the sidebar footer (see
 // layout.ts's .sidebar-user) instead of a full nav row — still not part
 // of NavVisibility/navOrder, just no longer rendered by visibleTabs()
-// below. It's kept here so renderBottomNav can still surface it in the
-// mobile "More" sheet. Every other tab is "middle": reorderable, and
-// individually hideable.
+// below. It's kept here so renderMobileNav can still surface it at the
+// end of the mobile tab strip. Every other tab is "middle": reorderable,
+// and individually hideable.
 const HOME_TAB: NavEntry = { tab: "home", label: "Home", href: "/donna", icon: iconHome };
 const SETTINGS_TAB: NavEntry = { tab: "settings", label: "Settings", href: "/donna/settings", icon: iconSettings };
 
@@ -56,7 +56,7 @@ const MIDDLE_TAB_META: Record<NavTabId, { label: string; href: string; icon: str
 const MIDDLE_TABS: NavEntry[] = NAV_TAB_IDS.map((id) => ({ tab: id, ...MIDDLE_TAB_META[id] }));
 
 // Reused by settingsPage.ts so the nav-editing UI's labels can't drift
-// from the sidebar/bottom-nav's own labels.
+// from the sidebar/mobile tab strip's own labels.
 export const NAV_TAB_LABELS: Record<NavTabId, string> = Object.fromEntries(
   NAV_TAB_IDS.map((id) => [id, MIDDLE_TAB_META[id].label])
 ) as Record<NavTabId, string>;
