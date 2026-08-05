@@ -8,6 +8,12 @@ import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { renderPageEditLink } from "./editLink.js";
 import { buildLibraryRows, renderLibraryTable, FILE_TABLE_SCRIPT } from "./filesPage.js";
+import { iconChat, iconEdit, iconClock } from "./icons.js";
+import { tileColorForSeed } from "./tileColor.js";
+
+function tintStyle(tint: string): string {
+  return `background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 65%);`;
+}
 
 export interface ProjectPrepFileView {
   title: string;
@@ -26,22 +32,23 @@ export interface ProjectPrepView {
 }
 
 function renderProjectPrepResult(result: NonNullable<ProjectPrepView["result"]>): string {
+  const prepTint = tintStyle("var(--hw-markets-tint)");
   return `
-    <div class="card" style="margin-top: var(--sp-2);">
+    <div class="card" style="margin-top: var(--sp-2); ${prepTint}">
       <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
         <div class="card-title" style="margin:0;">Project Instructions</div>
         <button type="button" class="btn-secondary btn-small" onclick="copyPrepText(this, 'prep-instructions')">Copy</button>
       </div>
       <pre id="prep-instructions" style="white-space:pre-wrap; font-family:var(--sans); font-size:14px; margin: var(--sp-2) 0 0;">${escapeHtml(result.instructions)}</pre>
     </div>
-    <div class="card" style="margin-top: var(--sp-2);">
+    <div class="card" style="margin-top: var(--sp-2); ${prepTint}">
       <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
         <div class="card-title" style="margin:0;">Starter Prompt</div>
         <button type="button" class="btn-secondary btn-small" onclick="copyPrepText(this, 'prep-starter')">Copy</button>
       </div>
       <pre id="prep-starter" style="white-space:pre-wrap; font-family:var(--sans); font-size:14px; margin: var(--sp-2) 0 0;">${escapeHtml(result.starterPrompt)}</pre>
     </div>
-    <div class="card" style="margin-top: var(--sp-2);">
+    <div class="card" style="margin-top: var(--sp-2); ${prepTint}">
       <div class="card-title">Files to attach</div>
       ${
         result.files.length === 0
@@ -62,9 +69,12 @@ function renderProjectPrepResult(result: NonNullable<ProjectPrepView["result"]>)
 function renderProjectPrep(classId: number, view: ProjectPrepView | undefined): string {
   return `
     <div class="section" style="margin-top: var(--sp-3);" id="school-project-prep">
-      <h1 class="section-title">Prep a Project</h1>
-      <p class="hint" style="margin-top:-4px; margin-bottom: var(--sp-2);">Describe an assignment or task, and Donna finds the relevant files here and writes tailored instructions plus a starter prompt for a new Claude.ai Project.</p>
-      <form method="POST" action="/donna/school" data-swap-target="school-project-prep" class="card">
+      <div class="fw-tile-head">
+        <div class="fw-icon" style="--accent: var(--hw-markets);">${iconEdit}</div>
+        <h1 class="section-title" style="margin:0;">Prep a Project</h1>
+      </div>
+      <p class="hint" style="margin-top:0; margin-bottom: var(--sp-2);">Describe an assignment or task, and Donna finds the relevant files here and writes tailored instructions plus a starter prompt for a new Claude.ai Project.</p>
+      <form method="POST" action="/donna/school" data-swap-target="school-project-prep" class="card" style="${tintStyle("var(--hw-markets-tint)")}">
         <input type="hidden" name="action" value="prep-project" />
         <input type="hidden" name="classId" value="${classId}" />
         <textarea name="description" placeholder="e.g. Problem set 4, covers monetary policy and the IS-LM model" required style="min-height:70px; width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:var(--sans); background:var(--card); color:var(--ink);">${view ? escapeHtml(view.description) : ""}</textarea>
@@ -86,8 +96,9 @@ function renderClassTabs(classFolders: ClassFolder[], activeClassId: number): st
 
 function renderUploadRow(u: Upload): string {
   const canGenerate = u.status === "done" && u.transcript;
+  const { tint } = tileColorForSeed(String(u.id));
   return `
-    <div class="agenda-event-row">
+    <div class="agenda-event-row" style="border-radius:8px; padding:10px 8px; margin-bottom:4px; ${tintStyle(tint)}">
       <div class="agenda-event-title">${escapeHtml(u.originalFilename)}</div>
       ${
         canGenerate
@@ -103,8 +114,9 @@ function renderUploadRow(u: Upload): string {
 }
 
 function renderFlashcard(card: Flashcard, classId: number, isDue: boolean): string {
+  const { tint } = tileColorForSeed(String(card.id));
   return `
-    <details class="card" style="margin-bottom: var(--sp-2);">
+    <details class="card" style="margin-bottom: var(--sp-2); ${tintStyle(tint)}">
       <summary>${escapeHtml(card.question)}</summary>
       <p style="margin: var(--sp-2) 0;">${escapeHtml(card.answer)}</p>
       ${
@@ -133,8 +145,11 @@ function renderFlashcard(card: Flashcard, classId: number, isDue: boolean): stri
 function renderStudyTimer(classId: number, stats: StudyStats): string {
   const streakLabel = stats.streakDays > 0 ? `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"} streak` : "No streak yet";
   return `
-    <div class="card" style="margin-top: var(--sp-3);" id="study-timer" data-class-id="${classId}">
-      <div class="card-header"><h2 class="section-title" style="margin:0;">Study Timer</h2></div>
+    <div class="card" style="margin-top: var(--sp-3); ${tintStyle("var(--hw-activity-tint)")}" id="study-timer" data-class-id="${classId}">
+      <div class="card-header">
+        <div class="fw-icon" style="--accent: var(--hw-activity);">${iconClock}</div>
+        <h2 class="section-title" style="margin:0;">Study Timer</h2>
+      </div>
       <p style="font-family: var(--mono); font-size: 32px; margin: 0 0 12px;" id="timer-display">00:00</p>
       <div style="display:flex; gap: 8px;">
         <button type="button" class="btn" id="timer-start-btn">Start</button>
@@ -189,9 +204,12 @@ export function buildSchoolHtml(data: SchoolPageData): string {
 
     <div class="home-tabs">${renderClassTabs(classFolders, cls.id)}</div>
 
-    <div class="card" style="margin-top: var(--sp-3); display:flex; align-items:center; justify-content:space-between;">
-      <p style="margin:0;">Ask questions, get practice problems, or work through material for ${escapeHtml(cls.className)}. The chat auto-loads this class's Drive files as context.</p>
-      <a class="btn" href="/donna/chat?mode=school&classId=${cls.id}">Chat about ${escapeHtml(cls.className)}</a>
+    <div class="card" style="margin-top: var(--sp-3); display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2); ${tintStyle("var(--hw-classes-tint)")}">
+      <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+        <div class="fw-icon" style="--accent: var(--hw-classes);">${iconChat}</div>
+        <p style="margin:0;">Ask questions, get practice problems, or work through material for ${escapeHtml(cls.className)}. The chat auto-loads this class's Drive files as context.</p>
+      </div>
+      <a class="btn" href="/donna/chat?mode=school&classId=${cls.id}" style="flex:0 0 auto;">Chat about ${escapeHtml(cls.className)}</a>
     </div>
 
     ${renderProjectPrep(cls.id, projectPrep)}

@@ -5,6 +5,7 @@ import type { ReminderNotification } from "../reminders/notifications.js";
 import type { ReminderGroup } from "../reminders/groups.js";
 import type { Habit } from "../habits/store.js";
 import type { Birthday } from "../reminders/birthdays.js";
+import { tileColorForSeed } from "./tileColor.js";
 import { computeStreak } from "../habits/store.js";
 import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts, withTimeSuffix, localDateKey } from "../util/time.js";
@@ -122,14 +123,23 @@ function renderReminderRow(
   const earlyHint =
     due && early ? `<span class="hint" style="margin:0;">+ texts ${formatLeadTime(due, early.notifyAt)} early</span>` : "";
 
+  // Groups already carry a real user-picked color (see the group pill
+  // below) — reused here for the row's own tint so an item's color story
+  // is consistent top to bottom, not two different color systems on one
+  // row. Ungrouped reminders fall back to a hash-based color (same idea
+  // as Home's palette) purely so a long ungrouped list doesn't read as
+  // one flat color either.
+  const tint = group ? `${group.color}1a` : tileColorForSeed(r.id).tint;
+  const badgeColor = group?.color ?? tileColorForSeed(r.id).accent;
+
   return `
-    <div class="reminder-row">
+    <div class="reminder-row" style="background-image: linear-gradient(135deg, ${escapeHtml(tint)} 0%, var(--card) 65%);">
       <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
         <input type="hidden" name="action" value="complete" />
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
         <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
       </form>
-      ${due ? renderDayBadge(localDateKey(new Date(due), timezone), group?.color ?? "var(--olive)") : ""}
+      ${due ? renderDayBadge(localDateKey(new Date(due), timezone), badgeColor) : ""}
       <div class="day-badge-body">
         ${groupPill}
         <div class="day-badge-title">${escapeHtml(withTimeSuffix(r.title, null))}</div>
@@ -149,8 +159,9 @@ function renderReminderRow(
 
 function renderHabitRow(habit: Habit, completedToday: boolean, streak: number): string {
   const streakLabel = streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} streak` : "No streak yet";
+  const tint = tileColorForSeed(String(habit.id)).tint;
   return `
-    <div class="reminder-row">
+    <div class="reminder-row" style="background-image: linear-gradient(135deg, ${escapeHtml(tint)} 0%, var(--card) 65%);">
       <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
         <input type="hidden" name="action" value="toggle-habit" />
         <input type="hidden" name="id" value="${habit.id}" />
@@ -213,8 +224,9 @@ function daysUntilNextOccurrence(month: number, day: number, timezone: string): 
 
 function renderBirthdayRow(b: Birthday): string {
   const dateLabel = new Date(2000, b.month - 1, b.day).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  const tint = tileColorForSeed(b.name).tint;
   return `
-    <div class="reminder-row">
+    <div class="reminder-row" style="background-image: linear-gradient(135deg, ${escapeHtml(tint)} 0%, var(--card) 65%);">
       <div class="reminder-body">
         <span class="reminder-title">${escapeHtml(b.name)}</span>
         <div class="interaction-meta">

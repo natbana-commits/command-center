@@ -10,7 +10,19 @@ import type { RecurringChargeOverride } from "../finance/recurringChargeOverride
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { NAV_TAB_LABELS } from "./nav.js";
-import { iconGripVertical } from "./icons.js";
+import {
+  iconGripVertical,
+  iconSettings,
+  iconSend,
+  iconTrendingUp,
+  iconNewspaper,
+  iconGraduationCap,
+  iconBell,
+  iconWallet,
+  iconRepeat,
+  iconUser,
+  iconInfo,
+} from "./icons.js";
 
 // Folded in from the old dedicated Info tab (retired to free a sidebar
 // slot — Settings already gets a small icon of its own in the sidebar
@@ -394,13 +406,47 @@ function renderFinanceWidgetRow(widget: { id: FinanceWidgetId; visible: boolean 
     </div>`;
 }
 
+// One --hw-* token (Home's own palette, see tileColor.ts) per section, all
+// 11 assigned exactly once so no two sections in the jump-nav read as the
+// same color — semantic where an obvious tie to a Home widget exists
+// (Watchlist/markets, Community Feeds/news, Classes, Reminder Groups,
+// Manual Bills/finance), arbitrary but still unique otherwise.
+const SECTION_STYLE: Record<string, { icon: string; token: string }> = {
+  "settings-brief": { icon: iconSettings, token: "activity" },
+  "settings-dashboard": { icon: iconGripVertical, token: "files" },
+  "settings-morning-text": { icon: iconSend, token: "ipos" },
+  "settings-watchlist": { icon: iconTrendingUp, token: "markets" },
+  "settings-community-feeds": { icon: iconNewspaper, token: "news" },
+  "settings-classes": { icon: iconGraduationCap, token: "classes" },
+  "settings-reminder-groups": { icon: iconBell, token: "reminders" },
+  "settings-manual-bills": { icon: iconWallet, token: "finance" },
+  "settings-recurring-charges": { icon: iconRepeat, token: "upcoming" },
+  "settings-sessions": { icon: iconUser, token: "contacts" },
+  "how-this-works": { icon: iconInfo, token: "econ" },
+};
+
+function sectionTintStyle(id: string): string {
+  const style = SECTION_STYLE[id];
+  return style ? `background-image: linear-gradient(135deg, var(--hw-${style.token}-tint) 0%, var(--card) 45%);` : "";
+}
+
+function sectionHeadHtml(id: string, title: string): string {
+  const style = SECTION_STYLE[id];
+  if (!style) return `<h1 class="section-title">${escapeHtml(title)}</h1>`;
+  return `
+    <div class="fw-tile-head">
+      <div class="fw-icon" style="--accent: var(--hw-${style.token});">${style.icon}</div>
+      <h1 class="section-title" style="margin:0;">${escapeHtml(title)}</h1>
+    </div>`;
+}
+
 function jumpSection(id: string, title: string, innerHtml: string): { id: string; label: string; html: string } {
   return {
     id,
     label: title,
     html: `
-    <section class="section card settings-jump-target" id="${escapeHtml(id)}" style="margin-top: 16px;">
-      <h1 class="section-title">${escapeHtml(title)}</h1>
+    <section class="section card settings-jump-target" id="${escapeHtml(id)}" style="margin-top: 16px; ${sectionTintStyle(id)}">
+      ${sectionHeadHtml(id, title)}
       ${innerHtml}
     </section>`,
   };
@@ -645,9 +691,14 @@ function buildJumpSections(
       id: "how-this-works",
       label: "How this works",
       html: `
-    <section class="section card" style="margin-top: 16px;">
+    <section class="section card" style="margin-top: 16px; ${sectionTintStyle("how-this-works")}">
       <details id="how-this-works" class="settings-jump-target">
-        <summary class="section-title" style="cursor:pointer;">How this works</summary>
+        <summary class="section-title" style="cursor:pointer;">
+          <span class="fw-tile-head" style="display:inline-flex; margin-bottom:0;">
+            <span class="fw-icon" style="--accent: var(--hw-econ);">${SECTION_STYLE["how-this-works"].icon}</span>
+            How this works
+          </span>
+        </summary>
         <div style="margin-top: var(--sp-2);">
           ${HOW_THIS_WORKS.map(renderHowThisWorksSection).join("\n")}
         </div>

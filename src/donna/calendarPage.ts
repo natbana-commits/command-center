@@ -6,6 +6,7 @@ import { escapeHtml } from "../util/html.js";
 import { localDateKey, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { effectiveDue, hasTime } from "./remindersPage.js";
+import { iconBell } from "./icons.js";
 
 export type CalendarView = "day" | "week" | "month";
 
@@ -124,11 +125,14 @@ function renderTodayReminders(reminders: Reminder[], notifications: Map<string, 
 
   return `
     <div class="section" style="margin-top: var(--sp-3);">
-      <h1 class="section-title">Today's Reminders</h1>
+      <div class="fw-tile-head">
+        <div class="fw-icon" style="--accent: var(--hw-reminders);">${iconBell}</div>
+        <h1 class="section-title" style="margin:0;">Today's Reminders</h1>
+      </div>
       ${
         todays.length === 0
           ? `<p class="empty">Nothing due today.</p>`
-          : `<div class="card">
+          : `<div class="card" style="background-image: linear-gradient(135deg, var(--hw-reminders-tint) 0%, var(--card) 45%);">
               ${todays
                 .map(
                   ({ r, due }) => `

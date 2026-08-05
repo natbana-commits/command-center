@@ -3,6 +3,7 @@ import type { Contact, ContactInteraction } from "../contacts/store.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
+import { tileColorForSeed } from "./tileColor.js";
 
 export const INTERACTION_TYPES = ["Call", "Email", "Coffee Chat", "Meeting", "Event"];
 export const RELATIONSHIP_TAGS = ["Recruiter", "Alum", "Mentor", "Peer", "Friend"];
@@ -36,9 +37,10 @@ function renderTagSelect(name: string, options: string[], current: string | null
 function renderContactRow(c: Contact): string {
   const lastContact = c.lastContactedAt ? formatRelativeTime(`${c.lastContactedAt}T12:00:00`) : "Never contacted";
   const meta = [c.firm, lastContact].filter(Boolean).join(" · ");
+  const { tint } = tileColorForSeed(c.name);
 
   return `
-    <div class="reminder-row">
+    <div class="reminder-row" style="background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 65%);">
       <div class="reminder-body">
         <div class="interaction-meta">
           <span class="reminder-title">${escapeHtml(c.name)}</span>

@@ -7,6 +7,7 @@ import { formatRelativeTime } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { renderSourceBadge } from "./sourceBadge.js";
 import { renderPageEditLink } from "./editLink.js";
+import { tileColorForSeed } from "./tileColor.js";
 
 // Older cached daily_context rows were stored before publishedAt existed —
 // fall back to the brief's own day so the meta row never renders blank.
@@ -114,8 +115,9 @@ function renderNewslettersSection(newsletters: StoredNewsletter[], highlightId: 
 }
 
 function renderCommunityRow(item: CommunityFeedItem): string {
+  const { tint } = tileColorForSeed(item.source);
   return `
-    <div class="news-row">
+    <div class="news-row" style="border-bottom:none; border-radius:8px; padding:10px 12px; margin-bottom:4px; background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 65%);">
       <div class="news-row-main">
         <div class="news-row-meta">
           <span>${escapeHtml(item.source)}</span><span>·</span><span>${escapeHtml(formatRelativeTime(item.publishedAt))}</span>

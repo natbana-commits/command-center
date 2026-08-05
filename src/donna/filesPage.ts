@@ -6,6 +6,8 @@ import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
+import { iconMic, iconScan, iconUpload } from "./icons.js";
+import { tileColorForSeed } from "./tileColor.js";
 
 // Exported for schoolPage.ts, which shows the same combined Drive-files +
 // app-uploads listing scoped to just the active class instead of every
@@ -198,10 +200,11 @@ function renderDeadlinesSection(
   if (groups.length === 0) return "";
 
   const groupsHtml = groups
-    .map(
-      (g) => `
-      <div class="reminder-group">
-        <div class="reminder-group-label">${escapeHtml(g.className)}</div>
+    .map((g) => {
+      const { tint, accent } = tileColorForSeed(g.className);
+      return `
+      <div class="reminder-group" style="border-radius:8px; padding:8px; margin-bottom:4px; background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 65%);">
+        <div class="reminder-group-label" style="color:${accent};">${escapeHtml(g.className)}</div>
         ${g.items
           .map(
             (r) => `
@@ -211,8 +214,8 @@ function renderDeadlinesSection(
           </div>`
           )
           .join("\n")}
-      </div>`
-    )
+      </div>`;
+    })
     .join("\n");
 
   return `
@@ -276,35 +279,46 @@ export function buildFilesHtml(data: FilesPageData): string {
       </div>
 
       <div class="action-panel">
-        <h1 class="section-title">Upload a lecture recording</h1>
-        <div class="hint">Select a class to associate the recording with, then choose your file.</div>
-        <div class="upload-form">
-          <select id="lecture-class">${renderClassOptions(classFolders)}</select>
-          <input type="file" id="lecture-file" accept="audio/*" />
-          <button class="btn btn-block" onclick="handleUpload('lecture', 'lecture-file', 'lecture-class', 'lecture-status', this)">Upload &amp; Transcribe</button>
-          <div class="hint" id="lecture-status"></div>
+        <div class="card" style="margin-bottom: var(--sp-3); background-image: linear-gradient(135deg, var(--hw-ipos-tint) 0%, var(--card) 65%);">
+          <div class="fw-tile-head">
+            <div class="fw-icon" style="--accent: var(--hw-ipos);">${iconMic}</div>
+            <h1 class="section-title" style="margin:0;">Upload a lecture recording</h1>
+          </div>
+          <div class="hint">Select a class to associate the recording with, then choose your file.</div>
+          <div class="upload-form">
+            <select id="lecture-class">${renderClassOptions(classFolders)}</select>
+            <input type="file" id="lecture-file" accept="audio/*" />
+            <button class="btn btn-block" onclick="handleUpload('lecture', 'lecture-file', 'lecture-class', 'lecture-status', this)">Upload &amp; Transcribe</button>
+            <div class="hint" id="lecture-status"></div>
+          </div>
         </div>
 
-        <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;" />
-
-        <h1 class="section-title">Scan a photo or document</h1>
-        <div class="hint">Select a class to associate the scan with, then choose your file.</div>
-        <div class="upload-form">
-          <select id="photo-class">${renderClassOptions(classFolders)}</select>
-          <input type="file" id="photo-file" accept="image/*" />
-          <button class="btn btn-block" onclick="handleUpload('photo', 'photo-file', 'photo-class', 'photo-status', this)">Upload &amp; Extract Text</button>
-          <div class="hint" id="photo-status"></div>
+        <div class="card" style="margin-bottom: var(--sp-3); background-image: linear-gradient(135deg, var(--hw-finance-tint) 0%, var(--card) 65%);">
+          <div class="fw-tile-head">
+            <div class="fw-icon" style="--accent: var(--hw-finance);">${iconScan}</div>
+            <h1 class="section-title" style="margin:0;">Scan a photo or document</h1>
+          </div>
+          <div class="hint">Select a class to associate the scan with, then choose your file.</div>
+          <div class="upload-form">
+            <select id="photo-class">${renderClassOptions(classFolders)}</select>
+            <input type="file" id="photo-file" accept="image/*" />
+            <button class="btn btn-block" onclick="handleUpload('photo', 'photo-file', 'photo-class', 'photo-status', this)">Upload &amp; Extract Text</button>
+            <div class="hint" id="photo-status"></div>
+          </div>
         </div>
 
-        <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;" />
-
-        <h1 class="section-title">Upload a file</h1>
-        <div class="hint">Any file type: PDF, slides, docs, whatever. Stored as-is, no transcription or text extraction. Mirrored to the class's Drive folder if one's selected${googleConfigured ? "" : " (once Drive write access is set up)"}.</div>
-        <div class="upload-form">
-          <select id="file-class">${renderClassOptions(classFolders)}</select>
-          <input type="file" id="file-file" />
-          <button class="btn btn-block" onclick="handleUpload('file', 'file-file', 'file-class', 'file-status', this)">Upload</button>
-          <div class="hint" id="file-status"></div>
+        <div class="card" style="background-image: linear-gradient(135deg, var(--hw-markets-tint) 0%, var(--card) 65%);">
+          <div class="fw-tile-head">
+            <div class="fw-icon" style="--accent: var(--hw-markets);">${iconUpload}</div>
+            <h1 class="section-title" style="margin:0;">Upload a file</h1>
+          </div>
+          <div class="hint">Any file type: PDF, slides, docs, whatever. Stored as-is, no transcription or text extraction. Mirrored to the class's Drive folder if one's selected${googleConfigured ? "" : " (once Drive write access is set up)"}.</div>
+          <div class="upload-form">
+            <select id="file-class">${renderClassOptions(classFolders)}</select>
+            <input type="file" id="file-file" />
+            <button class="btn btn-block" onclick="handleUpload('file', 'file-file', 'file-class', 'file-status', this)">Upload</button>
+            <div class="hint" id="file-status"></div>
+          </div>
         </div>
       </div>
     </div>`;

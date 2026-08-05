@@ -873,7 +873,6 @@ export const BASE_STYLES = `
     padding: 10px 8px;
     margin-bottom: 4px;
     border-radius: 8px;
-    border-left: 3px solid var(--taupe);
     background: var(--card);
     transition: opacity 0.15s ease;
   }
