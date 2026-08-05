@@ -44,3 +44,34 @@ export function getSpendingByCategory(transactions: PlaidTransaction[], days = 3
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 }
+
+// Same as getSpendingHistory, scoped to a set of accounts — used for the
+// "Credit Card Spending" widget, which only cares about spend on credit-
+// type accounts rather than the household-wide total.
+export function getSpendingHistoryForAccounts(
+  transactions: PlaidTransaction[],
+  accountIds: ReadonlySet<string>,
+  days = 90
+): SpendingPoint[] {
+  return getSpendingHistory(
+    transactions.filter((t) => accountIds.has(t.accountId)),
+    days
+  );
+}
+
+export interface MerchantSpend {
+  merchant: string;
+  amount: number;
+}
+
+export function getTopMerchants(transactions: PlaidTransaction[], days = 30, limit = 8): MerchantSpend[] {
+  const byMerchant = new Map<string, number>();
+  for (const t of recentSpend(transactions, days)) {
+    const key = t.merchantName ?? t.name;
+    byMerchant.set(key, (byMerchant.get(key) ?? 0) + t.amount);
+  }
+  return [...byMerchant.entries()]
+    .map(([merchant, amount]) => ({ merchant, amount }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit);
+}

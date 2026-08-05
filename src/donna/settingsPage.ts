@@ -101,6 +101,8 @@ const FINANCE_WIDGET_LABELS: Record<FinanceWidgetId, string> = {
   "net-worth": "Net Worth",
   "spending-over-time": "Spending Over Time",
   "spending-by-category": "Spending by Category",
+  "credit-card-spending": "Credit Card Spending",
+  "top-merchants": "Top Merchants",
   accounts: "Accounts",
   "recurring-charges": "Recurring Charges",
   "upcoming-payments": "Upcoming Payments",

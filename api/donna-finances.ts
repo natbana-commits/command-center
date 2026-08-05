@@ -10,7 +10,7 @@ import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/syn
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
 import { getNetWorthHistory, getAccountBalanceHistory, bucketBalancePoints, type BalanceGranularity } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
-import { getSpendingHistory, getSpendingByCategory } from "../src/finance/spendingAnalytics.js";
+import { getSpendingHistory, getSpendingByCategory, getSpendingHistoryForAccounts, getTopMerchants } from "../src/finance/spendingAnalytics.js";
 import { getManualBills } from "../src/finance/manualBills.js";
 import { buildUpcomingPayments } from "../src/finance/upcomingPayments.js";
 import { resolveTimezone } from "../src/util/time.js";
@@ -259,6 +259,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       upcomingPayments: [],
       spendingHistory: [],
       spendingByCategory: [],
+      creditCardSpendingHistory: [],
+      topMerchants: [],
       financeWidgets: settings.dashboardConfig.financeWidgets,
       navVisibility: settings.dashboardConfig.navVisibility,
       navOrder: settings.dashboardConfig.navOrder,
@@ -284,6 +286,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ])
     : [[], [], [], [], []];
   const recurringCharges = detectRecurringCharges(recurringChargeTransactions);
+  const creditAccountIds = new Set(accounts.filter((a) => a.type === "credit").map((a) => a.accountId));
 
   const html = buildFinancesHtml({
     plaidConfigured,
@@ -298,6 +301,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // a 30-day category breakdown without a second Supabase query.
     spendingHistory: getSpendingHistory(recurringChargeTransactions),
     spendingByCategory: getSpendingByCategory(recurringChargeTransactions),
+    creditCardSpendingHistory: getSpendingHistoryForAccounts(recurringChargeTransactions, creditAccountIds),
+    topMerchants: getTopMerchants(recurringChargeTransactions),
     financeWidgets: settings.dashboardConfig.financeWidgets,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,

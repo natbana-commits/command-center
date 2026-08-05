@@ -15,6 +15,8 @@ export type FinanceWidgetId =
   | "net-worth"
   | "spending-over-time"
   | "spending-by-category"
+  | "credit-card-spending"
+  | "top-merchants"
   | "accounts"
   | "recurring-charges"
   | "upcoming-payments"
@@ -95,6 +97,8 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "net-worth", visible: true },
     { id: "spending-over-time", visible: true },
     { id: "spending-by-category", visible: true },
+    { id: "credit-card-spending", visible: true },
+    { id: "top-merchants", visible: true },
     { id: "accounts", visible: true },
     { id: "recurring-charges", visible: true },
     { id: "upcoming-payments", visible: true },

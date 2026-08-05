@@ -4,7 +4,7 @@ import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import type { NetWorthPoint, BalancePoint, BalanceGranularity } from "../finance/balanceHistory.js";
 import type { RecurringCharge } from "../finance/recurringCharges.js";
-import type { SpendingPoint, CategorySpend } from "../finance/spendingAnalytics.js";
+import type { SpendingPoint, CategorySpend, MerchantSpend } from "../finance/spendingAnalytics.js";
 import type { UpcomingPayment } from "../finance/upcomingPayments.js";
 import { escapeHtml } from "../util/html.js";
 import { renderLayout } from "./layout.js";
@@ -23,6 +23,8 @@ const COMPACT_WIDGET_IDS: readonly FinanceWidgetId[] = [
   "net-worth",
   "spending-over-time",
   "spending-by-category",
+  "credit-card-spending",
+  "top-merchants",
   "recurring-charges",
   "upcoming-payments",
 ];
@@ -165,6 +167,27 @@ function renderSpendingByCategorySection(categories: CategorySpend[]): string {
   );
 }
 
+function renderCreditCardSpendingSection(history: SpendingPoint[]): string {
+  if (history.length === 0) {
+    return `<p class="empty">No credit card spending yet in this window.</p>`;
+  }
+  const total = history.reduce((sum, p) => sum + p.amount, 0);
+  return `
+    <p style="font-size: 22px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(formatMoney(total, "USD"))}</p>
+    <p class="hint" style="margin: 0 0 12px;">Credit card spend over the last ${history.length > 1 ? "90 days" : "day"}</p>
+    ${renderLineChart(history.map((h) => ({ label: h.date, value: h.amount })))}`;
+}
+
+function renderTopMerchantsSection(merchants: MerchantSpend[]): string {
+  if (merchants.length === 0) {
+    return `<p class="empty">No merchant spending yet in the last 30 days.</p>`;
+  }
+  return renderBarChart(
+    merchants.map((m) => ({ label: m.merchant, value: m.amount })),
+    { formatValue: (v) => formatMoney(v, "USD") }
+  );
+}
+
 function renderRecurringChargeRow(charge: RecurringCharge): string {
   return `
     <div class="finance-row">
@@ -206,6 +229,8 @@ export interface FinancesPageData {
   upcomingPayments: UpcomingPayment[];
   spendingHistory: SpendingPoint[];
   spendingByCategory: CategorySpend[];
+  creditCardSpendingHistory: SpendingPoint[];
+  topMerchants: MerchantSpend[];
   financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
   navVisibility: NavVisibility;
   navOrder: string[];
@@ -300,6 +325,8 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     upcomingPayments,
     spendingHistory,
     spendingByCategory,
+    creditCardSpendingHistory,
+    topMerchants,
     financeWidgets,
     navVisibility,
     navOrder,
@@ -344,6 +371,11 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     "net-worth": accounts.length === 0 ? null : { title: "Net Worth", content: renderNetWorthSection(netWorthHistory) },
     "spending-over-time": accounts.length === 0 ? null : { title: "Spending Over Time", content: renderSpendingHistorySection(spendingHistory) },
     "spending-by-category": accounts.length === 0 ? null : { title: "Spending by Category", content: renderSpendingByCategorySection(spendingByCategory) },
+    "credit-card-spending":
+      accounts.filter((a) => a.type === "credit").length === 0
+        ? null
+        : { title: "Credit Card Spending", content: renderCreditCardSpendingSection(creditCardSpendingHistory) },
+    "top-merchants": accounts.length === 0 ? null : { title: "Top Merchants", content: renderTopMerchantsSection(topMerchants) },
     accounts: {
       title: "Accounts",
       content: `${summaryCard}${
