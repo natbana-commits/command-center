@@ -24,6 +24,7 @@
     { "source": "/donna", "destination": "/api/donna" },
     { "source": "/donna/login", "destination": "/api/donna?page=login" },
     { "source": "/donna/logout", "destination": "/api/donna?page=logout" },
+    { "source": "/donna/news", "destination": "/api/donna-news" },
     { "source": "/donna/files", "destination": "/api/donna-calendar?page=files" },
     { "source": "/donna/calendar", "destination": "/api/donna-calendar" },
     { "source": "/donna/reminders", "destination": "/api/donna-reminders" },

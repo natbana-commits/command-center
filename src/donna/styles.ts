@@ -42,6 +42,22 @@ export const BASE_STYLES = `
     --taupe: #c8c0b5;
     --olive: #b8b29b;
     --danger: #b8442e;
+    /* Home widget-grid category colors (see .hw-* rules below) — a
+       distinct hue per widget so the redesigned grid reads as vibrant
+       rather than the single-accent look everywhere else in the app. */
+    --hw-reminders: #c1485c; --hw-reminders-tint: #fbeaec;
+    --hw-upcoming: #c17a2f;  --hw-upcoming-tint: #faf1e3;
+    --hw-activity: #1f8f8a;  --hw-activity-tint: #e5f4f3;
+    --hw-classes: #5b62c9;   --hw-classes-tint: #ecedfa;
+    --hw-files: #c9622f;     --hw-files-tint: #faf0e8;
+    --hw-ipos: #8a5bc9;      --hw-ipos-tint: #f3ecfa;
+    --hw-finance: #2f8f5b;   --hw-finance-tint: #e7f4ec;
+    --hw-markets: #2f6fb0;   --hw-markets-tint: #e8f0fa;
+    --hw-econ: #9a9330;      --hw-econ-tint: #f6f5e3;
+    --hw-contacts: #c9527d;  --hw-contacts-tint: #fbebf1;
+    --hw-news: #2f9ec9;      --hw-news-tint: #e6f5fa;
+    --hw-up: #2f8f5b; --hw-down: #c1485c;
+    --hw-ipo-1: #2f6fb0; --hw-ipo-2: #2f8f5b; --hw-ipo-3: #9a9330;
     /* Fixed dark surface for header bars/badges that pair with hardcoded
        white text (modal/chat headers, the logo mark, the ask popup) —
        deliberately NOT overridden in the dark theme below, since these
@@ -80,6 +96,19 @@ export const BASE_STYLES = `
       --taupe: #4c4638;
       --olive: #7d7a5e;
       --danger: #e2725a;
+      --hw-reminders: #ef8398; --hw-reminders-tint: #2e1c21;
+      --hw-upcoming: #e8a86a;  --hw-upcoming-tint: #2f2417;
+      --hw-activity: #5fc9c2;  --hw-activity-tint: #1a2b2a;
+      --hw-classes: #9aa0ec;   --hw-classes-tint: #22243a;
+      --hw-files: #e2895a;     --hw-files-tint: #2f2117;
+      --hw-ipos: #bfa0ec;      --hw-ipos-tint: #251d33;
+      --hw-finance: #5fc98d;   --hw-finance-tint: #1c2b22;
+      --hw-markets: #7db3f2;   --hw-markets-tint: #1b2531;
+      --hw-econ: #cfc85f;      --hw-econ-tint: #2b2a17;
+      --hw-contacts: #ef8fb5;  --hw-contacts-tint: #2e1c26;
+      --hw-news: #7dd0ec;      --hw-news-tint: #182b31;
+      --hw-up: #5fc98d; --hw-down: #ef8398;
+      --hw-ipo-1: #7db3f2; --hw-ipo-2: #5fc98d; --hw-ipo-3: #cfc85f;
     }
   }
   :root[data-theme="dark"] {
@@ -96,6 +125,19 @@ export const BASE_STYLES = `
     --taupe: #4c4638;
     --olive: #7d7a5e;
     --danger: #e2725a;
+    --hw-reminders: #ef8398; --hw-reminders-tint: #2e1c21;
+    --hw-upcoming: #e8a86a;  --hw-upcoming-tint: #2f2417;
+    --hw-activity: #5fc9c2;  --hw-activity-tint: #1a2b2a;
+    --hw-classes: #9aa0ec;   --hw-classes-tint: #22243a;
+    --hw-files: #e2895a;     --hw-files-tint: #2f2117;
+    --hw-ipos: #bfa0ec;      --hw-ipos-tint: #251d33;
+    --hw-finance: #5fc98d;   --hw-finance-tint: #1c2b22;
+    --hw-markets: #7db3f2;   --hw-markets-tint: #1b2531;
+    --hw-econ: #cfc85f;      --hw-econ-tint: #2b2a17;
+    --hw-contacts: #ef8fb5;  --hw-contacts-tint: #2e1c26;
+    --hw-news: #7dd0ec;      --hw-news-tint: #182b31;
+    --hw-up: #5fc98d; --hw-down: #ef8398;
+    --hw-ipo-1: #7db3f2; --hw-ipo-2: #5fc98d; --hw-ipo-3: #cfc85f;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -206,13 +248,13 @@ export const BASE_STYLES = `
     padding: var(--sp-6) var(--sp-4) var(--sp-8);
   }
 
-  .bottom-nav { display: none; }
+  .mobile-tab-strip { display: none; }
   .mobile-topbar-btn { display: none; }
   .chat-mobile-bar { display: none; }
 
   @media (max-width: 860px) {
     .sidebar { display: none; }
-    .main-content { padding: var(--sp-3) var(--sp-2) 90px; max-width: 100%; }
+    .main-content { padding: var(--sp-3) var(--sp-2) 80px; max-width: 100%; }
     /* iOS Safari auto-zooms the whole page on focusing any input/select/
        textarea under 16px — every one of them was set smaller for a
        tighter desktop look, which meant tapping to type anywhere (the
@@ -223,69 +265,42 @@ export const BASE_STYLES = `
        (.field input[type="text"], .chat-overlay-footer input, etc.) that
        would otherwise win the cascade over this plain element selector. */
     input, select, textarea { font-size: 16px !important; }
-    .bottom-nav {
+    /* Horizontally-scrollable strip, sticky to the top of the content
+       area — sits above whatever sub-tabs a page renders inside its own
+       body (Calendar's day/week/month toggle, School's class tabs, etc.)
+       since it's a sibling of #page-content rather than fixed over
+       everything. Every visible tab shows here; nothing collapses into
+       an overflow menu, you just scroll sideways for the rest. */
+    .mobile-tab-strip {
       display: flex;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--card);
-      border-top: 1px solid var(--border);
-      justify-content: space-around;
-      padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
-      z-index: 900;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      gap: 4px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 4px;
+      margin: 0 calc(var(--sp-2) * -1) var(--sp-2);
     }
-    .bottom-nav-link {
+    .mobile-tab-strip::-webkit-scrollbar { display: none; }
+    .mobile-tab-strip-link {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 2px;
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 10px;
-      flex: 1;
+      font-size: 9.5px;
+      flex: 0 0 auto;
+      padding: 4px 12px;
+      border-radius: 10px;
+      white-space: nowrap;
     }
-    .bottom-nav-link svg { width: 20px; height: 20px; }
-    .bottom-nav-link-active { color: var(--accent); }
-    .bottom-nav-more {
-      background: none;
-      border: none;
-      font: inherit;
-      -webkit-appearance: none;
-    }
-    .bottom-nav-sheet {
-      display: none;
-      position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: calc(66px + env(safe-area-inset-bottom));
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      box-shadow: 0 -8px 24px rgba(0,0,0,0.12);
-      padding: 6px;
-      /* Above .chat-mobile-bar (901) — they sit at the same bottom offset,
-         so without this the bar (later in DOM order) would win the tie
-         and sit on top, blocking the sheet's own options from being
-         clickable. */
-      z-index: 902;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .bottom-nav-sheet.open { display: flex; }
-    .bottom-nav-sheet-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    .bottom-nav-sheet-link svg { width: 18px; height: 18px; flex: 0 0 auto; }
-    .bottom-nav-sheet-link:hover { background: rgba(0,0,0,0.04); color: var(--ink); }
+    .mobile-tab-strip-link svg { width: 19px; height: 19px; }
+    .mobile-tab-strip-link-active { color: var(--accent); background: var(--sidebar-bg); }
 
     /* The sidebar's Settings icon is hidden on mobile — this fixed
        top-right link is what stands in for it there. Info/theme/sign-out
@@ -317,7 +332,7 @@ export const BASE_STYLES = `
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: calc(66px + env(safe-area-inset-bottom));
+      bottom: calc(16px + env(safe-area-inset-bottom));
       height: 46px;
       padding: 0 16px;
       border-radius: 999px;
@@ -1312,4 +1327,146 @@ export const BASE_STYLES = `
     flex: 0 0 auto;
   }
   .btn-fab-inline:hover { background: var(--accent-hover); }
+
+  /* ============================================================
+     Home widget grid — vibrant, condensed tiles. Namespaced "hw-"
+     (home widget) throughout so nothing here collides with .card /
+     .card-row, which other pages (Finances, etc.) still use as-is.
+     ============================================================ */
+  .hw-grid { display: grid; gap: 12px; margin-top: var(--sp-3); }
+
+  .hw-tile {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; display: flex; flex-direction: column; min-height: 0; min-width: 0; cursor: pointer;
+    background-image: linear-gradient(180deg, var(--tint) 0%, var(--card) 42%);
+  }
+  .hw-tile[data-tint="reminders"] { --tint: var(--hw-reminders-tint); --accent: var(--hw-reminders); }
+  .hw-tile[data-tint="upcoming"]  { --tint: var(--hw-upcoming-tint);  --accent: var(--hw-upcoming); }
+  .hw-tile[data-tint="activity"]  { --tint: var(--hw-activity-tint); --accent: var(--hw-activity); }
+  .hw-tile[data-tint="classes"]   { --tint: var(--hw-classes-tint);  --accent: var(--hw-classes); }
+  .hw-tile[data-tint="files"]     { --tint: var(--hw-files-tint);    --accent: var(--hw-files); }
+  .hw-tile[data-tint="ipos"]      { --tint: var(--hw-ipos-tint);     --accent: var(--hw-ipos); }
+  .hw-tile[data-tint="finance"]   { --tint: var(--hw-finance-tint);  --accent: var(--hw-finance); }
+  .hw-tile[data-tint="markets"]   { --tint: var(--hw-markets-tint);  --accent: var(--hw-markets); }
+  .hw-tile[data-tint="econ"]      { --tint: var(--hw-econ-tint);     --accent: var(--hw-econ); }
+  .hw-tile[data-tint="contacts"]  { --tint: var(--hw-contacts-tint); --accent: var(--hw-contacts); }
+  .hw-tile[data-tint="news"]      { --tint: var(--hw-news-tint);     --accent: var(--hw-news); }
+
+  .hw-pad { padding: 11px 13px 9px; flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .hw-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; flex: 0 0 auto; }
+  .hw-head-left { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .hw-icon {
+    width: 21px; height: 21px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; flex: 0 0 auto;
+  }
+  .hw-icon svg { width: 12px; height: 12px; display: block; }
+  .hw-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hw-kpi-row { display: flex; align-items: baseline; gap: 6px; margin: 2px 0 7px; flex: 0 0 auto; }
+  .hw-kpi { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .hw-trend { font-size: 10px; font-weight: 700; color: var(--text-muted); }
+
+  .hw-rows { flex: 0 0 auto; }
+  .hw-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 11px; min-width: 0; text-decoration: none; color: inherit; }
+  .hw-row + .hw-row { border-top: 1px dotted var(--border); }
+  .hw-row-link:hover { color: var(--accent); }
+  .hw-row-main { flex: 1 1 0%; min-width: 0; }
+  .hw-row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hw-row-val { flex: 0 0 auto; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+  .hw-row-time { flex: 0 0 auto; color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hw-row-divider { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 5px 0 2px; }
+
+  .hw-mini-select {
+    font: inherit; font-size: 10px; font-weight: 700; color: var(--accent); background: var(--tint);
+    border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px; cursor: pointer; flex: 0 0 auto; max-width: 110px;
+  }
+
+  .hw-news-source { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--accent); margin-bottom: 2px; flex: 0 0 auto; text-decoration: none; }
+  .hw-news-headline { display: block; font-size: 12.5px; font-weight: 800; line-height: 1.3; color: var(--ink); margin-bottom: 5px; flex: 0 0 auto; text-decoration: none; }
+  .hw-news-headline:hover, .hw-news-source:hover { color: var(--accent); }
+
+  /* ---- Finances tile: KPI + Week/Month toggle + sparkline ---- */
+  .hw-fin-toggle { display: inline-flex; gap: 2px; background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px; flex: 0 0 auto; }
+  .hw-fin-toggle-btn { font: inherit; font-size: 9.5px; font-weight: 700; border: none; background: transparent; color: var(--text-secondary); padding: 2px 8px; border-radius: 999px; cursor: pointer; }
+  .hw-fin-toggle-active { background: var(--hw-finance); color: #fff; }
+  .hw-fin-chart { flex: 1; min-height: 0; display: flex; align-items: center; margin: 3px 0; }
+  .hw-fin-chart svg { width: 100%; height: 100%; display: block; }
+  .hw-fin-stat-row { display: flex; justify-content: space-between; font-size: 10.5px; padding: 2px 0; flex: 0 0 auto; }
+
+  /* ---- Classes tile: up to 6 tiles, 3x2 ---- */
+  .hw-class-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 6px; flex: 1; min-height: 0; }
+  .hw-class-tile {
+    border: 1px solid var(--border); border-radius: 9px; background: var(--card);
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px 3px;
+    text-decoration: none; color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: -0.01em; min-height: 0;
+  }
+  .hw-class-tile:hover { border-color: var(--accent); }
+  .hw-class-tile-code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hw-class-tile-empty { border-style: dashed; color: var(--text-muted); font-size: 14px; font-weight: 600; }
+
+  /* ---- Files tile: quick-action buttons ---- */
+  .hw-file-actions { display: flex; gap: 7px; flex: 1; min-height: 0; }
+  .hw-file-action-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    border: 1px solid var(--border); border-radius: 10px; padding: 6px 4px; cursor: pointer; text-decoration: none;
+    font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.15;
+  }
+  .hw-file-action-btn svg { width: 16px; height: 16px; }
+  .hw-file-action-btn[data-action-tint="markets"] { background: var(--hw-markets-tint); color: var(--hw-markets); }
+  .hw-file-action-btn[data-action-tint="finance"] { background: var(--hw-finance-tint); color: var(--hw-finance); }
+  .hw-file-action-btn[data-action-tint="ipos"]    { background: var(--hw-ipos-tint);    color: var(--hw-ipos); }
+
+  /* ---- IPOs tile: stat summary ---- */
+  .hw-ipo-stats { display: flex; gap: 14px; margin: 2px 0 8px; flex: 0 0 auto; }
+  .hw-ipo-stat-num { font-size: 24px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .hw-ipo-stat-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .hw-ipo-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin-bottom: 6px; flex: 0 0 auto; }
+  .hw-ipo-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; flex: 0 0 auto; }
+  .hw-ipo-legend-item { display: flex; align-items: center; gap: 4px; font-size: 9.5px; color: var(--text-secondary); white-space: nowrap; }
+  .hw-ipo-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+  .hw-ipo-best { margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--border); flex: 0 0 auto; }
+  .hw-ipo-best-label { font-size: 8.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+  .hw-ipo-best-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .hw-ipo-best-name { font-size: 11.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .hw-ipo-best-chip { font-size: 8px; font-weight: 800; padding: 1px 6px; border-radius: 999px; flex: 0 0 auto; text-transform: uppercase; color: #fff; background: var(--accent); }
+  .hw-ipo-best-meta { font-size: 9.5px; color: var(--text-muted); margin-top: 1px; }
+
+  /* ================= Responsive tiers =================
+     Above 1200px: exact 4x3 grid that fills the space below the greeting
+     with zero scroll, Reminders pinned as a double-height priority tile.
+     Below that: forcing an exact-height fill starts squashing everything,
+     so each narrower tier drops it and falls back to natural flow +
+     scrolling (same as the rest of the app on mobile), with fewer
+     columns and smaller type as it narrows. */
+  @media (min-width: 1201px) {
+    .hw-grid { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); height: calc(100vh - 220px); min-height: 560px; }
+    .hw-gw-reminders { grid-column: 1; grid-row: 1 / span 2; }
+    .hw-gw-finances  { grid-column: 2; grid-row: 1; }
+    .hw-gw-markets   { grid-column: 3; grid-row: 1; }
+    .hw-gw-upcoming  { grid-column: 4; grid-row: 1; }
+    .hw-gw-classes   { grid-column: 2; grid-row: 2; }
+    .hw-gw-ipos      { grid-column: 3; grid-row: 2; }
+    .hw-gw-files     { grid-column: 4; grid-row: 2; }
+    .hw-gw-activity  { grid-column: 1; grid-row: 3; }
+    .hw-gw-econ      { grid-column: 2; grid-row: 3; }
+    .hw-gw-contacts  { grid-column: 3; grid-row: 3; }
+    .hw-gw-news      { grid-column: 4; grid-row: 3; }
+  }
+  @media (min-width: 821px) and (max-width: 1200px) {
+    .hw-grid { grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(160px, auto); grid-auto-flow: row dense; height: auto; }
+    .hw-gw-reminders { grid-row: span 2; }
+  }
+  @media (min-width: 481px) and (max-width: 820px) {
+    .hw-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: minmax(150px, auto); grid-auto-flow: row dense; height: auto; gap: 9px; }
+    .hw-gw-reminders { grid-row: span 2; }
+    .hw-pad { padding: 9px 10px 7px; }
+    .hw-kpi { font-size: 16px; }
+    .hw-title { font-size: 9.5px; }
+    .hw-row { font-size: 10px; }
+  }
+  @media (max-width: 480px) {
+    .hw-grid { grid-template-columns: 1fr; grid-auto-rows: auto; grid-auto-flow: row; height: auto; gap: 8px; }
+    .hw-gw-reminders { grid-row: auto; }
+    .hw-pad { padding: 9px 10px 7px; }
+    .hw-kpi { font-size: 16px; }
+  }
 `;

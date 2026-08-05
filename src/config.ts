@@ -6,10 +6,12 @@ export type HomeWidgetId =
   | "reminders"
   | "contacts"
   | "files"
+  | "classes"
   | "ipos"
   | "finances"
   | "markets"
-  | "econ-events";
+  | "econ-events"
+  | "news";
 
 export type FinanceWidgetId =
   | "net-worth"
@@ -29,6 +31,7 @@ export type FinanceWidgetId =
 // here is enough to force a compile error anywhere else (nav.ts's
 // MIDDLE_TAB_META, keyed the same way) that still needs updating.
 export const NAV_TAB_IDS = [
+  "news",
   "files",
   "calendar",
   "reminders",
@@ -49,7 +52,7 @@ export type NavVisibility = Record<NavTabId, boolean>;
 export interface DashboardConfig {
   homeWidgets: { id: HomeWidgetId; visible: boolean }[];
   financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
-  defaultHomeTab: "news" | "newsletters";
+  defaultNewsTab: "news" | "newsletters";
   navVisibility: NavVisibility;
   navOrder: string[];
 }
@@ -75,20 +78,23 @@ export interface Settings {
 }
 
 const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
+  // Order here doubles as reading order in the responsive (< 1201px)
+  // tiers, where widgets fall back to document-order auto-flow instead of
+  // the fixed desktop grid positions (see styles.ts's .hw-* rules) —
+  // Reminders leads since it's the one pinned double-height "priority"
+  // card at every tier.
   homeWidgets: [
-    { id: "recent-activity", visible: true },
-    { id: "upcoming", visible: true },
     { id: "reminders", visible: true },
-    { id: "contacts", visible: true },
-    { id: "files", visible: true },
-    { id: "ipos", visible: true },
     { id: "finances", visible: true },
-    // Off by default — Home was just decrowded, so a brand new widget
-    // shouldn't silently re-add to the pile. Nathan can turn these on
-    // himself from Settings once Finnhub is configured (markets) or
-    // whenever he wants them (econ-events, which needs no setup at all).
-    { id: "markets", visible: false },
-    { id: "econ-events", visible: false },
+    { id: "markets", visible: true },
+    { id: "upcoming", visible: true },
+    { id: "classes", visible: true },
+    { id: "ipos", visible: true },
+    { id: "files", visible: true },
+    { id: "recent-activity", visible: true },
+    { id: "econ-events", visible: true },
+    { id: "contacts", visible: true },
+    { id: "news", visible: true },
   ],
   // Unlike homeWidgets above, all default visible — this ask was
   // explicitly for *more* visible richness on the Finances page itself
@@ -104,7 +110,7 @@ const DEFAULT_DASHBOARD_CONFIG: DashboardConfig = {
     { id: "upcoming-payments", visible: true },
     { id: "transactions", visible: true },
   ],
-  defaultHomeTab: "news",
+  defaultNewsTab: "news",
   navVisibility: Object.fromEntries(NAV_TAB_IDS.map((id) => [id, true])) as NavVisibility,
   navOrder: [...NAV_TAB_IDS],
 };

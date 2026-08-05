@@ -8,24 +8,22 @@ import { listRemindersSafe } from "../src/google/tasks.js";
 import { getRecentUploads } from "../src/storage/uploads.js";
 import { getContacts } from "../src/contacts/store.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
-import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { getReminderGroups, getGroupLinksForTasks } from "../src/reminders/groups.js";
 import { getRecentIpoFilings } from "../src/ipos/store.js";
 import { isPlaidConfigured } from "../src/finance/plaidClient.js";
-import { getAllAccounts } from "../src/finance/accounts.js";
-import { getRecentTransactions } from "../src/finance/transactionsStore.js";
+import { getAllAccounts, type PlaidAccount } from "../src/finance/accounts.js";
+import { getAllItems } from "../src/finance/items.js";
+import { getAccountBalanceHistory } from "../src/finance/balanceHistory.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { getWatchlistEntries } from "../src/news/watchlist.js";
 import { getWatchlistQuotes } from "../src/markets/quotes.js";
 import { getUpcomingEconomicEvents } from "../src/markets/economicEvents.js";
-import { getCommunityFeedItems } from "../src/news/communityFeeds.js";
 import { buildDonnaHtml } from "../src/donna/page.js";
 import { generateExplanation } from "../src/donna/ask.js";
 import { buildLoginHtml } from "../src/donna/loginPage.js";
 import { isAuthenticated, requireAuth, createSession, destroySession, verifyPassword } from "../src/auth/session.js";
 import { isLoginLocked, recordFailedLogin, clearFailedLogins } from "../src/auth/loginAttempts.js";
-import { invalidateCache } from "../src/util/cache.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const page = req.query.page;
@@ -90,14 +88,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Community feed items are cached under one key for 15 minutes (fetching
-  // RSS is free — this is just to avoid re-fetching on every Home load).
-  // The Community tab's Refresh link reloads Home with this set, clearing
-  // it so a new post shows up immediately instead of waiting out the cache.
-  if (req.query.refresh === "1") {
-    await invalidateCache("community-feed-items");
-  }
-
   const settings = await loadSettings();
   const timezone = resolveTimezone(settings.timezone);
   const day = localDateKey(new Date(), timezone);
@@ -134,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     classFolders,
     ipoFilings,
     financeAccounts,
-    financeTransactions,
+    financeItems,
     watchlistEntries,
     upcomingEconEvents,
   ] = await Promise.all([
@@ -144,29 +134,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     getRecentUploads(3).catch(() => []),
     getContacts().catch(() => []),
     getClassFolders().catch(() => []),
-    getRecentIpoFilings(3).catch(() => []),
-    isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([]),
-    isPlaidConfigured() ? getRecentTransactions(3).catch(() => []) : Promise.resolve([]),
+    getRecentIpoFilings(12).catch(() => []),
+    isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([] as PlaidAccount[]),
+    isPlaidConfigured() ? getAllItems().catch(() => []) : Promise.resolve([]),
     getWatchlistEntries().catch(() => []),
     getUpcomingEconomicEvents().catch(() => []),
   ]);
   const taskIds = reminders.map((r) => r.id);
+
+  // The Home Finances widget charts one investment account's balance —
+  // prefer whichever linked institution is named Fidelity, falling back to
+  // the first investment-type account so the widget still has something
+  // to show for anyone whose brokerage isn't Fidelity.
+  const institutionNameByItemId = new Map(financeItems.map((it) => [it.itemId, it.institutionName]));
+  const investmentAccounts = financeAccounts.filter((a) => a.type === "investment");
+  const fidelityAccount =
+    investmentAccounts.find((a) => (institutionNameByItemId.get(a.itemId) ?? "").toLowerCase().includes("fidelity")) ??
+    investmentAccounts[0] ??
+    null;
+  const totalCash = financeAccounts.filter((a) => a.type === "depository").reduce((sum, a) => sum + (a.currentBalance ?? 0), 0);
+
   const [
     watchlistQuotes,
-    communityFeedItems,
-    classLinks,
     reminderNotifications,
     reminderGroups,
     groupLinks,
     { todayEvents, tomorrowEvents },
+    fidelityBalanceWeek,
+    fidelityBalanceMonth,
   ] = await Promise.all([
     getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
-    getCommunityFeedItems().catch(() => []),
-    getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
     getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
     getReminderGroups().catch(() => []),
     getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
     calendarPromise,
+    fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 7).catch(() => []) : Promise.resolve([]),
+    fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 30).catch(() => []) : Promise.resolve([]),
   ]);
 
   const html = buildDonnaHtml({
@@ -179,17 +182,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dashboardConfig: settings.dashboardConfig,
     contacts,
     classFolders,
-    classLinks,
     ipoFilings,
-    financeAccounts,
-    financeTransactions,
+    fidelityAccount,
+    fidelityBalanceWeek,
+    fidelityBalanceMonth,
+    totalCash,
+    accountCount: financeAccounts.length,
     todayEvents,
     tomorrowEvents,
     reminderGroups,
     groupLinks,
     watchlistQuotes,
     upcomingEconEvents,
-    communityFeedItems,
   });
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(html);

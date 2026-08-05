@@ -1,7 +1,7 @@
 import { NAV_TAB_IDS, type NavVisibility } from "../config.js";
 import { escapeHtml } from "../util/html.js";
 import { BASE_STYLES } from "./styles.js";
-import { PWA_HEAD, renderSidebarNav, renderBottomNav, type Tab } from "./nav.js";
+import { PWA_HEAD, renderSidebarNav, renderMobileNav, type Tab } from "./nav.js";
 import { iconSettings, iconChat } from "./icons.js";
 
 // Derived from NAV_TAB_IDS rather than listed by hand — the same
@@ -42,6 +42,7 @@ const THEME_INIT_SCRIPT = `
 // broken link.
 const PALETTE_PAGES = [
   { title: "Home", href: "/donna" },
+  { title: "News", href: "/donna/news" },
   { title: "Calendar", href: "/donna/calendar" },
   { title: "Reminders", href: "/donna/reminders" },
   { title: "IPOs", href: "/donna/ipos" },
@@ -216,9 +217,9 @@ const COMMAND_PALETTE_SCRIPT = `
 // Client-side page-swap router. Every nav here would otherwise be a full
 // document reload (server-rendered pages, no client router) — this
 // intercepts same-origin /donna/* link clicks and form submits, fetches
-// just the target page, and swaps three regions (sidebar nav, bottom nav,
-// and the page-content wrapper below) instead of reloading the whole
-// document. The sidebar/theme-toggle/palette-trigger/chat-FAB never get
+// just the target page, and swaps three regions (sidebar nav, mobile tab
+// strip, and the page-content wrapper below) instead of reloading the
+// whole document. The sidebar/theme-toggle/palette-trigger/chat-FAB never get
 // touched, so their state (open conversation, theme, palette) survives
 // navigation. Falls back to a real `window.location.href` navigation on
 // any fetch failure — this is a pure enhancement, never the only way a
@@ -227,7 +228,7 @@ const ROUTER_SCRIPT = `
 (function () {
   const pageContent = document.getElementById("page-content");
   const sidebarNav = document.getElementById("sidebar-nav-region");
-  const bottomNav = document.getElementById("bottom-nav-region");
+  const mobileNav = document.getElementById("mobile-nav-region");
   const progressBar = document.getElementById("nav-progress-bar");
   if (!pageContent) return;
 
@@ -284,10 +285,10 @@ const ROUTER_SCRIPT = `
     document.title = doc.title;
     const newPageContent = doc.getElementById("page-content");
     const newSidebarNav = doc.getElementById("sidebar-nav-region");
-    const newBottomNav = doc.getElementById("bottom-nav-region");
+    const newMobileNav = doc.getElementById("mobile-nav-region");
     if (newPageContent) pageContent.innerHTML = newPageContent.innerHTML;
     if (sidebarNav && newSidebarNav) sidebarNav.innerHTML = newSidebarNav.innerHTML;
-    if (bottomNav && newBottomNav) bottomNav.innerHTML = newBottomNav.innerHTML;
+    if (mobileNav && newMobileNav) mobileNav.innerHTML = newMobileNav.innerHTML;
     runScripts(pageContent);
     // history.pushState above (for a full, non-scoped navigation) already
     // lands the new hash in window.location.hash before this runs, so a
@@ -502,28 +503,6 @@ const PROGRESS_BAR_SCRIPT = `
 })();
 `;
 
-// Delegated on document (rather than binding to the button/sheet directly)
-// because the client-side router replaces #bottom-nav-region's innerHTML on
-// every navigation — direct bindings would go stale after the first swap,
-// same reasoning as ROUTER_SCRIPT's own click handling.
-const NAV_SHEET_SCRIPT = `
-(function () {
-  document.addEventListener("click", (e) => {
-    const sheet = document.getElementById("bottom-nav-sheet");
-    if (!sheet) return;
-    const btn = e.target && e.target.closest && e.target.closest("#bottom-nav-more-btn");
-    if (btn) {
-      e.stopPropagation();
-      sheet.classList.toggle("open");
-      return;
-    }
-    if (sheet.classList.contains("open") && !sheet.contains(e.target)) {
-      sheet.classList.remove("open");
-    }
-  });
-})();
-`;
-
 const CHAT_FAB_SCRIPT = `
 (function () {
   // Two triggers share this one overlay: the sidebar icon (desktop) and
@@ -669,6 +648,7 @@ ${BASE_STYLES}
     </aside>
 
     <main class="main-content">
+      <nav class="mobile-tab-strip" id="mobile-nav-region">${renderMobileNav(activeTab, navVisibility, navOrder)}</nav>
       <div id="page-content">
         ${bodyHtml}
         ${extraBodyHtml}
@@ -677,14 +657,11 @@ ${BASE_STYLES}
     </main>
   </div>
 
-  <nav class="bottom-nav" id="bottom-nav-region">${renderBottomNav(activeTab, navVisibility, navOrder)}</nav>
-
   ${renderCommandPaletteMarkup()}
   ${showChatFab ? renderChatFabMarkup() : ""}
 
   <script>
 ${PROGRESS_BAR_SCRIPT}
-${NAV_SHEET_SCRIPT}
 ${COMMAND_PALETTE_SCRIPT}
 ${ROUTER_SCRIPT}
 ${showChatFab ? CHAT_FAB_SCRIPT : ""}

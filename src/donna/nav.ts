@@ -6,11 +6,11 @@ import {
   iconBell,
   iconSettings,
   iconUser,
-  iconMore,
   iconTrendingUp,
   iconWallet,
   iconGraduationCap,
   iconChat,
+  iconNewspaper,
 } from "./icons.js";
 
 export const PWA_HEAD = `
@@ -42,6 +42,7 @@ const SETTINGS_TAB: NavEntry = { tab: "settings", label: "Settings", href: "/don
 // tab to NAV_TAB_IDS (config.ts) without adding its metadata here is a
 // compile error instead of a silently-missing sidebar entry.
 const MIDDLE_TAB_META: Record<NavTabId, { label: string; href: string; icon: string }> = {
+  news: { label: "News", href: "/donna/news", icon: iconNewspaper },
   files: { label: "Files", href: "/donna/files", icon: iconFolder },
   calendar: { label: "Calendar", href: "/donna/calendar", icon: iconCalendar },
   reminders: { label: "Reminders", href: "/donna/reminders", icon: iconBell },
@@ -85,28 +86,12 @@ export function renderSidebarNav(active: Tab, navVisibility: NavVisibility, navO
     .join("");
 }
 
-// Mobile bottom bar has room for about 5 icons before it feels cramped —
-// Home + the first 3 (visible, ordered) middle tabs show directly; the
-// rest collapse into a "More" sheet, and Settings is unconditionally
-// part of that overflow (appended directly here, not part of
-// visibleTabs() any more), so overflow always has at least one entry —
-// the sheet/button below always render, never just the primary bar
-// alone. Scales fine as more tabs get added later: the sheet just
-// grows, the bar doesn't.
-export function renderBottomNav(active: Tab, navVisibility: NavVisibility, navOrder: string[]): string {
-  const tabs = visibleTabs(navVisibility, navOrder);
-  const middle = tabs.slice(1);
-  const primary = [tabs[0], ...middle.slice(0, 3)];
-  const overflow = [...middle.slice(3), SETTINGS_TAB];
-
-  const primaryHtml = primary.map((t) => navLink(t, active, "bottom-nav-link", "bottom-nav-link-active")).join("");
-  const overflowActive = overflow.some((t) => t.tab === active);
-  const overflowHtml = overflow
-    .map((t) => navLink(t, active, "bottom-nav-sheet-link", "bottom-nav-link-active"))
-    .join("");
-
-  return `
-    ${primaryHtml}
-    <button type="button" class="bottom-nav-link bottom-nav-more${overflowActive ? " bottom-nav-link-active" : ""}" id="bottom-nav-more-btn" aria-label="More">${iconMore}<span>More</span></button>
-    <div class="bottom-nav-sheet" id="bottom-nav-sheet">${overflowHtml}</div>`;
+// Mobile nav: every visible tab (Home + middle tabs + Settings) as one
+// horizontally-scrollable strip at the top of the page, above whatever
+// sub-tabs that page renders itself — replaces the old fixed bottom bar
+// + "More" overflow sheet, since scrolling sideways for the rest beats a
+// second tap-to-open layer, and nothing needs to be hidden away anymore.
+export function renderMobileNav(active: Tab, navVisibility: NavVisibility, navOrder: string[]): string {
+  const tabs = [...visibleTabs(navVisibility, navOrder), SETTINGS_TAB];
+  return tabs.map((t) => navLink(t, active, "mobile-tab-strip-link", "mobile-tab-strip-link-active")).join("");
 }

@@ -182,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               id: w.id,
               visible: body[`fin-widget-${w.id}`] === "on",
             })),
-            defaultHomeTab: body.defaultHomeTab === "newsletters" ? "newsletters" : "news",
+            defaultNewsTab: body.defaultNewsTab === "newsletters" ? "newsletters" : "news",
             navVisibility,
           },
         });

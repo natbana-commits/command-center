@@ -91,10 +91,12 @@ const WIDGET_LABELS: Record<HomeWidgetId, string> = {
   reminders: "Reminders",
   contacts: "Contacts",
   files: "Files",
+  classes: "Classes",
   ipos: "IPOs",
   finances: "Finances",
   markets: "Markets",
   "econ-events": "Upcoming Econ Events",
+  news: "News",
 };
 
 const FINANCE_WIDGET_LABELS: Record<FinanceWidgetId, string> = {
@@ -395,10 +397,10 @@ function buildJumpSections(
         </div>
 
         <div class="field">
-          <label for="defaultHomeTab">Default Home tab</label>
-          <select class="input-mono" id="defaultHomeTab" name="defaultHomeTab">
-            <option value="news" ${settings.dashboardConfig.defaultHomeTab === "news" ? "selected" : ""}>News</option>
-            <option value="newsletters" ${settings.dashboardConfig.defaultHomeTab === "newsletters" ? "selected" : ""}>Newsletters</option>
+          <label for="defaultNewsTab">Default News tab</label>
+          <select class="input-mono" id="defaultNewsTab" name="defaultNewsTab">
+            <option value="news" ${settings.dashboardConfig.defaultNewsTab === "news" ? "selected" : ""}>News</option>
+            <option value="newsletters" ${settings.dashboardConfig.defaultNewsTab === "newsletters" ? "selected" : ""}>Newsletters</option>
           </select>
         </div>
 

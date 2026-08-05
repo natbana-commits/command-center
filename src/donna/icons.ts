@@ -77,3 +77,21 @@ export const iconGripVertical = svg(
 export const iconEdit = svg(
   `<path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />`
 );
+
+export const iconNewspaper = svg(
+  `<path d="M4 4.5h13a1 1 0 0 1 1 1V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18Z" /><path d="M7.5 8.5h7M7.5 11.5h7M7.5 14.5h4.5" /><path d="M18 8h1.5a1 1 0 0 1 1 1v8a1.5 1.5 0 0 1-1.5 1.5H18" />`
+);
+
+export const iconClock = svg(`<circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" />`);
+
+export const iconBarChart = svg(
+  `<rect x="4" y="12" width="4" height="8" /><rect x="10" y="7" width="4" height="13" /><rect x="16" y="3" width="4" height="17" />`
+);
+
+export const iconScan = svg(
+  `<rect x="4" y="6" width="16" height="12" rx="1.5" /><path d="M4 10.5h16" /><circle cx="12" cy="14.5" r="1.8" />`
+);
+
+export const iconMic = svg(
+  `<rect x="9" y="3" width="6" height="11" rx="3" /><path d="M6 11a6 6 0 0 0 12 0" /><path d="M12 17v4" />`
+);

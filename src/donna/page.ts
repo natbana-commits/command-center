@@ -9,47 +9,48 @@ import type { ReminderGroup } from "../reminders/groups.js";
 import type { Upload } from "../storage/uploads.js";
 import type { IpoFiling } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
-import type { PlaidTransaction } from "../finance/transactionsStore.js";
+import type { BalancePoint } from "../finance/balanceHistory.js";
 import type { CalendarEvent } from "../calendar.js";
 import type { Quote } from "../markets/quotes.js";
 import type { EconomicEvent } from "../markets/economicEvents.js";
-import type { CommunityFeedItem } from "../news/communityFeeds.js";
 import { escapeHtml } from "../util/html.js";
 import { formatRelativeTime, withTimeSuffix, localDateKey } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { iconBell, iconCalendar, iconFolder, iconUser, iconTrendingUp, iconWallet, iconChevronDown } from "./icons.js";
-const iconMarkets = iconTrendingUp;
-const iconEconEvents = iconCalendar;
-import { renderSourceBadge } from "./sourceBadge.js";
-import { renderCardEditLink, renderPageEditLink } from "./editLink.js";
-import { effectiveDue, formatDue } from "./remindersPage.js";
-import { renderDayBadge } from "./dayBadge.js";
+import {
+  iconBell,
+  iconCalendar,
+  iconFolder,
+  iconUser,
+  iconTrendingUp,
+  iconWallet,
+  iconGraduationCap,
+  iconClock,
+  iconBarChart,
+  iconNewspaper,
+  iconUpload,
+  iconScan,
+  iconMic,
+} from "./icons.js";
+import { renderLineChart } from "./charts.js";
+import { effectiveDue, formatDue, hasTime } from "./remindersPage.js";
+import { daysAwayLabel } from "./dayBadge.js";
+import { storyAnchorId } from "./newsPage.js";
 
-// Nav destination each Home card links to on click — reuses the same
-// hrefs nav.ts's MIDDLE_TAB_META already defines, kept here as a plain
-// map rather than importing that module to avoid coupling Home's card
-// rendering to the full nav-tab type surface for just seven strings.
+// Nav destination each Home tile links to when clicked outside its own
+// interactive controls (dropdown/toggle/buttons/links) — see
+// navigateCard() in CLIENT_SCRIPT.
 const CARD_HREFS: Record<HomeWidgetId, string> = {
   "recent-activity": "/donna/files",
   upcoming: "/donna/calendar",
   reminders: "/donna/reminders",
   contacts: "/donna/contacts",
   files: "/donna/files",
+  classes: "/donna/school",
   ipos: "/donna/ipos",
   finances: "/donna/finances",
-  markets: "/donna/settings",
+  markets: "/donna/settings#settings-watchlist",
   "econ-events": "/donna/calendar",
-};
-
-// Only widgets whose content is actually configured somewhere in Settings
-// get an edit link — Recent Activity, Upcoming, Contacts, IPOs, and Econ
-// Events are all managed inline on their own page instead, so there's
-// nothing in Settings for an edit link to send you to.
-const EDIT_ANCHORS: Partial<Record<HomeWidgetId, string>> = {
-  reminders: "settings-reminder-groups",
-  files: "settings-classes",
-  markets: "settings-watchlist",
-  finances: "settings-manual-bills",
+  news: "/donna/news",
 };
 
 function formatMoney(amount: number, currency: string | null): string {
@@ -77,59 +78,25 @@ function greetingWord(timezone: string): string {
   return "Good evening";
 }
 
-function renderMiniDayEvents(events: CalendarEvent[], timezone: string): string {
-  if (events.length === 0) {
-    return `<p class="empty" style="margin:4px 0 0;">Nothing scheduled.</p>`;
-  }
-  return events
-    .slice(0, 3)
-    .map((e) => {
-      const timeLabel = e.start.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
-      return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-time">${escapeHtml(timeLabel)}</div>
-          <div class="agenda-event-title">${escapeHtml(e.summary)}</div>
-        </div>`;
-    })
-    .join("\n");
+// Compact "Xd" / "1d late" / "today" label — same day-diff math as the big
+// day-badge component, just rendered as plain inline text since these
+// widgets are far too condensed for the full badge.
+function compactDayLabel(dateKey: string): string {
+  const label = daysAwayLabel(dateKey);
+  if (label.big === "Today") return "today";
+  return label.overdue ? `${label.big}d late` : `${label.big}d`;
 }
 
-// Mini today/tomorrow agenda — a fresh 2-day fetch (api/donna.ts), not the
-// day's cached DailyContext, which only ever carries *today's* events.
-function renderCalendarCard(todayEvents: CalendarEvent[], tomorrowEvents: CalendarEvent[], timezone: string): string {
-  return `
-    <div class="mini-day-group">
-      <div class="mini-day-label">Today</div>
-      ${renderMiniDayEvents(todayEvents, timezone)}
-    </div>
-    <div class="mini-day-group">
-      <div class="mini-day-label">Tomorrow</div>
-      ${renderMiniDayEvents(tomorrowEvents, timezone)}
-    </div>`;
+function widgetHeadIcon(icon: string): string {
+  return `<div class="hw-icon">${icon}</div>`;
 }
 
-function uploadLabel(u: Upload): string {
-  const kindLabel = u.kind === "lecture" ? "Transcript" : "Scan";
-  return `${kindLabel}: ${u.originalFilename}`;
-}
-
-function renderRecentActivityCard(uploads: Upload[]): string {
-  if (uploads.length === 0) {
-    return `<p class="empty">No recent activity.</p>`;
-  }
-  return uploads
-    .slice(0, 4)
-    .map(
-      (u) => `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(uploadLabel(u))}</div>
-          <div class="agenda-event-time">${escapeHtml(formatRelativeTime(u.createdAt))}</div>
-        </div>`
-    )
-    .join("\n");
-}
-
-function renderRemindersCard(
+// ---------------------------------------------------------------------
+// Reminders — the one pinned double-height "priority" widget. A group
+// filter (populated from Nathan's actual reminder groups, not a fixed
+// set) lets him narrow the list without leaving Home.
+// ---------------------------------------------------------------------
+function renderRemindersTile(
   reminders: Reminder[],
   googleConfigured: boolean,
   notifications: Map<string, ReminderNotification>,
@@ -137,306 +104,398 @@ function renderRemindersCard(
   reminderGroups: ReminderGroup[],
   groupLinks: Map<string, number>
 ): string {
+  const href = CARD_HREFS.reminders;
   if (!googleConfigured) {
-    return `<p class="empty">Not connected yet — finish Google setup to use reminders.</p>`;
+    return `
+      <div class="hw-tile hw-gw-reminders" data-tint="reminders" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head"><div class="hw-head-left">${widgetHeadIcon(iconBell)}<div class="hw-title">Reminders</div></div></div>
+        <p class="empty">Not connected yet — finish Google setup to use reminders.</p></div>
+      </div>`;
   }
-  if (reminders.length === 0) {
-    return `<p class="empty">No reminders.</p>`;
-  }
-  const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
-  return [...reminders]
+
+  const withDue = reminders
+    .map((r) => ({ r, due: effectiveDue(r, notifications.get(r.id)) }))
     .sort((a, b) => {
-      const dueA = effectiveDue(a, notifications.get(a.id));
-      const dueB = effectiveDue(b, notifications.get(b.id));
-      if (!dueA && !dueB) return 0;
-      if (!dueA) return 1;
-      if (!dueB) return -1;
-      return new Date(dueA).getTime() - new Date(dueB).getTime();
-    })
-    .slice(0, 4)
-    .map((r) => {
-      const due = effectiveDue(r, notifications.get(r.id));
-      const group = groupById.get(groupLinks.get(r.id) ?? -1);
-      const groupPill = group
-        ? `<span class="day-badge-pill" style="color:${escapeHtml(group.color)}; background:${escapeHtml(group.color)}1a;">${escapeHtml(group.name)}</span>`
-        : "";
-      const title = escapeHtml(withTimeSuffix(r.title, null));
+      if (!a.due && !b.due) return 0;
+      if (!a.due) return 1;
+      if (!b.due) return -1;
+      return new Date(a.due).getTime() - new Date(b.due).getTime();
+    });
 
-      return `
-        <div class="day-badge-row">
-          <form method="POST" action="/donna/reminders" data-swap-target="home-widget-content-reminders" style="display:contents;">
-            <input type="hidden" name="action" value="complete" />
-            <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
-            <input type="hidden" name="returnTo" value="home" />
-            <input type="checkbox" onchange="this.closest('.day-badge-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
-          </form>
-          ${due ? renderDayBadge(localDateKey(new Date(due), timezone), group?.color ?? "var(--olive)") : ""}
-          <div class="day-badge-body">
-            ${groupPill}
-            <div class="day-badge-title">${title}</div>
-            ${due ? `<span class="hint" style="margin:0;">${escapeHtml(formatDue(due, timezone))}</span>` : ""}
-          </div>
-          <a class="reminder-edit-link" href="/donna/reminders?edit=${encodeURIComponent(r.id)}">Edit</a>
-        </div>`;
-    })
-    .join("\n");
-}
+  const overdueCount = withDue.filter((x) => x.due && new Date(x.due).getTime() < Date.now()).length;
+  const upcomingCount = withDue.length - overdueCount;
 
-function renderContactsCard(contacts: Contact[]): string {
-  if (contacts.length === 0) {
-    return `<p class="empty">No contacts tracked yet.</p>`;
-  }
-  const staleCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const staleCount = contacts.filter(
-    (c) => !c.lastContactedAt || new Date(`${c.lastContactedAt}T12:00:00`).getTime() < staleCutoff
-  ).length;
-  const plural = contacts.length === 1 ? "" : "s";
-  const summary =
-    staleCount > 0
-      ? `${contacts.length} contact${plural} tracked, ${staleCount} not contacted in 30+ days`
-      : `${contacts.length} contact${plural} tracked, all caught up`;
-  return `<p class="hint" style="margin:0;">${escapeHtml(summary)}</p>`;
-}
+  const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
+  const filterOptions = [
+    `<option value="all">All groups</option>`,
+    ...reminderGroups.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`),
+  ].join("");
 
-function renderFilesCard(
-  classFolders: ClassFolder[],
-  reminders: Reminder[],
-  classLinks: Map<string, number>
-): string {
-  const classNameById = new Map(classFolders.map((c) => [c.id, c.className]));
-  const deadlines = reminders
-    .filter((r) => r.due && classNameById.has(classLinks.get(r.id) ?? -1))
-    .sort((a, b) => (a.due! < b.due! ? -1 : 1))
-    .slice(0, 3);
-
-  if (deadlines.length === 0) {
-    return `<p class="empty">No upcoming deadlines.</p>`;
-  }
-
-  return deadlines
-    .map((r) => {
-      const className = classNameById.get(classLinks.get(r.id)!) ?? "";
-      const dateLabel = new Date(r.due!).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const title = className ? `${className}: ${withTimeSuffix(r.title, null)}` : withTimeSuffix(r.title, null);
-      return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(title)}</div>
-          <div class="agenda-event-time">${escapeHtml(dateLabel)}</div>
-        </div>`;
-    })
-    .join("\n");
-}
-
-function renderIposCard(filings: IpoFiling[]): string {
-  if (filings.length === 0) {
-    return `<p class="empty">No new IPO filings tracked yet.</p>`;
-  }
-  return filings
-    .slice(0, 3)
-    .map((f) => {
-      const dateLabel = new Date(`${f.filedDate}T12:00:00`).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-      const title = f.ticker ? `${f.companyName} (${f.ticker})` : f.companyName;
-      return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(title)}</div>
-          <div class="agenda-event-time">${escapeHtml(dateLabel)}</div>
-        </div>`;
-    })
-    .join("\n");
-}
-
-function renderFinancesCard(accounts: PlaidAccount[], transactions: PlaidTransaction[]): string {
-  if (accounts.length === 0) {
-    return `<p class="empty">No accounts linked yet.</p>`;
-  }
-  const totalCash = accounts
-    .filter((a) => a.type === "depository")
-    .reduce((sum, a) => sum + (a.currentBalance ?? 0), 0);
-  const formatted = formatMoney(totalCash, "USD");
-  const plural = accounts.length === 1 ? "" : "s";
-
-  const txRows = transactions
-    .slice(0, 3)
-    .map((t) => {
-      // Plaid convention: positive amount = money out, negative = money in.
-      const isInflow = t.amount < 0;
-      const amountLabel = isInflow ? `+${formatMoney(-t.amount, t.isoCurrencyCode)}` : formatMoney(t.amount, t.isoCurrencyCode);
-      return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(t.merchantName ?? t.name)}</div>
-          <div class="agenda-event-time" style="${isInflow ? "color: var(--accent);" : ""}">${escapeHtml(amountLabel)}</div>
-        </div>`;
-    })
-    .join("\n");
+  const rowsHtml =
+    withDue.length === 0
+      ? `<p class="empty">No reminders.</p>`
+      : withDue
+          .slice(0, 6)
+          .map(({ r, due }) => {
+            const group = groupById.get(groupLinks.get(r.id) ?? -1);
+            const dateKey = due ? localDateKey(new Date(due), timezone) : null;
+            const timeLabel = due && hasTime(due, timezone) ? new Date(due).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "";
+            const dayLabel = dateKey ? compactDayLabel(dateKey) : "";
+            const overdue = due ? new Date(due).getTime() < Date.now() : false;
+            return `
+              <div class="hw-row" data-group="${group ? group.id : ""}">
+                <div class="hw-row-main"><div class="hw-row-name">${escapeHtml(withTimeSuffix(r.title, null))}</div></div>
+                ${timeLabel ? `<div class="hw-row-time">${escapeHtml(timeLabel)}</div>` : ""}
+                <div class="hw-row-val"${overdue ? ' style="color:var(--hw-reminders);"' : ""}>${escapeHtml(dayLabel)}</div>
+              </div>`;
+          })
+          .join("\n");
 
   return `
-    <p class="hint" style="margin:0 0 6px;">${escapeHtml(formatted)} total cash across ${accounts.length} account${plural}</p>
-    ${txRows || `<p class="empty" style="margin:0;">No transactions yet.</p>`}`;
-}
-
-function renderMarketsCard(quotes: Quote[]): string {
-  if (quotes.length === 0) {
-    return `<p class="empty">No quotes yet — add tickers to your Watchlist in Settings.</p>`;
-  }
-  return quotes
-    .map((q) => {
-      const up = q.changePercent >= 0;
-      const changeLabel = `${up ? "+" : ""}${q.changePercent.toFixed(2)}%`;
-      return `
-        <div class="agenda-event-row">
-          <div class="agenda-event-title">${escapeHtml(q.symbol)}</div>
-          <div class="agenda-event-time" style="${up ? "color: var(--accent);" : "color: var(--danger);"}">
-            ${escapeHtml(formatMoney(q.price, "USD"))} · ${escapeHtml(changeLabel)}
-          </div>
-        </div>`;
-    })
-    .join("\n");
-}
-
-// Fixed per-category colors (not theme-derived) — same "user/data picks
-// the color, not the theme" approach as reminder groups' custom color
-// swatches, since these four categories are a closed, hand-seeded set
-// (see supabase/schema.sql's economic_events insert) rather than
-// open-ended user data.
-const ECON_CATEGORY_COLORS: Record<string, string> = {
-  FOMC: "#b86b45",
-  CPI: "#4f7cac",
-  NFP: "#6a8f5c",
-  GDP: "#8a6bb8",
-};
-
-function renderEconEventsCard(events: EconomicEvent[]): string {
-  if (events.length === 0) {
-    return `<p class="empty">No upcoming events seeded.</p>`;
-  }
-  return events
-    .slice(0, 2)
-    .map((e) => {
-      const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      const color = ECON_CATEGORY_COLORS[e.category] ?? "var(--olive)";
-      return `
-        <div class="day-badge-row">
-          ${renderDayBadge(e.eventDate, color)}
-          <div class="day-badge-body">
-            <span class="day-badge-pill" style="color:${escapeHtml(color)}; background:${escapeHtml(color)}1a;">${escapeHtml(e.category)}</span>
-            <div class="day-badge-title">${escapeHtml(e.eventName)}</div>
-            <span class="hint" style="margin:0;">${escapeHtml(dateLabel)}</span>
-          </div>
-        </div>`;
-    })
-    .join("\n");
-}
-
-// Older cached daily_context rows were stored before publishedAt existed —
-// fall back to the brief's own day so the meta row never renders blank.
-function formatStoryDate(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
-  const iso = story.publishedAt ?? `${fallbackDay}T12:00:00`;
-  return new Date(iso).toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" });
-}
-
-function renderNewsRow(story: DailyContext["stories"][number], fallbackDay: string, timezone: string): string {
-  const paragraphs = story.summary.split("\n\n").map((p) => p.trim()).filter(Boolean);
-  const firstLine = paragraphs[0] ?? "";
-
-  // The fallback badge sits behind the img; if the image 404s or the host
-  // blocks hotlinking (common with WSJ/FT), onerror hides the broken img
-  // and the badge shows through instead of a blank box.
-  const thumb = story.imageUrl
-    ? `<div class="news-thumb-wrap">
-        ${renderSourceBadge(story.source, "news-thumb-fallback")}
-        <img class="news-thumb" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" />
-      </div>`
-    : `<div class="news-thumb-wrap">${renderSourceBadge(story.source, "news-thumb-fallback")}</div>`;
-
-  const expandedParagraphs = paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("");
-  const expandedImage = story.imageUrl
-    ? `<img class="news-image" src="${escapeHtml(story.imageUrl)}" alt="" loading="lazy" onerror="this.style.display='none'" />`
-    : "";
-
-  return `
-    <details class="news-row selectable">
-      <summary>
-        ${thumb}
-        <div class="news-row-main">
-          <div class="news-row-meta">
-            <span>${escapeHtml(story.source)}</span><span>·</span><span>${escapeHtml(formatStoryDate(story, fallbackDay, timezone))}</span>
-            ${story.watchlistMatch ? `<span class="news-watchlist-badge">★ Watchlist</span>` : ""}
-          </div>
-          <h2 class="news-row-headline">${escapeHtml(story.headline)}</h2>
-          <p class="news-row-summary">${escapeHtml(firstLine)}</p>
+    <div class="hw-tile hw-gw-reminders" data-tint="reminders" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">
+          <div class="hw-head-left">${widgetHeadIcon(iconBell)}<div class="hw-title">Reminders</div></div>
+          ${
+            reminderGroups.length > 0
+              ? `<select class="hw-mini-select" onchange="filterReminders(this)">${filterOptions}</select>`
+              : ""
+          }
         </div>
-      </summary>
-      <div class="news-expanded">
-        ${expandedImage}
-        ${expandedParagraphs}
-        <div class="news-callout">${escapeHtml(story.ecmTag)}</div>
-        <a class="news-link" href="${escapeHtml(story.url)}" target="_blank" rel="noopener noreferrer">Read the source →</a>
-      </div>
-    </details>`;
-}
-
-function renderStoriesSection(context: DailyContext): string {
-  if (context.stories.length === 0) {
-    return `<p class="empty">No stories curated today.</p>`;
-  }
-  return context.stories.map((story) => renderNewsRow(story, context.day, context.timezone)).join("\n");
-}
-
-function formatNewsletterDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// Strips the "<email@domain>" portion off a raw From header value like
-// `Brew Markets <brewmarkets@morningbrew.com>`, leaving just the display
-// name. Falls back to the raw value unchanged if there's no angle bracket.
-function formatSenderName(sender: string): string {
-  const angleIndex = sender.indexOf("<");
-  return angleIndex === -1 ? sender : sender.slice(0, angleIndex).trim();
-}
-
-function renderNewsletterRow(n: StoredNewsletter): string {
-  // The srcdoc document is served correctly as UTF-8 end-to-end (checked
-  // on the wire), but some browsers don't reliably default a sandboxed
-  // srcdoc document's own encoding to UTF-8 — an explicit meta tag removes
-  // any ambiguity rather than relying on that inherited default.
-  const srcdocContent = `<meta charset="utf-8">${n.html}`;
-  return `
-    <details class="newsletter">
-      <summary>
-        <div class="newsletter-subject">${escapeHtml(n.subject)}</div>
-        <div class="newsletter-sender">${escapeHtml(formatSenderName(n.sender))} · ${escapeHtml(formatNewsletterDate(n.receivedAt))}</div>
-      </summary>
-      <iframe class="newsletter-frame" sandbox="allow-popups allow-same-origin" srcdoc="${escapeHtml(srcdocContent)}" loading="lazy"></iframe>
-    </details>`;
-}
-
-function renderNewslettersSection(newsletters: StoredNewsletter[]): string {
-  if (newsletters.length === 0) {
-    return `<p class="empty">No newsletters today yet.</p>`;
-  }
-  return newsletters.map(renderNewsletterRow).join("\n");
-}
-
-function renderCommunityRow(item: CommunityFeedItem): string {
-  return `
-    <div class="news-row">
-      <div class="news-row-main">
-        <div class="news-row-meta">
-          <span>${escapeHtml(item.source)}</span><span>·</span><span>${escapeHtml(formatRelativeTime(item.publishedAt))}</span>
-        </div>
-        <a class="news-row-headline" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>
+        <div class="hw-kpi-row"><div class="hw-kpi">${overdueCount}</div><div class="hw-trend">overdue · ${upcomingCount} upcoming</div></div>
+        <div class="hw-rows">${rowsHtml}</div>
       </div>
     </div>`;
 }
 
-function renderCommunitySection(items: CommunityFeedItem[]): string {
-  if (items.length === 0) {
-    return `<p class="empty">No community sources configured yet — add some from Settings.</p>`;
+// ---------------------------------------------------------------------
+// Finances — Fidelity (or the first investment account found) balance +
+// a real sparkline, Week/Month toggle. Falls back to the old total-cash
+// summary when there's no investment account to chart.
+// ---------------------------------------------------------------------
+function renderFinancesTile(
+  fidelityAccount: PlaidAccount | null,
+  fidelityBalanceWeek: BalancePoint[],
+  fidelityBalanceMonth: BalancePoint[],
+  totalCash: number,
+  accountCount: number
+): string {
+  const href = CARD_HREFS.finances;
+  const wrapOpen = `<div class="hw-tile hw-gw-finances" data-tint="finance" onclick="navigateCard(event, '${href}')"><div class="hw-pad">`;
+  const wrapClose = `</div></div>`;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconWallet)}<div class="hw-title">${fidelityAccount ? escapeHtml(fidelityAccount.name) : "Finances"}</div></div>`;
+
+  if (!fidelityAccount || fidelityBalanceWeek.length < 2) {
+    // No investment account linked, or too little history yet for a
+    // sparkline to mean anything — same explanatory-empty-state idea as
+    // the account detail page, rather than rendering a broken chart.
+    return `${wrapOpen}
+      <div class="hw-head">${headHtml}</div>
+      <div class="hw-kpi-row"><div class="hw-kpi">${escapeHtml(formatMoney(totalCash, "USD"))}</div><div class="hw-trend">${accountCount} account${accountCount === 1 ? "" : "s"}</div></div>
+      <p class="empty" style="margin-top:auto;">${fidelityAccount ? "Balance history fills in once a few more days are recorded." : "Link an investment account to see a balance trend here."}</p>
+    ${wrapClose}`;
   }
-  return items.map(renderCommunityRow).join("\n");
+
+  const change = fidelityBalanceWeek[fidelityBalanceWeek.length - 1].balance - fidelityBalanceWeek[0].balance;
+  const changePct = fidelityBalanceWeek[0].balance !== 0 ? (change / fidelityBalanceWeek[0].balance) * 100 : 0;
+  const changeSign = change >= 0 ? "+" : "";
+  const currency = fidelityAccount.isoCurrencyCode;
+
+  const chartHtml = (points: BalancePoint[]) =>
+    `<div style="--accent: var(--hw-finance);">${renderLineChart(points.map((p) => ({ label: p.date, value: p.balance })), { width: 240, height: 60 })}</div>`;
+
+  const monthAvailable = fidelityBalanceMonth.length >= 2;
+
+  return `${wrapOpen}
+    <div class="hw-head">
+      ${headHtml}
+      <div class="hw-fin-toggle">
+        <button type="button" class="hw-fin-toggle-btn hw-fin-toggle-active" data-range="week" onclick="setFinRange(this, 'week')">Week</button>
+        ${monthAvailable ? `<button type="button" class="hw-fin-toggle-btn" data-range="month" onclick="setFinRange(this, 'month')">Month</button>` : ""}
+      </div>
+    </div>
+    <div class="hw-kpi-row"><div class="hw-kpi">${escapeHtml(formatMoney(fidelityAccount.currentBalance ?? 0, currency))}</div><div class="hw-trend" style="${change >= 0 ? "color:var(--hw-up);" : "color:var(--hw-down);"}">${escapeHtml(changeSign)}${changePct.toFixed(2)}%</div></div>
+    <div class="hw-fin-chart" data-range-view="week">${chartHtml(fidelityBalanceWeek)}</div>
+    ${monthAvailable ? `<div class="hw-fin-chart" data-range-view="month" style="display:none;">${chartHtml(fidelityBalanceMonth)}</div>` : ""}
+    <div class="hw-fin-stat-row"><span>Change</span><span style="${change >= 0 ? "color:var(--hw-up);" : "color:var(--hw-down);"} font-weight:700;">${escapeHtml(changeSign)}${escapeHtml(formatMoney(Math.abs(change), currency))}</span></div>
+  ${wrapClose}`;
+}
+
+// ---------------------------------------------------------------------
+// Markets
+// ---------------------------------------------------------------------
+function renderMarketsTile(quotes: Quote[]): string {
+  const href = CARD_HREFS.markets;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconTrendingUp)}<div class="hw-title">Markets</div></div>`;
+  if (quotes.length === 0) {
+    return `
+      <div class="hw-tile hw-gw-markets" data-tint="markets" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No quotes yet — add tickers to your Watchlist in Settings.</p></div>
+      </div>`;
+  }
+  const top = [...quotes].sort((a, b) => b.changePercent - a.changePercent)[0];
+  const rows = quotes
+    .slice(0, 4)
+    .map((q) => {
+      const up = q.changePercent >= 0;
+      const changeLabel = `${up ? "+" : ""}${q.changePercent.toFixed(2)}%`;
+      return `
+        <div class="hw-row">
+          <div class="hw-row-main"><div class="hw-row-name">${escapeHtml(q.symbol)}</div></div>
+          <div class="hw-row-val" style="color:${up ? "var(--hw-up)" : "var(--hw-down)"};">${escapeHtml(formatMoney(q.price, "USD"))} · ${escapeHtml(changeLabel)}</div>
+        </div>`;
+    })
+    .join("\n");
+  return `
+    <div class="hw-tile hw-gw-markets" data-tint="markets" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-kpi-row"><div class="hw-kpi" style="color:${top.changePercent >= 0 ? "var(--hw-up)" : "var(--hw-down)"};">${top.changePercent >= 0 ? "+" : ""}${top.changePercent.toFixed(2)}%</div><div class="hw-trend">${escapeHtml(top.symbol)} leads</div></div>
+        <div class="hw-rows">${rows}</div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Upcoming (mini today/tomorrow agenda)
+// ---------------------------------------------------------------------
+function renderUpcomingTile(todayEvents: CalendarEvent[], tomorrowEvents: CalendarEvent[], timezone: string): string {
+  const href = CARD_HREFS.upcoming;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconCalendar)}<div class="hw-title">Upcoming</div></div>`;
+  const eventRow = (e: CalendarEvent) => {
+    const timeLabel = e.start.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
+    return `<div class="hw-row"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(e.summary)}</div></div><div class="hw-row-time">${escapeHtml(timeLabel)}</div></div>`;
+  };
+  const todayHtml = todayEvents.length ? todayEvents.slice(0, 3).map(eventRow).join("\n") : `<p class="empty" style="margin:0;">Nothing today.</p>`;
+  const tomorrowHtml = tomorrowEvents.length ? tomorrowEvents.slice(0, 2).map(eventRow).join("\n") : "";
+  return `
+    <div class="hw-tile hw-gw-upcoming" data-tint="upcoming" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-kpi-row"><div class="hw-kpi">${todayEvents.length}</div><div class="hw-trend">today</div></div>
+        <div class="hw-rows">${todayHtml}</div>
+        ${tomorrowHtml ? `<div class="hw-row-divider">Tomorrow</div><div class="hw-rows">${tomorrowHtml}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Classes — up to 6 tiles, just the course names, linking into School.
+// ---------------------------------------------------------------------
+function renderClassesTile(classFolders: ClassFolder[]): string {
+  const href = CARD_HREFS.classes;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconGraduationCap)}<div class="hw-title">Classes</div></div>`;
+  if (classFolders.length === 0) {
+    return `
+      <div class="hw-tile hw-gw-classes" data-tint="classes" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No classes set up yet — add one in Settings.</p></div>
+      </div>`;
+  }
+  const realTiles = classFolders
+    .slice(0, 6)
+    .map((c) => `<a class="hw-class-tile" href="/donna/school?classId=${c.id}"><div class="hw-class-tile-code">${escapeHtml(c.className)}</div></a>`)
+    .join("\n");
+  const emptySlots = Math.max(0, 6 - classFolders.length);
+  const emptyTiles = Array.from({ length: emptySlots > 0 && classFolders.length < 6 ? emptySlots : 0 })
+    .map(() => `<a class="hw-class-tile hw-class-tile-empty" href="/donna/settings#settings-classes">+</a>`)
+    .join("\n");
+  return `
+    <div class="hw-tile hw-gw-classes" data-tint="classes" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-class-grid">${realTiles}${emptyTiles}</div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// IPOs — filing/SPAC counts, real industry mix, top (most recent) filing.
+// ---------------------------------------------------------------------
+const IPO_MIX_COLORS = ["var(--hw-ipo-1)", "var(--hw-ipo-2)", "var(--hw-ipo-3)"];
+
+function renderIposTile(filings: IpoFiling[]): string {
+  const href = CARD_HREFS.ipos;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconTrendingUp)}<div class="hw-title">IPOs</div></div>`;
+  if (filings.length === 0) {
+    return `
+      <div class="hw-tile hw-gw-ipos" data-tint="ipos" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No new IPO filings tracked yet.</p></div>
+      </div>`;
+  }
+
+  const spacCount = filings.filter((f) => f.isSpac).length;
+  const classified = filings.filter((f) => f.industry);
+  const counts = new Map<string, number>();
+  for (const f of classified) counts.set(f.industry!, (counts.get(f.industry!) ?? 0) + 1);
+  const topIndustries = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  const barHtml =
+    classified.length > 0
+      ? `
+    <div class="hw-ipo-bar">${topIndustries.map(([, count], i) => `<div style="width:${((count / classified.length) * 100).toFixed(0)}%; background:${IPO_MIX_COLORS[i]};"></div>`).join("")}</div>
+    <div class="hw-ipo-legend">${topIndustries
+      .map(([name, count], i) => `<div class="hw-ipo-legend-item"><span class="hw-ipo-legend-dot" style="background:${IPO_MIX_COLORS[i]};"></span>${escapeHtml(name)} ${Math.round((count / classified.length) * 100)}%</div>`)
+      .join("")}</div>`
+      : "";
+
+  const top = filings[0];
+  const topDateLabel = new Date(`${top.filedDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const topChip = top.isSpac ? "SPAC" : top.industry ?? "Filing";
+
+  return `
+    <div class="hw-tile hw-gw-ipos" data-tint="ipos" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-ipo-stats">
+          <div class="hw-ipo-stat"><div class="hw-ipo-stat-num">${filings.length}</div><div class="hw-ipo-stat-label">filings</div></div>
+          <div class="hw-ipo-stat"><div class="hw-ipo-stat-num">${spacCount}</div><div class="hw-ipo-stat-label">SPACs</div></div>
+        </div>
+        ${barHtml}
+        <div class="hw-ipo-best">
+          <div class="hw-ipo-best-label">Most recent</div>
+          <div class="hw-ipo-best-row"><span class="hw-ipo-best-name">${escapeHtml(top.companyName)}</span><span class="hw-ipo-best-chip">${escapeHtml(topChip)}</span></div>
+          <div class="hw-ipo-best-meta">${escapeHtml(topDateLabel)}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Files — quick actions instead of a deadlines list (that content moved
+// into Classes' "click through to School" + the Files page itself).
+// ---------------------------------------------------------------------
+function renderFilesTile(): string {
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconFolder)}<div class="hw-title">Files</div></div>`;
+  return `
+    <div class="hw-tile hw-gw-files" data-tint="files">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-file-actions">
+          <a class="hw-file-action-btn" data-action-tint="markets" href="/donna/files#file-file">${iconUpload}Upload</a>
+          <a class="hw-file-action-btn" data-action-tint="finance" href="/donna/files#photo-file">${iconScan}Scan</a>
+          <a class="hw-file-action-btn" data-action-tint="ipos" href="/donna/files#lecture-file">${iconMic}Transcribe</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Recent Activity
+// ---------------------------------------------------------------------
+function uploadLabel(u: Upload): string {
+  const kindLabel = u.kind === "lecture" ? "Transcript" : "Scan";
+  return `${kindLabel}: ${u.originalFilename}`;
+}
+
+function renderRecentActivityTile(uploads: Upload[]): string {
+  const href = CARD_HREFS["recent-activity"];
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconClock)}<div class="hw-title">Recent Activity</div></div>`;
+  const rows = uploads.length
+    ? uploads
+        .slice(0, 4)
+        .map(
+          (u) =>
+            `<div class="hw-row"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(uploadLabel(u))}</div></div><div class="hw-row-time">${escapeHtml(formatRelativeTime(u.createdAt))}</div></div>`
+        )
+        .join("\n")
+    : `<p class="empty">No recent activity.</p>`;
+  return `
+    <div class="hw-tile hw-gw-activity" data-tint="activity" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-kpi-row"><div class="hw-kpi">${uploads.length}</div><div class="hw-trend">recent</div></div>
+        <div class="hw-rows">${rows}</div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Econ Events
+// ---------------------------------------------------------------------
+function renderEconEventsTile(events: EconomicEvent[]): string {
+  const href = CARD_HREFS["econ-events"];
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconBarChart)}<div class="hw-title">Econ Events</div></div>`;
+  if (events.length === 0) {
+    return `
+      <div class="hw-tile hw-gw-econ" data-tint="econ" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No upcoming events seeded.</p></div>
+      </div>`;
+  }
+  const next = events[0];
+  const rows = events
+    .slice(0, 2)
+    .map((e) => {
+      const dateLabel = new Date(`${e.eventDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return `<div class="hw-row"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(e.eventName)}</div></div><div class="hw-row-val">${escapeHtml(dateLabel)}</div></div>`;
+    })
+    .join("\n");
+  return `
+    <div class="hw-tile hw-gw-econ" data-tint="econ" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-kpi-row"><div class="hw-kpi">${compactDayLabel(next.eventDate)}</div><div class="hw-trend">${escapeHtml(next.eventName)}</div></div>
+        <div class="hw-rows">${rows}</div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Contacts
+// ---------------------------------------------------------------------
+function renderContactsTile(contacts: Contact[]): string {
+  const href = CARD_HREFS.contacts;
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconUser)}<div class="hw-title">Contacts</div></div>`;
+  if (contacts.length === 0) {
+    return `
+      <div class="hw-tile hw-gw-contacts" data-tint="contacts" onclick="navigateCard(event, '${href}')">
+        <div class="hw-pad"><div class="hw-head">${headHtml}</div><p class="empty">No contacts tracked yet.</p></div>
+      </div>`;
+  }
+  const staleCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const staleCount = contacts.filter((c) => !c.lastContactedAt || new Date(`${c.lastContactedAt}T12:00:00`).getTime() < staleCutoff).length;
+  const rows = contacts
+    .slice(0, 3)
+    .map((c) => `<div class="hw-row"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(c.name)}</div></div><div class="hw-row-val">${escapeHtml(c.relationshipTag ?? "")}</div></div>`)
+    .join("\n");
+  return `
+    <div class="hw-tile hw-gw-contacts" data-tint="contacts" onclick="navigateCard(event, '${href}')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        <div class="hw-kpi-row"><div class="hw-kpi">${contacts.length}</div><div class="hw-trend">${staleCount > 0 ? `${staleCount} stale` : "tracked"}</div></div>
+        <div class="hw-rows">${rows}</div>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// News — top headline + a newsletter preview, both deep-linking into the
+// News tab at that exact item (see newsPage.ts's ?highlight= handling).
+// ---------------------------------------------------------------------
+function renderNewsTile(context: DailyContext | null, newsletters: StoredNewsletter[]): string {
+  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconNewspaper)}<div class="hw-title">News</div></div>`;
+  const topStory = context?.stories[0];
+  const headlineHtml = topStory
+    ? `
+    <a class="hw-news-source" href="/donna/news?highlight=${encodeURIComponent(topStory.url)}#${storyAnchorId(topStory.url)}">${escapeHtml(topStory.source)}</a>
+    <a class="hw-news-headline" href="/donna/news?highlight=${encodeURIComponent(topStory.url)}#${storyAnchorId(topStory.url)}">${escapeHtml(topStory.headline)}</a>`
+    : `<p class="empty">No brief generated yet today.</p>`;
+
+  const newsletterRows = newsletters
+    .slice(0, 2)
+    .map(
+      (n) =>
+        `<a class="hw-row hw-row-link" href="/donna/news?highlight=${encodeURIComponent(`newsletter:${n.id}`)}#newsletter-${escapeHtml(n.id)}"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(n.subject)}</div></div></a>`
+    )
+    .join("\n");
+
+  return `
+    <div class="hw-tile hw-gw-news" data-tint="news" onclick="navigateCard(event, '/donna/news')">
+      <div class="hw-pad">
+        <div class="hw-head">${headHtml}</div>
+        ${headlineHtml}
+        ${newsletterRows ? `<div class="hw-rows" style="margin-top:6px;">${newsletterRows}</div>` : ""}
+      </div>
+    </div>`;
 }
 
 export interface DonnaPageData {
@@ -449,20 +508,21 @@ export interface DonnaPageData {
   dashboardConfig: DashboardConfig;
   contacts: Contact[];
   classFolders: ClassFolder[];
-  classLinks: Map<string, number>;
   ipoFilings: IpoFiling[];
-  financeAccounts: PlaidAccount[];
-  financeTransactions: PlaidTransaction[];
+  fidelityAccount: PlaidAccount | null;
+  fidelityBalanceWeek: BalancePoint[];
+  fidelityBalanceMonth: BalancePoint[];
+  totalCash: number;
+  accountCount: number;
   todayEvents: CalendarEvent[];
   tomorrowEvents: CalendarEvent[];
   reminderGroups: ReminderGroup[];
   groupLinks: Map<string, number>;
   watchlistQuotes: Quote[];
   upcomingEconEvents: EconomicEvent[];
-  communityFeedItems: CommunityFeedItem[];
 }
 
-function renderCardRow(data: DonnaPageData, timezone: string): string {
+function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
   const {
     dashboardConfig,
     reminders,
@@ -471,61 +531,46 @@ function renderCardRow(data: DonnaPageData, timezone: string): string {
     googleConfigured,
     contacts,
     classFolders,
-    classLinks,
     ipoFilings,
-    financeAccounts,
-    financeTransactions,
+    fidelityAccount,
+    fidelityBalanceWeek,
+    fidelityBalanceMonth,
+    totalCash,
+    accountCount,
     todayEvents,
     tomorrowEvents,
     reminderGroups,
     groupLinks,
     watchlistQuotes,
     upcomingEconEvents,
+    context,
+    newsletters,
   } = data;
 
-  const cardsById: Record<HomeWidgetId, { icon: string; title: string; content: string }> = {
-    "recent-activity": { icon: iconFolder, title: "Recent Activity", content: renderRecentActivityCard(recentUploads) },
-    upcoming: { icon: iconCalendar, title: "Upcoming", content: renderCalendarCard(todayEvents, tomorrowEvents, timezone) },
-    reminders: {
-      icon: iconBell,
-      title: "Reminders",
-      content: renderRemindersCard(reminders, googleConfigured, reminderNotifications, timezone, reminderGroups, groupLinks),
-    },
-    contacts: { icon: iconUser, title: "Contacts", content: renderContactsCard(contacts) },
-    files: { icon: iconFolder, title: "Files", content: renderFilesCard(classFolders, reminders, classLinks) },
-    ipos: { icon: iconTrendingUp, title: "IPOs", content: renderIposCard(ipoFilings) },
-    finances: { icon: iconWallet, title: "Finances", content: renderFinancesCard(financeAccounts, financeTransactions) },
-    markets: { icon: iconMarkets, title: "Markets", content: renderMarketsCard(watchlistQuotes) },
-    "econ-events": { icon: iconEconEvents, title: "Upcoming Econ Events", content: renderEconEventsCard(upcomingEconEvents) },
+  const renderers: Record<HomeWidgetId, () => string> = {
+    reminders: () => renderRemindersTile(reminders, googleConfigured, reminderNotifications, timezone, reminderGroups, groupLinks),
+    finances: () => renderFinancesTile(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, totalCash, accountCount),
+    markets: () => renderMarketsTile(watchlistQuotes),
+    upcoming: () => renderUpcomingTile(todayEvents, tomorrowEvents, timezone),
+    classes: () => renderClassesTile(classFolders),
+    ipos: () => renderIposTile(ipoFilings),
+    files: () => renderFilesTile(),
+    "recent-activity": () => renderRecentActivityTile(recentUploads),
+    "econ-events": () => renderEconEventsTile(upcomingEconEvents),
+    contacts: () => renderContactsTile(contacts),
+    news: () => renderNewsTile(context, newsletters),
   };
 
   return dashboardConfig.homeWidgets
-    .filter((w) => w.visible && cardsById[w.id])
-    .map((w) => {
-      const card = cardsById[w.id];
-      const href = CARD_HREFS[w.id];
-      const editAnchor = EDIT_ANCHORS[w.id];
-      return `
-      <div class="card card-clickable" data-widget-id="${w.id}" onclick="navigateCard(event, '${href}')">
-        <div class="card-header">
-          <div class="card-icon">${card.icon}</div>
-          <div class="card-title">${escapeHtml(card.title)}</div>
-          ${editAnchor ? renderCardEditLink(editAnchor, card.title) : ""}
-          <button type="button" class="card-collapse-btn" onclick="toggleCardCollapse(event, '${w.id}')" aria-label="Collapse">${iconChevronDown}</button>
-        </div>
-        <div class="card-content" id="home-widget-content-${w.id}">
-          ${card.content}
-        </div>
-      </div>`;
-    })
+    .filter((w) => w.visible && renderers[w.id])
+    .map((w) => renderers[w.id]())
     .join("\n");
 }
 
 export function buildDonnaHtml(data: DonnaPageData): string {
-  const { context, newsletters, dashboardConfig, communityFeedItems } = data;
+  const { context, dashboardConfig } = data;
   const timezone = context?.timezone ?? "America/New_York";
   const dateLabel = context ? formatFullDate(context.day, timezone) : "";
-  const newsDefault = dashboardConfig.defaultHomeTab !== "newsletters";
 
   const body = `
     <div class="section">
@@ -533,40 +578,14 @@ export function buildDonnaHtml(data: DonnaPageData): string {
       ${dateLabel ? `<p class="page-sub">${escapeHtml(dateLabel)}</p>` : ""}
     </div>
 
-    <div class="home-tabs">
-      <button type="button" class="home-tab-btn ${newsDefault ? "home-tab-btn-active" : ""}" data-panel="news-panel" onclick="switchHomeTab(this)">News</button>
-      <button type="button" class="home-tab-btn ${newsDefault ? "" : "home-tab-btn-active"}" data-panel="newsletters-panel" onclick="switchHomeTab(this)">Newsletters</button>
-      <button type="button" class="home-tab-btn" data-panel="community-panel" onclick="switchHomeTab(this)">Community</button>
-    </div>
-
-    <section class="section home-tab-panel" id="news-panel" style="${newsDefault ? "" : "display:none;"}">
-      ${context ? renderStoriesSection(context) : `<p class="empty">No brief has been generated yet today.</p>`}
-    </section>
-
-    <section class="section home-tab-panel" id="newsletters-panel" style="${newsDefault ? "display:none;" : ""}">
-      ${renderNewslettersSection(newsletters)}
-    </section>
-
-    <section class="section home-tab-panel" id="community-panel" style="display:none;">
-      <div style="display:flex; justify-content:flex-end; align-items:center; gap: var(--sp-2); margin-bottom: var(--sp-2);">
-        ${renderPageEditLink("settings-community-feeds", "Sources")}
-        <a class="hint" href="/donna?refresh=1" title="Re-check community sources for anything posted since the last load">Refresh</a>
-      </div>
-      ${renderCommunitySection(communityFeedItems)}
-    </section>
-
-    <div class="card-row" id="card-row" style="margin-top: var(--sp-3);">
-      ${renderCardRow(data, timezone)}
+    <div class="hw-grid" id="hw-grid">
+      ${renderWidgetGrid(data, timezone)}
     </div>`;
 
   return renderLayout({
     title: "Donna",
     activeTab: "home",
     bodyHtml: body,
-    extraBodyHtml: `
-  <div id="ask-popup" class="ask-popup hidden">
-    <div class="ask-popup-body" id="ask-popup-body"></div>
-  </div>`,
     pageScript: CLIENT_SCRIPT,
     showChatFab: true,
     navVisibility: dashboardConfig.navVisibility,
@@ -577,169 +596,29 @@ export function buildDonnaHtml(data: DonnaPageData): string {
 const CLIENT_SCRIPT = `
 (function () {
   function navigateCard(event, href) {
-    // Broadened beyond just the collapse button now that Reminders'
-    // widget has its own interactive controls (complete checkbox, Edit
-    // link) — a click on any of those shouldn't also navigate the whole
-    // card away.
-    if (event.target.closest(".card-collapse-btn, a, button, input, label")) return;
+    if (event.target.closest(".hw-fin-toggle, a, button, input, label, select")) return;
     if (href) window.location.href = href;
   }
-
-  function toggleCardCollapse(event, widgetId) {
-    event.stopPropagation();
-    const card = event.currentTarget.closest(".card");
-    if (!card) return;
-    const collapsed = card.classList.toggle("card-collapsed");
-    try {
-      localStorage.setItem("home-card-collapsed:" + widgetId, collapsed ? "1" : "0");
-    } catch (err) {
-      // Private browsing / storage disabled — collapse still works for
-      // this page view, it just won't persist across reloads.
-    }
-  }
-
-  // Greedy shortest-column packing (the standard masonry algorithm): each
-  // card, in its configured order, goes into whichever column currently
-  // has the least total height — see the .card-row CSS comment for why a
-  // pure-CSS grid can't do this. Columns must already be attached to the
-  // document before any card is measured (offsetHeight on a detached node
-  // is always 0), so the empty .masonry-col elements go in first.
-  function distributeMasonry() {
-    const container = document.getElementById("card-row");
-    if (!container) return;
-    const cards = Array.prototype.slice.call(container.querySelectorAll(".card"));
-    if (cards.length === 0) return;
-
-    const columnCount = window.innerWidth > 860 ? 3 : 1;
-    if (columnCount === 1) {
-      cards.forEach((card) => container.appendChild(card));
-      container.querySelectorAll(".masonry-col").forEach((col) => col.remove());
-      return;
-    }
-
-    const columns = [];
-    for (let i = 0; i < columnCount; i++) {
-      const col = document.createElement("div");
-      col.className = "masonry-col";
-      columns.push(col);
-    }
-    container.innerHTML = "";
-    columns.forEach((col) => container.appendChild(col));
-
-    const heights = new Array(columnCount).fill(0);
-    cards.forEach((card) => {
-      let shortest = 0;
-      for (let i = 1; i < columnCount; i++) {
-        if (heights[i] < heights[shortest]) shortest = i;
-      }
-      columns[shortest].appendChild(card);
-      heights[shortest] += card.offsetHeight;
-    });
-  }
-  // Restore collapsed state before measuring for masonry below — a card
-  // collapsed in a previous session should be measured at its actual
-  // (short) collapsed height, not its full height followed by a
-  // now-stale collapse.
-  document.querySelectorAll(".card[data-widget-id]").forEach((card) => {
-    let collapsed = false;
-    try {
-      collapsed = localStorage.getItem("home-card-collapsed:" + card.dataset.widgetId) === "1";
-    } catch (err) {}
-    if (collapsed) card.classList.add("card-collapsed");
-  });
-
-  distributeMasonry();
-
-  if (!window.__homeMasonryResizeBound) {
-    window.__homeMasonryResizeBound = true;
-    let resizeTimer;
-    window.addEventListener("resize", function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(distributeMasonry, 150);
-    });
-  }
-
-  function switchHomeTab(btn) {
-    document.querySelectorAll(".home-tab-btn").forEach((b) => b.classList.remove("home-tab-btn-active"));
-    btn.classList.add("home-tab-btn-active");
-    document.querySelectorAll(".home-tab-panel").forEach((p) => { p.style.display = "none"; });
-    document.getElementById(btn.dataset.panel).style.display = "";
-  }
-
-  // Referenced by inline onclick="" attributes in the HTML this script
-  // ships alongside — those look up identifiers on the global scope, so
-  // wrapping this whole script in an IIFE (done above, to make it safe to
-  // re-run after a swapped navigation) means these three need an explicit
-  // window assignment or the buttons calling them would break.
   window.navigateCard = navigateCard;
-  window.toggleCardCollapse = toggleCardCollapse;
-  window.switchHomeTab = switchHomeTab;
 
-  let askButton = null;
-
-  function removeAskButton() {
-    if (askButton) {
-      askButton.remove();
-      askButton = null;
-    }
+  function filterReminders(select) {
+    const group = select.value;
+    const tile = select.closest(".hw-tile");
+    if (!tile) return;
+    tile.querySelectorAll(".hw-row[data-group]").forEach((row) => {
+      row.style.display = group === "all" || row.dataset.group === group ? "" : "none";
+    });
   }
+  window.filterReminders = filterReminders;
 
-  document.addEventListener("mouseup", (event) => {
-    if (event.target && event.target.closest && event.target.closest(".ask-button")) {
-      return;
-    }
-    removeAskButton();
-
-    const selection = window.getSelection();
-    const text = selection ? selection.toString().trim() : "";
-    if (!text || text.length < 3 || text.length > 500) {
-      return;
-    }
-    const anchor = selection.anchorNode;
-    if (!anchor || !anchor.parentElement || !anchor.parentElement.closest(".selectable")) {
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-
-    askButton = document.createElement("button");
-    askButton.className = "ask-button";
-    askButton.textContent = "Ask Donna";
-    askButton.style.left = Math.max(8, rect.left) + "px";
-    askButton.style.top = (rect.bottom + window.scrollY + 6) + "px";
-    askButton.onclick = () => askAbout(text);
-    document.body.appendChild(askButton);
-  });
-
-  async function askAbout(text) {
-    removeAskButton();
-    const popup = document.getElementById("ask-popup");
-    const body = document.getElementById("ask-popup-body");
-    popup.classList.remove("hidden");
-    popup.style.left = "16px";
-    popup.style.bottom = "16px";
-    popup.style.top = "auto";
-    body.textContent = "Thinking…";
-
-    try {
-      const res = await fetch("/api/donna", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      body.textContent = data.explanation || "Not sure how to explain that one.";
-    } catch (err) {
-      body.textContent = "Couldn't reach Donna just now.";
-    }
+  function setFinRange(btn, range) {
+    const tile = btn.closest(".hw-tile");
+    if (!tile) return;
+    tile.querySelectorAll(".hw-fin-toggle-btn").forEach((b) => b.classList.toggle("hw-fin-toggle-active", b === btn));
+    tile.querySelectorAll(".hw-fin-chart").forEach((el) => {
+      el.style.display = el.dataset.rangeView === range ? "" : "none";
+    });
   }
-
-  document.addEventListener("click", (event) => {
-    const popup = document.getElementById("ask-popup");
-    if (!popup.classList.contains("hidden") && !popup.contains(event.target) && !(event.target.closest && event.target.closest(".ask-button"))) {
-      popup.classList.add("hidden");
-    }
-  });
+  window.setFinRange = setFinRange;
 })();
 `;
