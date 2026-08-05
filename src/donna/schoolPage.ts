@@ -217,7 +217,7 @@ export function buildSchoolHtml(data: SchoolPageData): string {
 
     <div class="section" style="margin-top: var(--sp-3);">
       <h1 class="section-title">Files</h1>
-      ${renderLibraryTable(buildLibraryRows([cls], { [cls.id]: driveFiles }, { [cls.id]: uploads }, []))}
+      ${renderLibraryTable(buildLibraryRows([cls], { [cls.id]: driveFiles }, { [cls.id]: uploads }, []), `/donna/school?classId=${cls.id}`)}
     </div>
 
     <div class="section" style="margin-top: var(--sp-3);">

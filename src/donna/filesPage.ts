@@ -6,7 +6,6 @@ import type { Upload } from "../storage/uploads.js";
 import { escapeHtml } from "../util/html.js";
 import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { renderPageEditLink } from "./editLink.js";
 
 // Exported for schoolPage.ts, which shows the same combined Drive-files +
 // app-uploads listing scoped to just the active class instead of every
@@ -19,6 +18,11 @@ export interface LibraryRow {
   status: string;
   link?: string;
   icon: string;
+  // Only set for app-uploaded rows (lecture/photo/file) — real Drive rows
+  // have nothing for this app to delete (deleting from Drive itself is a
+  // bigger, more destructive action than this app owns yet, so those rows
+  // just don't get a delete control at all).
+  deleteId?: number;
 }
 
 function formatDate(iso: string): string {
@@ -46,6 +50,7 @@ function uploadToRow(u: Upload, className: string): LibraryRow {
     // failed row has nothing in place to view yet.
     link: u.status === "done" ? `/api/donna-upload?view=${u.id}` : undefined,
     icon: u.kind === "lecture" ? "\u{1F3A7}" : u.kind === "photo" ? "\u{1F5BC}\u{FE0F}" : "\u{1F4C4}",
+    deleteId: u.id,
   };
 }
 
@@ -81,7 +86,10 @@ export function buildLibraryRows(
   return rows;
 }
 
-export function renderLibraryTable(rows: LibraryRow[]): string {
+// returnTo is where the delete form posts back to — Files and School both
+// render this same table but need the resulting redirect to land back on
+// whichever page (and, for School, whichever class) it was opened from.
+export function renderLibraryTable(rows: LibraryRow[], returnTo: string): string {
   if (rows.length === 0) {
     return `<p class="empty">Nothing in your library yet.</p>`;
   }
@@ -89,12 +97,21 @@ export function renderLibraryTable(rows: LibraryRow[]): string {
   const classOptions = [...new Set(rows.map((r) => r.className))]
     .filter((c) => c !== "—")
     .sort((a, b) => a.localeCompare(b));
+  const anyDeletable = rows.some((r) => r.deleteId !== undefined);
 
   const trs = rows
     .map((r) => {
       const titleCell = r.link
         ? `<a href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer"><span class="file-icon">${r.icon}</span>${escapeHtml(r.title)}</a>`
         : `<span class="file-icon">${r.icon}</span>${escapeHtml(r.title)}`;
+      const actionCell =
+        r.deleteId !== undefined
+          ? `<form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage — it can\\'t be undone.');">
+              <input type="hidden" name="action" value="delete-upload" />
+              <input type="hidden" name="id" value="${r.deleteId}" />
+              <button type="submit" class="btn-danger btn-small">Remove</button>
+            </form>`
+          : "";
 
       return `
         <tr data-title="${escapeHtml(r.title.toLowerCase())}" data-class="${escapeHtml(r.className)}">
@@ -102,6 +119,7 @@ export function renderLibraryTable(rows: LibraryRow[]): string {
           <td>${escapeHtml(r.className)}</td>
           <td data-sort-value="${escapeHtml(r.dateIso)}">${escapeHtml(r.dateLabel)}</td>
           <td>${escapeHtml(r.status)}</td>
+          ${anyDeletable ? `<td class="file-table-actions-cell">${actionCell}</td>` : ""}
         </tr>`;
     })
     .join("\n");
@@ -113,14 +131,16 @@ export function renderLibraryTable(rows: LibraryRow[]): string {
         <option value="">All classes</option>
         ${classOptions.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
       </select>
+      ${anyDeletable ? `<button type="button" class="btn-secondary btn-small" id="file-table-edit-toggle" style="margin-left:auto;">Edit Files</button>` : ""}
     </div>
-    <table class="file-table" id="file-table">
+    <table class="file-table${anyDeletable ? " file-table-editable" : ""}" id="file-table">
       <thead>
         <tr>
           <th data-key="title">Title</th>
           <th data-key="class">Class</th>
           <th data-key="date">Date Uploaded</th>
           <th data-key="status">Status</th>
+          ${anyDeletable ? `<th class="file-table-actions-cell"></th>` : ""}
         </tr>
       </thead>
       <tbody id="file-table-body">
@@ -216,7 +236,7 @@ export function buildFilesHtml(data: FilesPageData): string {
             ? "No classes set up yet — add one in Settings."
             : "Not connected yet — finish Google Drive setup, then add classes in Settings."
         }</p>`
-      : renderLibraryTable(rows);
+      : renderLibraryTable(rows, "/donna/files");
 
   const body = `
     <div class="file-library-layout">
@@ -224,10 +244,7 @@ export function buildFilesHtml(data: FilesPageData): string {
         ${renderDeadlinesSection(classFolders, reminders, classLinks)}
         <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2);">
           <h1 class="section-title" style="margin:0;">File Library</h1>
-          <div style="display:flex; align-items:center; gap: var(--sp-2);">
-            ${renderPageEditLink("settings-classes", "Classes")}
-            <a class="btn-secondary btn-small" href="/donna/files?refresh=1" title="Re-check Drive for files added since the last load">Refresh</a>
-          </div>
+          <a class="btn-secondary btn-small" href="/donna/files?refresh=1" title="Re-check Drive for files added since the last load">Refresh</a>
         </div>
         ${libraryHtml}
       </div>
@@ -287,6 +304,15 @@ export const FILE_TABLE_SCRIPT = `
     const classFilter = document.getElementById("file-class-filter");
     const tbody = document.getElementById("file-table-body");
     if (!tbody) return;
+
+    const editToggle = document.getElementById("file-table-edit-toggle");
+    const table = document.getElementById("file-table");
+    if (editToggle && table) {
+      editToggle.addEventListener("click", function () {
+        const editing = table.classList.toggle("file-table-editing");
+        editToggle.textContent = editing ? "Done" : "Edit Files";
+      });
+    }
 
     function applyFilters() {
       const query = (searchInput.value || "").toLowerCase().trim();

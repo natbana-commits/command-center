@@ -889,6 +889,10 @@ export const BASE_STYLES = `
   .file-table a { color: var(--accent); text-decoration: none; }
   .file-table a:hover { text-decoration: underline; }
   .file-icon { margin-right: 6px; }
+  /* Actions column stays hidden until "Edit Files" is toggled on — most of
+     the time you're just looking for something, not managing the list. */
+  .file-table-actions-cell { display: none; width: 90px; }
+  .file-table-editable.file-table-editing .file-table-actions-cell { display: table-cell; }
   .class-block { margin-bottom: var(--sp-3); }
   .class-title { font-weight: 600; margin-bottom: 8px; }
   .class-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }

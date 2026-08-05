@@ -103,6 +103,18 @@ export async function createUpload(input: {
   return rowToUpload(data);
 }
 
+export async function deleteUpload(id: number): Promise<void> {
+  const client = getSupabaseClient();
+  const upload = await getUpload(id);
+  if (upload) {
+    await client.storage.from(BUCKET).remove([upload.storagePath]).catch(() => {});
+  }
+  const { error } = await client.from("uploads").delete().eq("id", id);
+  if (error) {
+    throw new Error(`Supabase delete error: ${error.message}`);
+  }
+}
+
 export async function getUpload(id: number): Promise<Upload | null> {
   const client = getSupabaseClient();
   const { data, error } = await withSupabaseRetry(() =>

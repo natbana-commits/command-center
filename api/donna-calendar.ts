@@ -6,7 +6,7 @@ import { buildCalendarHtml, type CalendarDayGroup, type CalendarView } from "../
 import { requireAuth } from "../src/auth/session.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { listFilesInFolder, type DriveFile } from "../src/drive/list.js";
-import { getUploadsForClass, getGeneralUploads, getUpload, type Upload } from "../src/storage/uploads.js";
+import { getUploadsForClass, getGeneralUploads, getUpload, deleteUpload, type Upload } from "../src/storage/uploads.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
 import { getClassLinksForTasks } from "../src/reminders/classLinks.js";
@@ -273,6 +273,16 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
+      if (action === "delete-upload") {
+        const uploadId = Number(body.id);
+        if (Number.isFinite(uploadId)) {
+          await deleteUpload(uploadId);
+        }
+        const classId = typeof req.query.classId === "string" ? req.query.classId : undefined;
+        res.redirect(303, classId ? `/donna/school?classId=${classId}` : "/donna/school");
+        return;
+      }
+
       if (action === "prep-project") {
         const classId = Number(body.classId);
         const description = String(body.description ?? "").trim();
@@ -308,6 +318,22 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
 }
 
 async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "POST") {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (body.action === "delete-upload") {
+      const uploadId = Number(body.id);
+      try {
+        if (Number.isFinite(uploadId)) {
+          await deleteUpload(uploadId);
+        }
+      } catch (err) {
+        console.error("Delete upload failed:", err);
+      }
+    }
+    res.redirect(303, "/donna/files");
+    return;
+  }
+
   const googleConfigured = isGoogleConfigured();
   const [settings, classFolders, reminders] = await Promise.all([
     loadSettings(),
