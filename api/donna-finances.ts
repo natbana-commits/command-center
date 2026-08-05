@@ -5,10 +5,10 @@ import { requireAuth } from "../src/auth/session.js";
 import { getPlaidClient, isPlaidConfigured } from "../src/finance/plaidClient.js";
 import { getAllItems, getDecryptedAccessToken, saveItem, deleteItem, setNeedsReauth } from "../src/finance/items.js";
 import { getAllAccounts } from "../src/finance/accounts.js";
-import { getRecentTransactions } from "../src/finance/transactionsStore.js";
+import { getRecentTransactions, getTransactionsForAccount } from "../src/finance/transactionsStore.js";
 import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/sync.js";
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
-import { getNetWorthHistory } from "../src/finance/balanceHistory.js";
+import { getNetWorthHistory, getAccountBalanceHistory, bucketBalancePoints, type BalanceGranularity } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
 import { getSpendingHistory, getSpendingByCategory } from "../src/finance/spendingAnalytics.js";
 import { getManualBills } from "../src/finance/manualBills.js";
@@ -223,6 +223,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const plaidConfigured = isPlaidConfigured();
+
+  // Account drill-down: bank accounts get recent transactions + balance,
+  // investment accounts (type "investment" — Marcus, Fidelity, etc.) get a
+  // balance-history graph instead, since "value over time" is the point
+  // for those rather than a transaction feed. Short-circuits the rest of
+  // the composite-view fetching below, which this doesn't need.
+  if (plaidConfigured && typeof req.query.accountId === "string") {
+    const accountId = req.query.accountId;
+    const rawGranularity = typeof req.query.granularity === "string" ? req.query.granularity : "day";
+    const granularity: BalanceGranularity =
+      rawGranularity === "week" || rawGranularity === "month" || rawGranularity === "year" ? rawGranularity : "day";
+
+    const accounts = await getAllAccounts();
+    const account = accounts.find((a) => a.accountId === accountId);
+    if (!account) {
+      res.redirect(303, "/donna/finances");
+      return;
+    }
+
+    const isInvestment = account.type === "investment";
+    const [transactions, rawBalanceHistory] = await Promise.all([
+      isInvestment ? Promise.resolve([]) : getTransactionsForAccount(accountId, 50).catch(() => []),
+      isInvestment ? getAccountBalanceHistory(accountId).catch(() => []) : Promise.resolve([]),
+    ]);
+
+    const settings = await loadSettings();
+    const html = buildFinancesHtml({
+      plaidConfigured,
+      items: [],
+      accounts: [],
+      transactions: [],
+      netWorthHistory: [],
+      recurringCharges: [],
+      upcomingPayments: [],
+      spendingHistory: [],
+      spendingByCategory: [],
+      financeWidgets: settings.dashboardConfig.financeWidgets,
+      navVisibility: settings.dashboardConfig.navVisibility,
+      navOrder: settings.dashboardConfig.navOrder,
+      selectedAccount: { account, transactions, balanceHistory: bucketBalancePoints(rawBalanceHistory, granularity), granularity },
+    });
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.status(200).send(html);
+    return;
+  }
+
   const [settings, manualBills] = await Promise.all([loadSettings(), getManualBills().catch(() => [])]);
   const timezone = resolveTimezone(settings.timezone);
   const [items, accounts, transactions, netWorthHistory, recurringChargeTransactions] = plaidConfigured

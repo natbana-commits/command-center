@@ -2,7 +2,7 @@ import type { NavVisibility, FinanceWidgetId } from "../config.js";
 import type { PlaidItem } from "../finance/items.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
-import type { NetWorthPoint } from "../finance/balanceHistory.js";
+import type { NetWorthPoint, BalancePoint, BalanceGranularity } from "../finance/balanceHistory.js";
 import type { RecurringCharge } from "../finance/recurringCharges.js";
 import type { SpendingPoint, CategorySpend } from "../finance/spendingAnalytics.js";
 import type { UpcomingPayment } from "../finance/upcomingPayments.js";
@@ -59,14 +59,14 @@ function renderAccountRow(account: PlaidAccount): string {
   const subtypeLabel = account.subtype ? `${account.subtype}` : "";
   const maskLabel = account.mask ? ` ••${account.mask}` : "";
   return `
-    <div class="finance-row">
+    <a class="finance-row finance-row-link" href="/donna/finances?accountId=${encodeURIComponent(account.accountId)}">
       <div class="finance-row-icon" style="background:${avatarColor(account.name)};">${escapeHtml(avatarInitial(account.name))}</div>
       <div class="finance-row-body">
         <div class="finance-row-title">${escapeHtml(account.name)}${escapeHtml(maskLabel)}</div>
         ${subtypeLabel ? `<div class="finance-row-meta">${escapeHtml(subtypeLabel)}</div>` : ""}
       </div>
       <div class="finance-row-amount">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</div>
-    </div>`;
+    </a>`;
 }
 
 function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
@@ -189,6 +189,13 @@ function renderUpcomingPaymentRow(payment: UpcomingPayment): string {
     </div>`;
 }
 
+export interface AccountDetailData {
+  account: PlaidAccount;
+  transactions: PlaidTransaction[];
+  balanceHistory: BalancePoint[];
+  granularity: BalanceGranularity;
+}
+
 export interface FinancesPageData {
   plaidConfigured: boolean;
   items: PlaidItem[];
@@ -202,6 +209,80 @@ export interface FinancesPageData {
   financeWidgets: { id: FinanceWidgetId; visible: boolean }[];
   navVisibility: NavVisibility;
   navOrder: string[];
+  selectedAccount?: AccountDetailData;
+}
+
+function renderGranularityToggle(accountId: string, active: BalanceGranularity): string {
+  const options: { key: BalanceGranularity; label: string }[] = [
+    { key: "day", label: "Day" },
+    { key: "week", label: "Week" },
+    { key: "month", label: "Month" },
+    { key: "year", label: "Year" },
+  ];
+  return `
+    <div class="home-tabs" style="margin:0;">
+      ${options
+        .map(
+          (o) =>
+            `<a class="home-tab-btn${o.key === active ? " home-tab-btn-active" : ""}" href="/donna/finances?accountId=${encodeURIComponent(accountId)}&granularity=${o.key}">${o.label}</a>`
+        )
+        .join("")}
+    </div>`;
+}
+
+// Investment accounts (Marcus, Fidelity, etc.) show a balance-history graph
+// with a day/week/month/year granularity toggle — that's the meaningful
+// view for an account whose point is its value over time. Bank accounts
+// (depository/credit) show recent transactions + balance instead — the
+// composite view up top still covers everyone at once.
+function renderAccountDetail(detail: AccountDetailData): string {
+  const { account, transactions, balanceHistory, granularity } = detail;
+  const isInvestment = account.type === "investment";
+  const maskLabel = account.mask ? ` ••${account.mask}` : "";
+  const subtitleParts = [account.subtype ?? account.type, account.officialName && account.officialName !== account.name ? account.officialName : null].filter(
+    Boolean
+  );
+
+  const balanceCard = `
+    <div class="card" style="margin-bottom: var(--sp-3);">
+      <div class="card-title">Balance</div>
+      <p style="font-size: 22px; font-weight: 600; margin: 4px 0 0;">${escapeHtml(formatMoney(account.currentBalance, account.isoCurrencyCode))}</p>
+    </div>`;
+
+  const investmentSection = isInvestment
+    ? `
+    <div class="section" style="margin-top: var(--sp-3);">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap: var(--sp-2); flex-wrap: wrap;">
+        <h1 class="section-title" style="margin:0;">Balance History</h1>
+        ${renderGranularityToggle(account.accountId, granularity)}
+      </div>
+      <div class="card">
+        ${
+          balanceHistory.length === 0
+            ? `<p class="empty">No history yet — balances are snapshotted once a day, so the chart fills in starting today.</p>`
+            : renderLineChart(balanceHistory.map((p) => ({ label: p.date, value: p.balance })))
+        }
+      </div>
+    </div>`
+    : "";
+
+  const transactionsSection = !isInvestment
+    ? `
+    <div class="section" style="margin-top: var(--sp-3);">
+      <h1 class="section-title">Recent Transactions</h1>
+      <div class="card">${renderTransactionsList(transactions, new Map([[account.accountId, account.name]]))}</div>
+    </div>`
+    : "";
+
+  return `
+    <div class="section">
+      <a class="hint" href="/donna/finances">← All accounts</a>
+      <h1 class="page-title" style="margin-top: 8px;">${escapeHtml(account.name)}${escapeHtml(maskLabel)}</h1>
+      ${subtitleParts.length > 0 ? `<p class="page-sub">${escapeHtml(subtitleParts.join(" · "))}</p>` : ""}
+    </div>
+    ${balanceCard}
+    ${investmentSection}
+    ${transactionsSection}`;
 }
 
 export function buildFinancesHtml(data: FinancesPageData): string {
@@ -218,6 +299,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
     financeWidgets,
     navVisibility,
     navOrder,
+    selectedAccount,
   } = data;
 
   const accountsByItem = new Map<string, PlaidAccount[]>();
@@ -331,7 +413,9 @@ export function buildFinancesHtml(data: FinancesPageData): string {
       <p class="page-sub">Not set up yet</p>
     </div>
     <p class="empty">Finance linking needs Plaid API credentials set up first — see the Info page for details.</p>`
-    : `
+    : selectedAccount
+      ? renderAccountDetail(selectedAccount)
+      : `
     <div class="section">
       <h1 class="page-title">Finances</h1>
       <p class="page-sub">${items.length} institution${items.length === 1 ? "" : "s"} linked</p>

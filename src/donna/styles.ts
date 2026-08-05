@@ -720,6 +720,8 @@ export const BASE_STYLES = `
   /* --- finances page --- */
   .finance-row { display: flex; align-items: center; gap: var(--sp-2); padding: 10px 0; }
   .finance-row + .finance-row { border-top: 1px solid var(--border); }
+  .finance-row-link { text-decoration: none; color: inherit; margin: 0 -8px; padding: 10px 8px; border-radius: 8px; }
+  .finance-row-link:hover { background: var(--sidebar-bg); }
   .finance-row-icon {
     flex: 0 0 auto;
     width: 36px;

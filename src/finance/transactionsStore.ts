@@ -106,3 +106,22 @@ export async function getRecentTransactions(limit = 50): Promise<PlaidTransactio
   }
   return (data ?? []).map(rowToTransaction);
 }
+
+// For the per-account drill-down view — same shape as getRecentTransactions,
+// scoped to one account instead of every linked account.
+export async function getTransactionsForAccount(accountId: string, limit = 50): Promise<PlaidTransaction[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("plaid_transactions")
+      .select(SELECT_COLUMNS)
+      .eq("account_id", accountId)
+      .order("transaction_date", { ascending: false })
+      .limit(limit)
+  );
+  if (error) {
+    if (error.code === "PGRST205") return [];
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map(rowToTransaction);
+}
