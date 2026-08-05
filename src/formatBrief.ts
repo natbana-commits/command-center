@@ -28,6 +28,7 @@ import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
 import { isPlaidConfigured } from "./finance/plaidClient.js";
 import { snapshotAccountBalances } from "./finance/balanceHistory.js";
 import { getEconomicEventsInWindow } from "./markets/economicEvents.js";
+import { getTodaysBirthdays } from "./reminders/birthdays.js";
 import { withTimeout } from "./util/timeout.js";
 
 // A busy filing day can mean several large SEC documents each going
@@ -112,8 +113,14 @@ export async function buildFastBriefMessages(): Promise<BriefMessage[]> {
   const messages: BriefMessage[] = [];
 
   messages.push({
-    text: "Morning — brief's ready. Full summaries, images, and newsletters: https://command-center-navy-pi.vercel.app/donna",
+    text: "Morning, brief's ready. Full summaries, images, and newsletters: https://command-center-navy-pi.vercel.app/donna",
   });
+
+  const todaysBirthdays = await getTodaysBirthdays(calendarResult.timezone).catch(() => []);
+  if (todaysBirthdays.length > 0) {
+    const names = todaysBirthdays.map((b) => b.name).join(", ");
+    messages.push({ text: `🎂 Happy birthday, ${names}!` });
+  }
 
   if (calendar || remindersEnabled) {
     const blocks: string[] = [];
@@ -125,7 +132,7 @@ export async function buildFastBriefMessages(): Promise<BriefMessage[]> {
   if (ipoFilings.length > 0) {
     const names = ipoFilings.map((f) => f.companyName).join(", ");
     messages.push({
-      text: `🆕 New IPO filing(s): ${names} — see the full digest: https://command-center-navy-pi.vercel.app/donna/ipos`,
+      text: `🆕 New IPO filing(s): ${names}. Full digest: https://command-center-navy-pi.vercel.app/donna/ipos`,
     });
   }
 
@@ -139,7 +146,7 @@ export async function buildFastBriefMessages(): Promise<BriefMessage[]> {
   const tomorrowKey = localDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000), calendarResult.timezone);
   const todayEconEvents = await getEconomicEventsInWindow(day, tomorrowKey).catch(() => []);
   if (todayEconEvents.length > 0) {
-    const lines = todayEconEvents.map((e) => `📊 ${e.eventName} — ${e.eventDate === day ? "today" : "tomorrow"}`);
+    const lines = todayEconEvents.map((e) => `📊 ${e.eventName}: ${e.eventDate === day ? "today" : "tomorrow"}`);
     messages.push({ text: lines.join("\n") });
   }
 

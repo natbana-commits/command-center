@@ -417,6 +417,21 @@ create table if not exists habit_completions (
   completed_date date not null,
   created_at timestamptz not null default now()
 );
+
+-- Month/day only (no year) — a birthday recurs every year, and asking for
+-- a year isn't needed for the "remind me and text me on the day" use case
+-- this covers. calendar_event_id is the recurring Google Calendar event
+-- created alongside it (src/google/calendar.ts), null if Google wasn't
+-- configured when it was added or the calendar write failed; kept so the
+-- event can be cleaned up if the birthday is later deleted.
+create table if not exists birthdays (
+  id bigint generated always as identity primary key,
+  name text not null,
+  birth_month int not null check (birth_month between 1 and 12),
+  birth_day int not null check (birth_day between 1 and 31),
+  calendar_event_id text,
+  created_at timestamptz not null default now()
+);
 create unique index if not exists habit_completions_habit_date_idx on habit_completions (habit_id, completed_date);
 
 -- One row per linked account per day, taken by the daily morning-brief cron

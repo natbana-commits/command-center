@@ -4,6 +4,7 @@ import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import type { ReminderGroup } from "../reminders/groups.js";
 import type { Habit } from "../habits/store.js";
+import type { Birthday } from "../reminders/birthdays.js";
 import { computeStreak } from "../habits/store.js";
 import { escapeHtml } from "../util/html.js";
 import { toLocalDateTimeParts, withTimeSuffix, localDateKey } from "../util/time.js";
@@ -200,6 +201,59 @@ function renderHabitsSection(habits: Habit[], completions: Map<number, Set<strin
     </div>`;
 }
 
+function daysUntilNextOccurrence(month: number, day: number, timezone: string): number {
+  const todayKey = localDateKey(new Date(), timezone);
+  const [year] = todayKey.split("-").map(Number);
+  const todayNoon = new Date(`${todayKey}T12:00:00`);
+  const thisYear = new Date(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T12:00:00`);
+  let diffDays = Math.round((thisYear.getTime() - todayNoon.getTime()) / 86_400_000);
+  if (diffDays < 0) diffDays += 365;
+  return diffDays;
+}
+
+function renderBirthdayRow(b: Birthday): string {
+  const dateLabel = new Date(2000, b.month - 1, b.day).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  return `
+    <div class="reminder-row">
+      <div class="reminder-body">
+        <span class="reminder-title">${escapeHtml(b.name)}</span>
+        <div class="interaction-meta">
+          <span class="reminder-due">${escapeHtml(dateLabel)}</span>
+        </div>
+      </div>
+      <form method="POST" action="/donna/reminders" data-swap-target="reminders-main" style="display:contents;">
+        <input type="hidden" name="action" value="delete-birthday" />
+        <input type="hidden" name="id" value="${b.id}" />
+        <button class="reminder-edit-link" type="submit" style="background:none; border:none; cursor:pointer; font:inherit;">Delete</button>
+      </form>
+    </div>`;
+}
+
+function renderAddBirthdayForm(): string {
+  return `
+    <form method="POST" action="/donna/reminders" class="reminder-add-row2" data-swap-target="reminders-main" style="margin-top: var(--sp-2);">
+      <input type="hidden" name="action" value="add-birthday" />
+      <input type="text" name="name" placeholder="Name" required style="flex: 1 1 160px;" />
+      <input type="date" name="birthDate" required />
+      <button class="btn btn-small" type="submit">Add</button>
+    </form>`;
+}
+
+function renderBirthdaysSection(birthdays: Birthday[], timezone: string): string {
+  const sorted = [...birthdays].sort(
+    (a, b) => daysUntilNextOccurrence(a.month, a.day, timezone) - daysUntilNextOccurrence(b.month, b.day, timezone)
+  );
+  const rows = sorted.length === 0 ? `<p class="empty">No birthdays saved yet.</p>` : sorted.map(renderBirthdayRow).join("\n");
+
+  return `
+    <div class="card" style="margin-top: var(--sp-3);">
+      <div class="card-header"><h2 class="section-title" style="margin:0;">Birthdays</h2></div>
+      ${rows}
+      ${renderAddBirthdayForm()}
+      <div class="hint" style="margin-top: var(--sp-2);">Adds a yearly reminder to your Google Calendar and gets called out in your morning text on the day.</div>
+    </div>`;
+}
+
 export type ReminderSortMode = "due" | "group";
 
 export interface RemindersPageData {
@@ -221,6 +275,7 @@ export interface RemindersPageData {
   sortMode: ReminderSortMode;
   habits: Habit[];
   habitCompletions: Map<number, Set<string>>;
+  birthdays: Birthday[];
   navVisibility: NavVisibility;
   navOrder: string[];
 }
@@ -377,6 +432,7 @@ export function buildRemindersHtml(data: RemindersPageData): string {
     sortMode,
     habits,
     habitCompletions,
+    birthdays,
     navVisibility,
     navOrder,
   } = data;
@@ -424,7 +480,8 @@ export function buildRemindersHtml(data: RemindersPageData): string {
       <div class="card" style="margin-top: var(--sp-3);">
         ${listHtml}
       </div>
-      ${renderHabitsSection(habits, habitCompletions, localDateKey(new Date(), timezone))}`;
+      ${renderHabitsSection(habits, habitCompletions, localDateKey(new Date(), timezone))}
+      ${renderBirthdaysSection(birthdays, timezone)}`;
   }
 
   const modalHtml = googleConfigured

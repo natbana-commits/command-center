@@ -32,6 +32,8 @@ import {
   toggleHabitCompletion,
   getCompletedDatesForHabits,
 } from "../src/habits/store.js";
+import { getBirthdays, addBirthday, deleteBirthday } from "../src/reminders/birthdays.js";
+import { createRecurringAllDayEvent, deleteCalendarEvent } from "../src/google/calendar.js";
 import { buildRemindersHtml, type ReminderSortMode } from "../src/donna/remindersPage.js";
 import { requireAuth } from "../src/auth/session.js";
 import { localDateKey } from "../src/util/time.js";
@@ -167,7 +169,7 @@ async function handleContactsPage(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
+  const error = req.query.error === "1" ? "Something went wrong. Try again." : undefined;
   const editId = typeof req.query.edit === "string" ? Number(req.query.edit) : undefined;
 
   const contacts = await getContacts();
@@ -337,6 +339,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (id !== undefined) {
           await deleteHabit(id);
         }
+      } else if (action === "add-birthday") {
+        const name = body.name?.trim();
+        const dateMatch = body.birthDate?.match(/^\d{4}-(\d{2})-(\d{2})$/);
+        if (name && dateMatch) {
+          const month = Number(dateMatch[1]);
+          const day = Number(dateMatch[2]);
+          // Best-effort — the birthday still saves and still shows up here
+          // and in the morning brief even if Google isn't configured or
+          // the calendar write fails, it just won't also get a calendar
+          // event.
+          let calendarEventId: string | null = null;
+          if (isGoogleConfigured()) {
+            try {
+              const event = await createRecurringAllDayEvent({ summary: `${name}'s Birthday`, month, day });
+              calendarEventId = event.id;
+            } catch (err) {
+              console.error("Failed to create birthday calendar event:", err);
+            }
+          }
+          await addBirthday(name, month, day, calendarEventId);
+        }
+      } else if (action === "delete-birthday") {
+        const id = parseOptionalId(body.id);
+        if (id !== undefined) {
+          const birthday = (await getBirthdays()).find((b) => b.id === id);
+          if (birthday?.calendarEventId && isGoogleConfigured()) {
+            await deleteCalendarEvent(birthday.calendarEventId).catch((err) =>
+              console.error("Failed to delete birthday calendar event:", err)
+            );
+          }
+          await deleteBirthday(id);
+        }
       }
       res.redirect(303, returnTo);
     } catch (err) {
@@ -347,12 +381,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const googleConfigured = isGoogleConfigured();
-  const error = req.query.error === "1" ? "Something went wrong — try again." : undefined;
+  const error = req.query.error === "1" ? "Something went wrong. Try again." : undefined;
   // Kicked off here but not awaited until buildRemindersHtml needs it below —
   // it's independent of the editing/reminders chain that follows, so letting
   // it run alongside that chain instead of blocking in front of it removes a
   // full round-trip from the critical path.
   const classDataPromise = Promise.all([getClassFolders(), getReminderGroups()]);
+  const birthdaysPromise = getBirthdays().catch(() => []);
   const sortMode: ReminderSortMode = req.query.sort === "group" ? "group" : "due";
 
   const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
@@ -384,6 +419,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? new Map<number, Set<string>>()
     : await getCompletedDatesForHabits(habits.map((h) => h.id)).catch(() => new Map<number, Set<string>>());
   const [classFolders, reminderGroups] = await classDataPromise;
+  const birthdays = await birthdaysPromise;
 
   const html = buildRemindersHtml({
     reminders,
@@ -404,6 +440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     sortMode,
     habits,
     habitCompletions,
+    birthdays,
     navVisibility: settings.dashboardConfig.navVisibility,
     navOrder: settings.dashboardConfig.navOrder,
   });
