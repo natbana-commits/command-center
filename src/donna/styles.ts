@@ -1348,6 +1348,16 @@ export const BASE_STYLES = `
     border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px; cursor: pointer; flex: 0 0 auto; max-width: 110px;
   }
 
+  /* Reminders' group filter — multi-select toggle chips (each group
+     starts active) rather than a single-choice dropdown, since seeing
+     two or three groups at once (e.g. a class + Personal) is the point. */
+  .hw-group-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; flex: 0 0 auto; }
+  .hw-group-chip {
+    font: inherit; font-size: 9.5px; font-weight: 700; border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 8px; cursor: pointer; background: var(--card); color: var(--text-muted);
+  }
+  .hw-group-chip-active { background: color-mix(in srgb, var(--chip-color) 16%, transparent); border-color: var(--chip-color); color: var(--chip-color); }
+
   .hw-news-source { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--accent); margin-bottom: 2px; flex: 0 0 auto; text-decoration: none; }
   .hw-news-headline { display: block; font-size: 12.5px; font-weight: 800; line-height: 1.3; color: var(--ink); margin-bottom: 5px; flex: 0 0 auto; text-decoration: none; }
   .hw-news-headline:hover, .hw-news-source:hover { color: var(--accent); }
@@ -1387,7 +1397,7 @@ export const BASE_STYLES = `
   .hw-ipo-stats { display: flex; gap: 14px; margin: 2px 0 8px; flex: 0 0 auto; }
   .hw-ipo-stat-num { font-size: 24px; font-weight: 800; color: var(--accent); line-height: 1; }
   .hw-ipo-stat-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
-  .hw-ipo-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin-bottom: 6px; flex: 0 0 auto; }
+  .hw-ipo-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin-bottom: 6px; flex: 0 0 auto; background: var(--border); }
   .hw-ipo-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; flex: 0 0 auto; }
   .hw-ipo-legend-item { display: flex; align-items: center; gap: 4px; font-size: 9.5px; color: var(--text-secondary); white-space: nowrap; }
   .hw-ipo-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }

@@ -126,16 +126,22 @@ function renderRemindersTile(
   const upcomingCount = withDue.length - overdueCount;
 
   const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
-  const filterOptions = [
-    `<option value="all">All groups</option>`,
-    ...reminderGroups.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`),
-  ].join("");
+  // Every group starts active — a group chip narrows the list down rather
+  // than the old single-select dropdown's "pick exactly one group at a
+  // time," so you can see e.g. two classes' deadlines together, or a
+  // class + Personal, whatever combination is useful right now.
+  const chipsHtml = reminderGroups
+    .map(
+      (g) =>
+        `<button type="button" class="hw-group-chip hw-group-chip-active" data-group="${g.id}" style="--chip-color:${escapeHtml(g.color)};" onclick="toggleReminderGroupChip(this)">${escapeHtml(g.name)}</button>`
+    )
+    .join("");
 
   const rowsHtml =
     withDue.length === 0
       ? `<p class="empty">No reminders.</p>`
       : withDue
-          .slice(0, 6)
+          .slice(0, 8)
           .map(({ r, due }) => {
             const group = groupById.get(groupLinks.get(r.id) ?? -1);
             const dateKey = due ? localDateKey(new Date(due), timezone) : null;
@@ -144,7 +150,10 @@ function renderRemindersTile(
             const overdue = due ? new Date(due).getTime() < Date.now() : false;
             return `
               <div class="hw-row" data-group="${group ? group.id : ""}">
-                <div class="hw-row-main"><div class="hw-row-name">${escapeHtml(withTimeSuffix(r.title, null))}</div></div>
+                <div class="hw-row-main">
+                  <div class="hw-row-name">${escapeHtml(withTimeSuffix(r.title, null))}</div>
+                  ${group ? `<div class="hw-row-sub" style="color:${escapeHtml(group.color)};">${escapeHtml(group.name)}</div>` : ""}
+                </div>
                 ${timeLabel ? `<div class="hw-row-time">${escapeHtml(timeLabel)}</div>` : ""}
                 <div class="hw-row-val"${overdue ? ' style="color:var(--hw-reminders);"' : ""}>${escapeHtml(dayLabel)}</div>
               </div>`;
@@ -156,13 +165,9 @@ function renderRemindersTile(
       <div class="hw-pad">
         <div class="hw-head">
           <div class="hw-head-left">${widgetHeadIcon(iconBell)}<div class="hw-title">Reminders</div></div>
-          ${
-            reminderGroups.length > 0
-              ? `<select class="hw-mini-select" onchange="filterReminders(this)">${filterOptions}</select>`
-              : ""
-          }
         </div>
         <div class="hw-kpi-row"><div class="hw-kpi">${overdueCount}</div><div class="hw-trend">overdue · ${upcomingCount} upcoming</div></div>
+        ${reminderGroups.length > 0 ? `<div class="hw-group-chips">${chipsHtml}</div>` : ""}
         <div class="hw-rows">${rowsHtml}</div>
       </div>
     </div>`;
@@ -173,51 +178,120 @@ function renderRemindersTile(
 // a real sparkline, Week/Month toggle. Falls back to the old total-cash
 // summary when there's no investment account to chart.
 // ---------------------------------------------------------------------
+export interface FinanceAccountSummary {
+  name: string;
+  balanceLabel: string;
+  trendLabel: string;
+  trendUp: boolean;
+  changeLabel: string;
+  weekChartHtml: string;
+  monthChartHtml: string;
+  monthAvailable: boolean;
+  emptyMessage: string | null;
+}
+
+// Shared by the initial server render (renderFinancesTile below) and the
+// account-summary JSON endpoint the account picker calls into — one place
+// computing the balance/trend/chart so switching accounts client-side
+// can't drift from what a fresh page load would show for that account.
+export function computeFinanceAccountSummary(
+  account: PlaidAccount,
+  weekHistory: BalancePoint[],
+  monthHistory: BalancePoint[]
+): FinanceAccountSummary {
+  const currency = account.isoCurrencyCode;
+  const balanceLabel = formatMoney(account.currentBalance ?? 0, currency);
+
+  if (weekHistory.length < 2) {
+    return {
+      name: account.name,
+      balanceLabel,
+      trendLabel: "",
+      trendUp: true,
+      changeLabel: "",
+      weekChartHtml: "",
+      monthChartHtml: "",
+      monthAvailable: false,
+      emptyMessage: "Balance history fills in once a few more days are recorded.",
+    };
+  }
+
+  const change = weekHistory[weekHistory.length - 1].balance - weekHistory[0].balance;
+  const changePct = weekHistory[0].balance !== 0 ? (change / weekHistory[0].balance) * 100 : 0;
+  const changeSign = change >= 0 ? "+" : "";
+  const chartHtml = (points: BalancePoint[]) =>
+    `<div style="--accent: var(--hw-finance);">${renderLineChart(points.map((p) => ({ label: p.date, value: p.balance })), { width: 240, height: 60 })}</div>`;
+  const monthAvailable = monthHistory.length >= 2;
+
+  return {
+    name: account.name,
+    balanceLabel,
+    trendLabel: `${changeSign}${changePct.toFixed(2)}%`,
+    trendUp: change >= 0,
+    changeLabel: `${changeSign}${formatMoney(Math.abs(change), currency)}`,
+    weekChartHtml: chartHtml(weekHistory),
+    monthChartHtml: monthAvailable ? chartHtml(monthHistory) : "",
+    monthAvailable,
+    emptyMessage: null,
+  };
+}
+
 function renderFinancesTile(
   fidelityAccount: PlaidAccount | null,
   fidelityBalanceWeek: BalancePoint[],
   fidelityBalanceMonth: BalancePoint[],
   totalCash: number,
-  accountCount: number
+  accountCount: number,
+  financeAccountOptions: { accountId: string; label: string }[]
 ): string {
   const href = CARD_HREFS.finances;
   const wrapOpen = `<div class="hw-tile hw-gw-finances" data-tint="finance" onclick="navigateCard(event, '${href}')"><div class="hw-pad">`;
   const wrapClose = `</div></div>`;
-  const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconWallet)}<div class="hw-title">${fidelityAccount ? escapeHtml(fidelityAccount.name) : "Finances"}</div></div>`;
 
-  if (!fidelityAccount || fidelityBalanceWeek.length < 2) {
-    // No investment account linked, or too little history yet for a
-    // sparkline to mean anything — same explanatory-empty-state idea as
-    // the account detail page, rather than rendering a broken chart.
-    return `${wrapOpen}
-      <div class="hw-head">${headHtml}</div>
-      <div class="hw-kpi-row"><div class="hw-kpi">${escapeHtml(formatMoney(totalCash, "USD"))}</div><div class="hw-trend">${accountCount} account${accountCount === 1 ? "" : "s"}</div></div>
-      <p class="empty" style="margin-top:auto;">${fidelityAccount ? "Balance history fills in once a few more days are recorded." : "Link an investment account to see a balance trend here."}</p>
-    ${wrapClose}`;
-  }
+  const accountSelect =
+    financeAccountOptions.length > 0
+      ? `<select class="hw-mini-select" onchange="setFinAccount(this)">${
+          !fidelityAccount ? `<option value="" selected disabled>Choose an account</option>` : ""
+        }${financeAccountOptions
+          .map((o) => `<option value="${escapeHtml(o.accountId)}"${fidelityAccount && o.accountId === fidelityAccount.accountId ? " selected" : ""}>${escapeHtml(o.label)}</option>`)
+          .join("")}</select>`
+      : "";
 
-  const change = fidelityBalanceWeek[fidelityBalanceWeek.length - 1].balance - fidelityBalanceWeek[0].balance;
-  const changePct = fidelityBalanceWeek[0].balance !== 0 ? (change / fidelityBalanceWeek[0].balance) * 100 : 0;
-  const changeSign = change >= 0 ? "+" : "";
-  const currency = fidelityAccount.isoCurrencyCode;
+  const summary: FinanceAccountSummary = fidelityAccount
+    ? computeFinanceAccountSummary(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth)
+    : {
+        name: "Finances",
+        balanceLabel: formatMoney(totalCash, "USD"),
+        trendLabel: `${accountCount} account${accountCount === 1 ? "" : "s"}`,
+        trendUp: true,
+        changeLabel: "",
+        weekChartHtml: "",
+        monthChartHtml: "",
+        monthAvailable: false,
+        emptyMessage: financeAccountOptions.length > 0 ? "Pick an account above to see its balance trend." : "Link an account to see a balance trend here.",
+      };
 
-  const chartHtml = (points: BalancePoint[]) =>
-    `<div style="--accent: var(--hw-finance);">${renderLineChart(points.map((p) => ({ label: p.date, value: p.balance })), { width: 240, height: 60 })}</div>`;
-
-  const monthAvailable = fidelityBalanceMonth.length >= 2;
-
+  // Always render the same skeleton (toggle/charts/stat-row present but
+  // hidden when there's nothing to show yet) — the account picker swaps
+  // an account with full history in for one without (or vice versa)
+  // client-side, and needs every element to already exist to update.
+  const hasChart = !summary.emptyMessage;
   return `${wrapOpen}
     <div class="hw-head">
-      ${headHtml}
-      <div class="hw-fin-toggle">
+      <div class="hw-head-left" id="hw-fin-name">${widgetHeadIcon(iconWallet)}<div class="hw-title">${escapeHtml(summary.name)}</div></div>
+      ${accountSelect}
+    </div>
+    <div class="hw-head" style="margin-top:2px; display:${hasChart ? "" : "none"};" id="hw-fin-toggle-row">
+      <div class="hw-fin-toggle" id="hw-fin-toggle">
         <button type="button" class="hw-fin-toggle-btn hw-fin-toggle-active" data-range="week" onclick="setFinRange(this, 'week')">Week</button>
-        ${monthAvailable ? `<button type="button" class="hw-fin-toggle-btn" data-range="month" onclick="setFinRange(this, 'month')">Month</button>` : ""}
+        ${summary.monthAvailable ? `<button type="button" class="hw-fin-toggle-btn" data-range="month" onclick="setFinRange(this, 'month')">Month</button>` : ""}
       </div>
     </div>
-    <div class="hw-kpi-row"><div class="hw-kpi">${escapeHtml(formatMoney(fidelityAccount.currentBalance ?? 0, currency))}</div><div class="hw-trend" style="${change >= 0 ? "color:var(--hw-up);" : "color:var(--hw-down);"}">${escapeHtml(changeSign)}${changePct.toFixed(2)}%</div></div>
-    <div class="hw-fin-chart" data-range-view="week">${chartHtml(fidelityBalanceWeek)}</div>
-    ${monthAvailable ? `<div class="hw-fin-chart" data-range-view="month" style="display:none;">${chartHtml(fidelityBalanceMonth)}</div>` : ""}
-    <div class="hw-fin-stat-row"><span>Change</span><span style="${change >= 0 ? "color:var(--hw-up);" : "color:var(--hw-down);"} font-weight:700;">${escapeHtml(changeSign)}${escapeHtml(formatMoney(Math.abs(change), currency))}</span></div>
+    <div class="hw-kpi-row"><div class="hw-kpi" id="hw-fin-balance">${escapeHtml(summary.balanceLabel)}</div><div class="hw-trend" id="hw-fin-trend" style="${summary.trendUp ? "color:var(--hw-up);" : "color:var(--hw-down);"}">${escapeHtml(summary.trendLabel)}</div></div>
+    <div class="hw-fin-chart" data-range-view="week" id="hw-fin-chart-week" style="display:${hasChart ? "" : "none"};">${summary.weekChartHtml}</div>
+    <div class="hw-fin-chart" data-range-view="month" id="hw-fin-chart-month" style="display:none;">${summary.monthChartHtml}</div>
+    <div class="hw-fin-stat-row" id="hw-fin-stat-row" style="display:${hasChart ? "" : "none"};"><span>Change</span><span id="hw-fin-change" style="${summary.trendUp ? "color:var(--hw-up);" : "color:var(--hw-down);"} font-weight:700;">${escapeHtml(summary.changeLabel)}</span></div>
+    <p class="empty" style="margin-top:auto; display:${hasChart ? "none" : ""};" id="hw-fin-empty">${escapeHtml(summary.emptyMessage ?? "")}</p>
   ${wrapClose}`;
 }
 
@@ -259,14 +333,32 @@ function renderMarketsTile(quotes: Quote[]): string {
 // ---------------------------------------------------------------------
 // Upcoming (mini today/tomorrow agenda)
 // ---------------------------------------------------------------------
+function formatEventDuration(e: CalendarEvent): string | null {
+  if (!e.end) return null;
+  const minutes = Math.round((e.end.getTime() - e.start.getTime()) / 60000);
+  if (minutes <= 0) return null;
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem === 0 ? `${hours}h` : `${hours}h ${rem}m`;
+}
+
 function renderUpcomingTile(todayEvents: CalendarEvent[], tomorrowEvents: CalendarEvent[], timezone: string): string {
   const href = CARD_HREFS.upcoming;
   const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconCalendar)}<div class="hw-title">Upcoming</div></div>`;
   const eventRow = (e: CalendarEvent) => {
     const timeLabel = e.start.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
-    return `<div class="hw-row"><div class="hw-row-main"><div class="hw-row-name">${escapeHtml(e.summary)}</div></div><div class="hw-row-time">${escapeHtml(timeLabel)}</div></div>`;
+    const duration = formatEventDuration(e);
+    return `
+      <div class="hw-row">
+        <div class="hw-row-main">
+          <div class="hw-row-name">${escapeHtml(e.summary)}</div>
+          ${duration ? `<div class="hw-row-sub">${escapeHtml(duration)}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</div>` : e.location ? `<div class="hw-row-sub">${escapeHtml(e.location)}</div>` : ""}
+        </div>
+        <div class="hw-row-time">${escapeHtml(timeLabel)}</div>
+      </div>`;
   };
-  const todayHtml = todayEvents.length ? todayEvents.slice(0, 3).map(eventRow).join("\n") : `<p class="empty" style="margin:0;">Nothing today.</p>`;
+  const todayHtml = todayEvents.length ? todayEvents.slice(0, 2).map(eventRow).join("\n") : `<p class="empty" style="margin:0;">Nothing today.</p>`;
   const tomorrowHtml = tomorrowEvents.length ? tomorrowEvents.slice(0, 2).map(eventRow).join("\n") : "";
   return `
     <div class="hw-tile hw-gw-upcoming" data-tint="upcoming" onclick="navigateCard(event, '${href}')">
@@ -327,14 +419,27 @@ function renderIposTile(filings: IpoFiling[]): string {
   const classified = filings.filter((f) => f.industry);
   const counts = new Map<string, number>();
   for (const f of classified) counts.set(f.industry!, (counts.get(f.industry!) ?? 0) + 1);
-  const topIndustries = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const sortedIndustries = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const topIndustries = sortedIndustries.slice(0, 3);
+  // The top 3 rarely account for every classified filing — anything past
+  // them used to just leave an uncolored, invisible-in-light-mode gap in
+  // the bar (percentages that never summed to 100%). Rolling the rest
+  // into a labeled "Other" segment keeps the bar visually whole and
+  // still adds up to the real total.
+  const otherCount = sortedIndustries.slice(3).reduce((sum, [, count]) => sum + count, 0);
+  const barSegments: { label: string; count: number; color: string }[] = topIndustries.map(([name, count], i) => ({
+    label: name,
+    count,
+    color: IPO_MIX_COLORS[i],
+  }));
+  if (otherCount > 0) barSegments.push({ label: "Other", count: otherCount, color: "var(--text-muted)" });
 
   const barHtml =
     classified.length > 0
       ? `
-    <div class="hw-ipo-bar">${topIndustries.map(([, count], i) => `<div style="width:${((count / classified.length) * 100).toFixed(0)}%; background:${IPO_MIX_COLORS[i]};"></div>`).join("")}</div>
-    <div class="hw-ipo-legend">${topIndustries
-      .map(([name, count], i) => `<div class="hw-ipo-legend-item"><span class="hw-ipo-legend-dot" style="background:${IPO_MIX_COLORS[i]};"></span>${escapeHtml(name)} ${Math.round((count / classified.length) * 100)}%</div>`)
+    <div class="hw-ipo-bar">${barSegments.map((s) => `<div style="width:${((s.count / classified.length) * 100).toFixed(0)}%; background:${s.color};"></div>`).join("")}</div>
+    <div class="hw-ipo-legend">${barSegments
+      .map((s) => `<div class="hw-ipo-legend-item"><span class="hw-ipo-legend-dot" style="background:${s.color};"></span>${escapeHtml(s.label)} ${Math.round((s.count / classified.length) * 100)}%</div>`)
       .join("")}</div>`
       : "";
 
@@ -512,6 +617,7 @@ export interface DonnaPageData {
   fidelityAccount: PlaidAccount | null;
   fidelityBalanceWeek: BalancePoint[];
   fidelityBalanceMonth: BalancePoint[];
+  financeAccountOptions: { accountId: string; label: string }[];
   totalCash: number;
   accountCount: number;
   todayEvents: CalendarEvent[];
@@ -535,6 +641,7 @@ function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
     fidelityAccount,
     fidelityBalanceWeek,
     fidelityBalanceMonth,
+    financeAccountOptions,
     totalCash,
     accountCount,
     todayEvents,
@@ -549,7 +656,7 @@ function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
 
   const renderers: Record<HomeWidgetId, () => string> = {
     reminders: () => renderRemindersTile(reminders, googleConfigured, reminderNotifications, timezone, reminderGroups, groupLinks),
-    finances: () => renderFinancesTile(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, totalCash, accountCount),
+    finances: () => renderFinancesTile(fidelityAccount, fidelityBalanceWeek, fidelityBalanceMonth, totalCash, accountCount, financeAccountOptions),
     markets: () => renderMarketsTile(watchlistQuotes),
     upcoming: () => renderUpcomingTile(todayEvents, tomorrowEvents, timezone),
     classes: () => renderClassesTile(classFolders),
@@ -601,15 +708,19 @@ const CLIENT_SCRIPT = `
   }
   window.navigateCard = navigateCard;
 
-  function filterReminders(select) {
-    const group = select.value;
-    const tile = select.closest(".hw-tile");
+  function toggleReminderGroupChip(chip) {
+    chip.classList.toggle("hw-group-chip-active");
+    const tile = chip.closest(".hw-tile");
     if (!tile) return;
+    const active = Array.prototype.map.call(tile.querySelectorAll(".hw-group-chip.hw-group-chip-active"), function (c) {
+      return c.dataset.group;
+    });
     tile.querySelectorAll(".hw-row[data-group]").forEach((row) => {
-      row.style.display = group === "all" || row.dataset.group === group ? "" : "none";
+      const g = row.dataset.group;
+      row.style.display = !g || active.indexOf(g) !== -1 ? "" : "none";
     });
   }
-  window.filterReminders = filterReminders;
+  window.toggleReminderGroupChip = toggleReminderGroupChip;
 
   function setFinRange(btn, range) {
     const tile = btn.closest(".hw-tile");
@@ -620,5 +731,97 @@ const CLIENT_SCRIPT = `
     });
   }
   window.setFinRange = setFinRange;
+
+  async function setFinAccount(select) {
+    const accountId = select.value;
+    if (!accountId) return;
+    const tile = select.closest(".hw-tile");
+    if (!tile) return;
+    tile.style.opacity = "0.6";
+    try {
+      const res = await fetch("/donna/finances?page=account-summary&accountId=" + encodeURIComponent(accountId));
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json();
+
+      const nameTitle = tile.querySelector("#hw-fin-name .hw-title");
+      if (nameTitle) nameTitle.textContent = data.name;
+      const balanceEl = tile.querySelector("#hw-fin-balance");
+      if (balanceEl) balanceEl.textContent = data.balanceLabel;
+      const trendEl = tile.querySelector("#hw-fin-trend");
+      if (trendEl) {
+        trendEl.textContent = data.trendLabel;
+        trendEl.style.color = data.trendUp ? "var(--hw-up)" : "var(--hw-down)";
+      }
+      const changeEl = tile.querySelector("#hw-fin-change");
+      if (changeEl) {
+        changeEl.textContent = data.changeLabel;
+        changeEl.style.color = data.trendUp ? "var(--hw-up)" : "var(--hw-down)";
+      }
+
+      const hasChart = !data.emptyMessage;
+      const toggleRow = tile.querySelector("#hw-fin-toggle-row");
+      const statRow = tile.querySelector("#hw-fin-stat-row");
+      const emptyEl = tile.querySelector("#hw-fin-empty");
+      if (toggleRow) toggleRow.style.display = hasChart ? "" : "none";
+      if (statRow) statRow.style.display = hasChart ? "" : "none";
+      if (emptyEl) {
+        emptyEl.style.display = hasChart ? "none" : "";
+        emptyEl.textContent = data.emptyMessage || "";
+      }
+
+      const weekChart = tile.querySelector("#hw-fin-chart-week");
+      if (weekChart) {
+        weekChart.innerHTML = data.weekChartHtml || "";
+        weekChart.style.display = hasChart ? "" : "none";
+      }
+      const monthChart = tile.querySelector("#hw-fin-chart-month");
+      if (monthChart) {
+        monthChart.innerHTML = data.monthChartHtml || "";
+        monthChart.style.display = "none";
+      }
+
+      // Rebuilt fresh (rather than just toggled) so a switch back to
+      // "Week" is the selected state every time an account loads, even
+      // if the previous account was left on "Month".
+      const toggle = tile.querySelector("#hw-fin-toggle");
+      if (toggle) {
+        toggle.innerHTML =
+          '<button type="button" class="hw-fin-toggle-btn hw-fin-toggle-active" data-range="week" onclick="setFinRange(this, \\'week\\')">Week</button>' +
+          (data.monthAvailable ? '<button type="button" class="hw-fin-toggle-btn" data-range="month" onclick="setFinRange(this, \\'month\\')">Month</button>' : "");
+      }
+    } catch (err) {
+      // Leave whatever the previous account showed rather than blanking
+      // the widget over a network hiccup.
+    } finally {
+      tile.style.opacity = "";
+    }
+  }
+  window.setFinAccount = setFinAccount;
+
+  // The CSS fallback (calc(100vh - 220px)) is a guess at how much chrome
+  // sits above the grid — right on a laptop, short of the mark on a
+  // bigger monitor where that guess doesn't scale. Measuring the grid's
+  // actual offset and setting an exact height fixes that regardless of
+  // screen size; the CSS rule stays as the pre-JS/no-JS fallback.
+  function fitGrid() {
+    const grid = document.getElementById("hw-grid");
+    if (!grid) return;
+    if (window.innerWidth <= 1200) {
+      grid.style.height = "";
+      return;
+    }
+    const rect = grid.getBoundingClientRect();
+    const available = window.innerHeight - rect.top - 24;
+    grid.style.height = Math.max(available, 560) + "px";
+  }
+  fitGrid();
+  if (!window.__hwGridResizeBound) {
+    window.__hwGridResizeBound = true;
+    let resizeTimer;
+    window.addEventListener("resize", function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(fitGrid, 150);
+    });
+  }
 })();
 `;

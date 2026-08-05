@@ -154,6 +154,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     null;
   const totalCash = financeAccounts.filter((a) => a.type === "depository").reduce((sum, a) => sum + (a.currentBalance ?? 0), 0);
 
+  // Every linked account, for the Finances widget's account picker —
+  // "Institution — Account name" so Fidelity's Roth and Individual (say)
+  // read as distinct options rather than two identical "Fidelity"s.
+  const financeAccountOptions = [...financeAccounts]
+    .sort((a, b) => {
+      const instA = institutionNameByItemId.get(a.itemId) ?? "";
+      const instB = institutionNameByItemId.get(b.itemId) ?? "";
+      return instA.localeCompare(instB) || a.name.localeCompare(b.name);
+    })
+    .map((a) => ({
+      accountId: a.accountId,
+      label: `${institutionNameByItemId.get(a.itemId) ?? "Account"} — ${a.name}`,
+    }));
+
   const [
     watchlistQuotes,
     reminderNotifications,
@@ -186,6 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fidelityAccount,
     fidelityBalanceWeek,
     fidelityBalanceMonth,
+    financeAccountOptions,
     totalCash,
     accountCount: financeAccounts.length,
     todayEvents,

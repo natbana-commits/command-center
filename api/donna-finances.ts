@@ -15,6 +15,7 @@ import { getManualBills } from "../src/finance/manualBills.js";
 import { buildUpcomingPayments } from "../src/finance/upcomingPayments.js";
 import { resolveTimezone } from "../src/util/time.js";
 import { buildFinancesHtml } from "../src/donna/financesPage.js";
+import { computeFinanceAccountSummary } from "../src/donna/page.js";
 import { getRecentIpoFilings } from "../src/ipos/store.js";
 import { getFollowedCompanies, followCompany, unfollowCompany } from "../src/ipos/followedCompanies.js";
 import { buildIposHtml } from "../src/donna/iposPage.js";
@@ -185,6 +186,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.query.page === "ipos" && req.method !== "POST") {
     await handleIposGet(res);
+    return;
+  }
+
+  // Backs the Home Finances widget's account picker — a small JSON
+  // sidecar rather than a full page fetch, since switching accounts
+  // there just needs one number and two short balance-history series.
+  if (req.query.page === "account-summary" && req.method !== "POST") {
+    const accountId = typeof req.query.accountId === "string" ? req.query.accountId : "";
+    if (!accountId) {
+      res.status(400).json({ error: "Missing accountId" });
+      return;
+    }
+    const accounts = await getAllAccounts();
+    const account = accounts.find((a) => a.accountId === accountId);
+    if (!account) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+    const [weekHistory, monthHistory] = await Promise.all([
+      getAccountBalanceHistory(accountId, 7).catch(() => []),
+      getAccountBalanceHistory(accountId, 30).catch(() => []),
+    ]);
+    res.status(200).json(computeFinanceAccountSummary(account, weekHistory, monthHistory));
     return;
   }
 
