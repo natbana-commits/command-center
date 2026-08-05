@@ -55,6 +55,18 @@ export async function createSignedUploadUrl(
   return { signedUrl: data.signedUrl, token: data.token };
 }
 
+// Short-lived read URL for viewing/downloading an upload directly from
+// Donna's own storage — the file library previously only linked out for
+// real Drive files, leaving anything uploaded through the app unclickable.
+export async function createSignedDownloadUrl(path: string): Promise<string> {
+  const client = getSupabaseClient();
+  const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, 300);
+  if (error) {
+    throw new Error(`Supabase storage error: ${error.message}`);
+  }
+  return data.signedUrl;
+}
+
 export async function downloadUpload(path: string): Promise<Buffer> {
   const client = getSupabaseClient();
   const { data, error } = await client.storage.from(BUCKET).download(path);

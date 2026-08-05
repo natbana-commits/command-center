@@ -42,6 +42,9 @@ function uploadToRow(u: Upload, className: string): LibraryRow {
     dateIso: u.createdAt,
     dateLabel: formatDate(u.createdAt),
     status: uploadStatusLabel(u.status),
+    // Only once the upload has actually finished — a still-processing or
+    // failed row has nothing in place to view yet.
+    link: u.status === "done" ? `/api/donna-upload?view=${u.id}` : undefined,
     icon: u.kind === "lecture" ? "\u{1F3A7}" : u.kind === "photo" ? "\u{1F5BC}\u{FE0F}" : "\u{1F4C4}",
   };
 }

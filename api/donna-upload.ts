@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createSignedUploadUrl, createUpload, getUpload, updateUpload, downloadUpload, type UploadKind } from "../src/storage/uploads.js";
+import { createSignedUploadUrl, createSignedDownloadUrl, createUpload, getUpload, updateUpload, downloadUpload, type UploadKind } from "../src/storage/uploads.js";
 import { transcribeAudio, isOpenAiConfigured, FileTooLargeError } from "../src/transcription/whisper.js";
 import { generateNotesFromTranscript } from "../src/transcription/notes.js";
 import { extractTextFromImage } from "../src/vision/ocr.js";
@@ -166,6 +166,32 @@ async function handleComplete(req: VercelRequest, res: VercelResponse) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!(await requireAuth(req, res))) return;
+
+  // View/download a file uploaded through the app — the library only ever
+  // linked out for real Drive files, leaving anything stored in Donna's
+  // own storage unclickable. A short-lived signed URL, redirected to
+  // rather than proxied, so large files don't round-trip through this
+  // function.
+  if (req.method === "GET" && typeof req.query.view === "string") {
+    const uploadId = Number(req.query.view);
+    if (!Number.isFinite(uploadId)) {
+      res.status(400).send("Invalid upload id");
+      return;
+    }
+    const upload = await getUpload(uploadId);
+    if (!upload) {
+      res.status(404).send("Not found");
+      return;
+    }
+    try {
+      const signedUrl = await createSignedDownloadUrl(upload.storagePath);
+      res.redirect(302, signedUrl);
+    } catch (err) {
+      console.error(`Failed to create download URL for upload ${uploadId}:`, err);
+      res.status(500).send("Failed to generate download link");
+    }
+    return;
+  }
 
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
