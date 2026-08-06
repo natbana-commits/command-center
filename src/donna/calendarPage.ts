@@ -48,7 +48,7 @@ function renderEventBlock(e: CalendarEvent, timezone: string): string {
   const locationHtml = e.location ? `<span class="cal-event-location">${escapeHtml(e.location)}</span>` : "";
   const { tint } = tileColorForSeed(e.summary);
   return `
-    <div class="cal-event-block" style="--tint: ${tint};">
+    <div class="cal-event-block" style="background-image: linear-gradient(135deg, ${tint} 0%, var(--sidebar-bg) 65%);">
       <span class="cal-event-time">${escapeHtml(timeLabel)}</span>
       <span class="cal-event-title">${escapeHtml(e.summary)}</span>
       ${locationHtml}
@@ -96,7 +96,7 @@ function renderMonthCell(day: CalendarDayGroup): string {
   const events = sortedEvents(day);
   const chips = events
     .slice(0, MAX_MONTH_CHIPS)
-    .map((e) => `<span class="cal-month-chip" style="--tint: ${tileColorForSeed(e.summary).tint};">${escapeHtml(e.summary)}</span>`)
+    .map((e) => `<span class="cal-month-chip" style="background: ${tileColorForSeed(e.summary).tint};">${escapeHtml(e.summary)}</span>`)
     .join("\n");
   const more = events.length > MAX_MONTH_CHIPS ? `<span class="cal-month-more">+${events.length - MAX_MONTH_CHIPS} more</span>` : "";
 

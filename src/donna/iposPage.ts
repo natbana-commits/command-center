@@ -79,9 +79,9 @@ function renderFilingRow(filing: IpoFiling, followedCiks: Set<string>): string {
 
   const { accent, tint } = tileColorForSeed(filing.companyName);
   return `
-    <details class="ipo-row" style="--accent: ${accent}; --tint: ${tint};">
+    <details class="ipo-row" style="background-image: linear-gradient(135deg, ${tint} 0%, var(--card) 55%);">
       <summary>
-        <div class="ipo-row-icon">${iconTrendingUp}</div>
+        <div class="ipo-row-icon" style="background: ${accent};">${iconTrendingUp}</div>
         <div class="ipo-row-body">
           <div class="ipo-row-subject">${escapeHtml(filing.companyName)}${filing.ticker ? ` (${escapeHtml(filing.ticker)})` : ""}</div>
           <div class="ipo-row-sender">Filed ${escapeHtml(formatDate(filing.filedDate))}</div>

@@ -657,14 +657,17 @@ export const BASE_STYLES = `
     padding: var(--sp-2);
     margin-bottom: var(--sp-2);
     background: var(--card);
-    background-image: linear-gradient(135deg, var(--tint, var(--hw-ipos-tint)) 0%, var(--card) 55%);
+    /* Per-row tint is set directly on this background-image inline
+       (tileColorForSeed in iposPage.ts) — this hw-ipos wash is just the
+       fallback for anything rendered without one. */
+    background-image: linear-gradient(135deg, var(--hw-ipos-tint) 0%, var(--card) 55%);
   }
   .ipo-row summary { cursor: pointer; list-style: none; display: flex; align-items: flex-start; gap: 10px; }
   .ipo-row summary::-webkit-details-marker { display: none; }
   .ipo-row[open] summary { margin-bottom: var(--sp-2); }
   .ipo-row-icon {
     width: 26px; height: 26px; border-radius: 8px; margin-top: 1px;
-    background: var(--accent, var(--hw-ipos)); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    background: var(--hw-ipos); color: #fff; display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
   }
   .ipo-row-icon svg { width: 14px; height: 14px; display: block; }
   .ipo-row-body { flex: 1; min-width: 0; }
@@ -713,8 +716,10 @@ export const BASE_STYLES = `
   .cal-event-block {
     padding: 6px 8px;
     border-radius: 6px;
+    /* Per-event tint set directly on this background-image inline
+       (tileColorForSeed in calendarPage.ts); this is just the fallback. */
     background: var(--sidebar-bg);
-    background-image: linear-gradient(135deg, var(--tint, var(--sidebar-bg)) 0%, var(--sidebar-bg) 65%);
+    background-image: linear-gradient(135deg, var(--sidebar-bg) 0%, var(--sidebar-bg) 65%);
   }
   .cal-event-time { display: block; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
   .cal-event-title {
@@ -789,7 +794,9 @@ export const BASE_STYLES = `
     font-size: 10.5px;
     padding: 1px 5px;
     border-radius: 4px;
-    background: var(--tint, var(--sidebar-bg));
+    /* Per-event tint set directly inline (tileColorForSeed); this is
+       just the fallback. */
+    background: var(--sidebar-bg);
     color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
