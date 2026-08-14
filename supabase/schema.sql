@@ -177,6 +177,9 @@ create table if not exists uploads (
 );
 
 create index if not exists uploads_class_id_idx on uploads (class_id);
+-- getRecentUploads/getUploadsForClass/getGeneralUploads all order by
+-- created_at desc; class_id alone can't serve that ordering.
+create index if not exists uploads_class_created_idx on uploads (class_id, created_at desc);
 
 -- Timed reminder nudges: a Google Task carries the reminder itself (so it
 -- shows in Nathan's actual Tasks app), and this table tracks exactly when
@@ -468,6 +471,10 @@ create table if not exists account_balance_history (
   created_at timestamptz not null default now()
 );
 create unique index if not exists account_balance_history_account_date_idx on account_balance_history (account_id, snapshot_date);
+-- getNetWorthHistory filters by snapshot_date with no account_id
+-- predicate (it's a household-wide total) — the composite index above,
+-- which leads with account_id, can't serve that range scan.
+create index if not exists account_balance_history_date_idx on account_balance_history (snapshot_date);
 
 -- Manually-seeded economic calendar (src/markets/economicEvents.ts) —
 -- deliberately NOT backed by a live API: FOMC/CPI/NFP/GDP dates are
@@ -595,3 +602,48 @@ create table if not exists recurring_charge_overrides (
   dismissed boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Row-Level Security, enabled with no policies on every table. The app
+-- exclusively uses the Supabase service-role key (see src/supabaseClient.ts),
+-- which bypasses RLS by design — this changes nothing about how the app
+-- itself reads/writes. What it does is remove the implicit default grants
+-- Postgres/PostgREST gives the anon/authenticated roles on a table with RLS
+-- off: today, if the anon key were ever exposed or misused (e.g. from the
+-- project ref already being visible in vercel.json's CSP header), those
+-- roles could read/write every table directly. With RLS on and zero
+-- policies, they get nothing, and the service role is unaffected either way.
+alter table seen_stories enable row level security;
+alter table pending_stories enable row level security;
+alter table daily_context enable row level security;
+alter table chat_messages enable row level security;
+alter table newsletters enable row level security;
+alter table app_settings enable row level security;
+alter table class_folders enable row level security;
+alter table watchlist_entries enable row level security;
+alter table contacts enable row level security;
+alter table contact_interactions enable row level security;
+alter table api_cache enable row level security;
+alter table uploads enable row level security;
+alter table reminder_notifications enable row level security;
+alter table reminder_class_links enable row level security;
+alter table ipo_filings enable row level security;
+alter table followed_companies enable row level security;
+alter table plaid_items enable row level security;
+alter table plaid_accounts enable row level security;
+alter table plaid_transactions enable row level security;
+alter table school_chat_messages enable row level security;
+alter table flashcards enable row level security;
+alter table reminder_groups enable row level security;
+alter table reminder_group_links enable row level security;
+alter table login_attempts enable row level security;
+alter table rate_limit_hits enable row level security;
+alter table habits enable row level security;
+alter table habit_completions enable row level security;
+alter table birthdays enable row level security;
+alter table account_balance_history enable row level security;
+alter table economic_events enable row level security;
+alter table study_sessions enable row level security;
+alter table community_feed_sources enable row level security;
+alter table sessions enable row level security;
+alter table manual_bills enable row level security;
+alter table recurring_charge_overrides enable row level security;
