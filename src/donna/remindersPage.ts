@@ -47,6 +47,25 @@ export function dueDateKey(due: EffectiveDue, timezone: string): string {
   return due.dateOnly ? due.iso.slice(0, 10) : localDateKey(new Date(due.iso), timezone);
 }
 
+// Comparing raw `.iso` instants directly (as every "sort by due date" call
+// site used to do) mixes two incompatible shapes: a date-only due's `.iso`
+// is Google's zeroed midnight-UTC value, which in a negative-offset zone
+// reads as evening of the *previous* local day — so a timed reminder due
+// tonight at 9pm can sort AFTER tomorrow's all-day item. Comparing local
+// calendar day first sidesteps that entirely; only within the same day do
+// instants matter, and even then a date-only item (no specific time) sorts
+// before any timed item that day rather than being compared as an instant.
+export function compareByDue(a: EffectiveDue, b: EffectiveDue, timezone: string): number {
+  const aKey = dueDateKey(a, timezone);
+  const bKey = dueDateKey(b, timezone);
+  if (aKey !== bKey) return aKey < bKey ? -1 : 1;
+  const aHasTime = hasTime(a);
+  const bHasTime = hasTime(b);
+  if (aHasTime !== bHasTime) return aHasTime ? 1 : -1;
+  if (!aHasTime) return 0;
+  return new Date(a.iso).getTime() - new Date(b.iso).getTime();
+}
+
 export function formatDue(due: EffectiveDue, timezone: string): string {
   if (due.dateOnly) {
     const [y, m, d] = due.iso.slice(0, 10).split("-").map(Number);
@@ -78,14 +97,18 @@ function leadTimeParts(dueIso: string, earlyIso: string): { value: number; unit:
 
 // Reminders with no due date sort last — they're not time-sensitive, so
 // they shouldn't crowd out what's actually coming up soonest.
-function sortRemindersByDue(reminders: Reminder[], notifications: Map<string, ReminderNotification>): Reminder[] {
+function sortRemindersByDue(
+  reminders: Reminder[],
+  notifications: Map<string, ReminderNotification>,
+  timezone: string
+): Reminder[] {
   return [...reminders].sort((a, b) => {
     const dueA = effectiveDue(a, notifications.get(a.id));
     const dueB = effectiveDue(b, notifications.get(b.id));
     if (!dueA && !dueB) return 0;
     if (!dueA) return 1;
     if (!dueB) return -1;
-    return new Date(dueA.iso).getTime() - new Date(dueB.iso).getTime();
+    return compareByDue(dueA, dueB, timezone);
   });
 }
 
@@ -412,7 +435,7 @@ function renderReminderList(
   const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
 
   if (sortMode === "due") {
-    const sorted = sortRemindersByDue(reminders, notifications);
+    const sorted = sortRemindersByDue(reminders, notifications, timezone);
     return sorted
       .map((r) => renderReminderRow(r, timezone, notifications, earlyNotifications, groupById.get(groupLinks.get(r.id) ?? -1)))
       .join("\n");
@@ -425,12 +448,14 @@ function renderReminderList(
     group: g,
     reminders: sortRemindersByDue(
       reminders.filter((r) => groupLinks.get(r.id) === g.id),
-      notifications
+      notifications,
+      timezone
     ),
   }));
   const ungrouped = sortRemindersByDue(
     reminders.filter((r) => !groupLinks.has(r.id)),
-    notifications
+    notifications,
+    timezone
   );
   if (ungrouped.length > 0 || sections.length === 0) {
     sections.push({ group: null as unknown as ReminderGroup, reminders: ungrouped });

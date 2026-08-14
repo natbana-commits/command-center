@@ -288,7 +288,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const title = body.title?.trim();
         if (id && title) {
           const hasTime = Boolean(body.dueTime);
-          const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : undefined;
+          // The edit form always submits a dueDate field (empty string if
+          // cleared) — null here means "explicitly clear", not "field
+          // omitted", so a blanked date actually clears Google's due date
+          // instead of leaving the old one in place.
+          const dueIso = body.dueDate ? localDateTimeToIso(body.dueDate, body.dueTime, timezone) : null;
           const googleTitle = withTimeSuffix(title, hasTime && dueIso ? formatTimeLabel(dueIso, timezone) : null);
           await updateReminder(id, { title: googleTitle, notes: body.notes?.trim() || "", dueIso });
 

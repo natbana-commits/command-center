@@ -137,10 +137,14 @@ export async function updateReminder(
   const body: Record<string, unknown> = {};
   if (fields.title !== undefined) body.title = fields.title;
   if (fields.notes !== undefined) body.notes = fields.notes;
-  // Google Tasks has no documented way to clear `due` via null in a PATCH
-  // body (it's simply omitted if absent) — callers that want to clear a
-  // due date should be aware this only ever sets/replaces it, never clears.
-  if (fields.dueIso) body.due = fields.dueIso;
+  // Verified empirically against the live API: PATCHing {"due": null}
+  // does clear the field (the task comes back with no `due` key at all).
+  // The distinction that matters is undefined ("field not provided, leave
+  // whatever's there") vs. null ("caller explicitly wants it cleared") —
+  // a bare truthy check on fields.dueIso collapsed both into "leave it",
+  // which is why clearing a reminder's date from the edit form used to
+  // silently do nothing.
+  if (fields.dueIso !== undefined) body.due = fields.dueIso;
 
   await apiFetch(`/lists/${listId}/tasks/${taskId}`, accessToken, {
     method: "PATCH",

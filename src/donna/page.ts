@@ -10,7 +10,7 @@ import type { Upload } from "../storage/uploads.js";
 import type { IpoFiling } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
-import type { BalancePoint } from "../finance/balanceHistory.js";
+import { isLiabilityType, type BalancePoint } from "../finance/balanceHistory.js";
 import type { CalendarEvent } from "../calendar.js";
 import type { Quote } from "../markets/quotes.js";
 import type { EconomicEvent } from "../markets/economicEvents.js";
@@ -33,7 +33,7 @@ import {
   iconMic,
 } from "./icons.js";
 import { renderLineChart } from "./charts.js";
-import { effectiveDue, formatDue, hasTime, dueDateKey } from "./remindersPage.js";
+import { effectiveDue, formatDue, hasTime, dueDateKey, compareByDue, type EffectiveDue } from "./remindersPage.js";
 import { daysAwayLabel } from "./dayBadge.js";
 import { storyAnchorId } from "./newsPage.js";
 
@@ -114,16 +114,23 @@ function renderRemindersTile(
       </div>`;
   }
 
+  // A date-only reminder (no explicit time) is only overdue once its whole
+  // calendar day has passed — comparing its raw midnight-UTC instant
+  // against Date.now() (as this used to do) marks it overdue as soon as
+  // UTC rolls over, hours before the local day actually ends.
+  const isOverdue = (due: EffectiveDue): boolean =>
+    hasTime(due) ? new Date(due.iso).getTime() < Date.now() : dueDateKey(due, timezone) < localDateKey(new Date(), timezone);
+
   const withDue = reminders
     .map((r) => ({ r, due: effectiveDue(r, notifications.get(r.id)) }))
     .sort((a, b) => {
       if (!a.due && !b.due) return 0;
       if (!a.due) return 1;
       if (!b.due) return -1;
-      return new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime();
+      return compareByDue(a.due, b.due, timezone);
     });
 
-  const overdueCount = withDue.filter((x) => x.due && new Date(x.due.iso).getTime() < Date.now()).length;
+  const overdueCount = withDue.filter((x) => x.due && isOverdue(x.due)).length;
   const upcomingCount = withDue.length - overdueCount;
 
   const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
@@ -148,7 +155,7 @@ function renderRemindersTile(
             const dateKey = due ? dueDateKey(due, timezone) : null;
             const timeLabel = due && hasTime(due) ? new Date(due.iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "";
             const dayLabel = dateKey ? compactDayLabel(dateKey, timezone) : "";
-            const overdue = due ? new Date(due.iso).getTime() < Date.now() : false;
+            const overdue = due ? isOverdue(due) : false;
             return `
               <div class="hw-row" data-group="${group ? group.id : ""}">
                 <div class="hw-row-main">
@@ -247,12 +254,17 @@ export function computeFinanceAccountSummary(
   const chartHtml = (points: BalancePoint[]) =>
     `<div style="--accent: var(--hw-finance);">${renderLineChart(points.map((p) => ({ label: p.date, value: p.balance })), { width: 240, height: 60 })}</div>`;
   const monthAvailable = monthHistory.length >= 2;
+  // A rising balance is good news for an asset account but bad news for a
+  // liability (credit card/loan) — more debt, not more money. balanceHistory.ts
+  // already draws this same distinction for net-worth math; the trend color
+  // here was ignoring it and showing growing credit-card debt in green.
+  const isGoodDirection = isLiabilityType(account.type) ? change <= 0 : change >= 0;
 
   return {
     name: account.name,
     balanceLabel,
     trendLabel: `${changeSign}${changePct.toFixed(2)}%`,
-    trendUp: change >= 0,
+    trendUp: isGoodDirection,
     changeLabel: `${changeSign}${formatMoney(Math.abs(change), currency)}`,
     weekChartHtml: chartHtml(weekHistory),
     monthChartHtml: monthAvailable ? chartHtml(monthHistory) : "",

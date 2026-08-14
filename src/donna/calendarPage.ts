@@ -5,7 +5,7 @@ import type { ReminderNotification } from "../reminders/notifications.js";
 import { escapeHtml } from "../util/html.js";
 import { localDateKey, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { effectiveDue, hasTime, dueDateKey, type EffectiveDue } from "./remindersPage.js";
+import { effectiveDue, hasTime, dueDateKey, compareByDue, type EffectiveDue } from "./remindersPage.js";
 import { iconBell } from "./icons.js";
 import { tileColorForSeed } from "./tileColor.js";
 
@@ -123,7 +123,7 @@ function renderTodayReminders(reminders: Reminder[], notifications: Map<string, 
   const todays = reminders
     .map((r) => ({ r, due: effectiveDue(r, notifications.get(r.id)) }))
     .filter((x): x is { r: Reminder; due: EffectiveDue } => Boolean(x.due) && dueDateKey(x.due!, timezone) === todayKey)
-    .sort((a, b) => new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime());
+    .sort((a, b) => compareByDue(a.due, b.due, timezone));
 
   return `
     <div class="section" style="margin-top: var(--sp-3);">

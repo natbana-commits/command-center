@@ -2,6 +2,8 @@ import { getEventsInRange, type CalendarEvent } from "./calendar.js";
 import { listRemindersSafe, type Reminder } from "./google/tasks.js";
 import { escapeHtml } from "./util/html.js";
 import { dayBounds, localDateKey } from "./util/time.js";
+import { effectiveDue, dueDateKey } from "./donna/remindersPage.js";
+import { getPendingNotificationsForTasks, type ReminderNotification } from "./reminders/notifications.js";
 import type { BriefMessage } from "./formatBrief.js";
 
 function formatTime(date: Date, timeZone: string): string {
@@ -42,15 +44,36 @@ function formatCalendarSection(events: CalendarEvent[], timeZone: string): strin
   return lines.join("\n");
 }
 
-function formatRemindersSection(reminders: Reminder[], rangeStart: Date, rangeEnd: Date): string {
+// Comparing Google's raw (date-only, midnight-UTC) `due` field against a
+// timezone-local instant range — as this used to do — silently drops
+// today's reminders and shifts the whole window by several hours (the
+// same UTC-vs-local mismatch already fixed elsewhere via the
+// effectiveDue()/dueDateKey() pair). Date-only reminders are compared as
+// local calendar-day keys (so no instant math is even involved); reminders
+// with a real scheduled time (from reminder_notifications, the only place
+// Google's own zeroed `due` doesn't apply) are compared as real instants.
+function formatRemindersSection(
+  reminders: Reminder[],
+  notifications: Map<string, ReminderNotification>,
+  rangeStart: Date,
+  rangeEnd: Date,
+  timezone: string
+): string {
+  const startKey = localDateKey(rangeStart, timezone);
+  const endKey = localDateKey(new Date(rangeEnd.getTime() - 1), timezone);
+
   const dueThisWeek = reminders
-    .filter((r): r is Reminder & { due: string } => Boolean(r.due))
-    .map((r) => ({ ...r, dueDate: new Date(r.due) }))
-    .filter((r) => r.dueDate >= rangeStart && r.dueDate < rangeEnd)
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    .map((r) => ({ r, due: effectiveDue(r, notifications.get(r.id)) }))
+    .filter((x): x is { r: Reminder; due: NonNullable<ReturnType<typeof effectiveDue>> } => Boolean(x.due))
+    .filter(({ due }) =>
+      due.dateOnly
+        ? dueDateKey(due, timezone) >= startKey && dueDateKey(due, timezone) <= endKey
+        : new Date(due.iso) >= rangeStart && new Date(due.iso) < rangeEnd
+    )
+    .sort((a, b) => new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime());
 
   if (dueThisWeek.length === 0) return "Nothing due this week.";
-  return dueThisWeek.map((r) => `• ${escapeHtml(r.title)}`).join("\n");
+  return dueThisWeek.map(({ r }) => `• ${escapeHtml(r.title)}`).join("\n");
 }
 
 // A "week ahead" recap, sent alongside the regular daily brief once a week
@@ -65,11 +88,14 @@ export async function buildWeeklyDigestMessages(timezone: string): Promise<Brief
     getEventsInRange(timezone, rangeStart, rangeEnd),
     listRemindersSafe(),
   ]);
+  const notifications = await getPendingNotificationsForTasks(reminders.map((r) => r.id)).catch(
+    () => new Map<string, ReminderNotification>()
+  );
 
   const blocks = [
     `<b>Week ahead (${formatWeekRange(rangeStart, rangeEnd, timezone)})</b>`,
     `<b>Calendar</b>\n${formatCalendarSection(events, timezone)}`,
-    `<b>Reminders due</b>\n${formatRemindersSection(reminders, rangeStart, rangeEnd)}`,
+    `<b>Reminders due</b>\n${formatRemindersSection(reminders, notifications, rangeStart, rangeEnd, timezone)}`,
   ];
 
   return [{ text: blocks.join("\n\n"), parseMode: "HTML" }];

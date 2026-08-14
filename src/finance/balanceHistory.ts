@@ -18,7 +18,7 @@ export type BalanceGranularity = "day" | "week" | "month" | "year";
 // "credit"/"loan" balances are debt, not assets — everything else
 // (depository, investment, etc.) counts toward net worth as-is. Matches
 // financesPage.ts's own totalCash/totalCredit split.
-function isLiabilityType(type: string): boolean {
+export function isLiabilityType(type: string): boolean {
   return type === "credit" || type === "loan";
 }
 
