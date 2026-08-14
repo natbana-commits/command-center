@@ -52,8 +52,14 @@ function groupEventsByDay(dayStarts: Date[], events: CalendarEvent[], timezone: 
   });
 }
 
-async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
-  const settings = await loadSettings();
+async function handleCalendarPage(req: VercelRequest, res: VercelResponse, settingsPromise: Promise<Settings>) {
+  // Has no dependency on settings/timezone/the ICS fetch below — kicked
+  // off immediately so its latency overlaps theirs instead of stacking
+  // after them (this used to be the very next thing awaited after the
+  // whole view-specific ICS fetch completed).
+  const remindersPromise = listRemindersSafe();
+
+  const settings = await settingsPromise;
   const timezone = resolveTimezone(settings.timezone);
 
   // The whole ICS feed is cached under one key for 2 minutes (fetching it
@@ -169,7 +175,7 @@ async function handleCalendarPage(req: VercelRequest, res: VercelResponse) {
     headerLabel = `${dayStarts[0].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })} – ${dayStarts[6].toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })}`;
   }
 
-  const todayReminders = await listRemindersSafe();
+  const todayReminders = await remindersPromise;
   const reminderNotifications = await getPendingNotificationsForTasks(todayReminders.map((r) => r.id)).catch(
     () => new Map()
   );
@@ -230,9 +236,8 @@ async function buildProjectPrepView(
 // per-class chat itself lives on the dedicated Chat tab (api/donna-chat.ts)
 // instead of here — this page links out to it rather than embedding its
 // own copy of the same conversation.
-async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
-  const classFolders = await getClassFolders();
-  const settings = await loadSettings();
+async function handleSchoolPage(req: VercelRequest, res: VercelResponse, settingsPromise: Promise<Settings>) {
+  const [classFolders, settings] = await Promise.all([getClassFolders(), settingsPromise]);
 
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -325,7 +330,7 @@ async function handleSchoolPage(req: VercelRequest, res: VercelResponse) {
   await renderSchoolPage(res, classFolders, settings, requestedClassId);
 }
 
-async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
+async function handleFilesPage(req: VercelRequest, res: VercelResponse, settingsPromise: Promise<Settings>) {
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const uploadId = Number(body.id);
@@ -350,11 +355,16 @@ async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
 
   const googleConfigured = isGoogleConfigured();
   const [settings, classFolders, reminders] = await Promise.all([
-    loadSettings(),
+    settingsPromise,
     getClassFolders(),
     listRemindersSafe(),
   ]);
-  const classLinks = await getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
+  // classLinks only depends on `reminders` (already resolved above) and
+  // touches a different table than everything below it — kicked off now
+  // so it overlaps the refresh-cache-invalidation and Drive/uploads fan-out
+  // instead of blocking in front of them (it used to be a full extra round
+  // trip before that fan-out even started).
+  const classLinksPromise = getClassLinksForTasks(reminders.map((r) => r.id)).catch(() => new Map<string, number>());
 
   // listFilesInFolder caches each folder's listing for 5 minutes (Drive API
   // has no per-call cost, this is purely to avoid re-hitting it on every
@@ -368,8 +378,9 @@ async function handleFilesPage(req: VercelRequest, res: VercelResponse) {
   const filesByClass: Record<number, DriveFile[]> = {};
   const uploadsByClass: Record<number, Upload[]> = {};
 
-  const [generalUploads] = await Promise.all([
+  const [generalUploads, classLinks] = await Promise.all([
     getGeneralUploads().catch(() => []),
+    classLinksPromise,
     Promise.all(
       classFolders.map(async (cls) => {
         uploadsByClass[cls.id] = await getUploadsForClass(cls.id).catch(() => []);
@@ -458,16 +469,26 @@ async function renderSchoolPage(
 // 12-function cap) — Files/School were already merged; Calendar joins them
 // here since real traffic to any of the three now keeps all three warm.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Independent of which user/session this is — starting it alongside
+  // requireAuth's own Supabase read overlaps two round trips that used to
+  // run fully serially in front of every route this file serves. The
+  // extra .catch() below is just to prevent an unhandled-rejection
+  // warning on the auth-failure path, where this promise is discarded
+  // without ever being awaited — the real error (if any) is still
+  // surfaced wherever a handler actually awaits settingsPromise.
+  const settingsPromise = loadSettings();
+  settingsPromise.catch(() => undefined);
+
   if (!(await requireAuth(req, res))) return;
 
   if (req.query.page === "school") {
-    await handleSchoolPage(req, res);
+    await handleSchoolPage(req, res, settingsPromise);
     return;
   }
   if (req.query.page === "files") {
-    await handleFilesPage(req, res);
+    await handleFilesPage(req, res, settingsPromise);
     return;
   }
 
-  await handleCalendarPage(req, res);
+  await handleCalendarPage(req, res, settingsPromise);
 }
