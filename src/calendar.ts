@@ -76,7 +76,13 @@ function extractEventsInRange(
           description,
         });
       }
-    } else if (event.start >= rangeStart && event.start < rangeEnd) {
+    } else if (
+      (event.start >= rangeStart && event.start < rangeEnd) ||
+      // A multi-day event that started before this range but is still
+      // ongoing (its end falls inside or after the range) was previously
+      // invisible — the original check only ever looked at .start.
+      (event.end !== undefined && event.end > rangeStart && event.start < rangeEnd)
+    ) {
       events.push({
         summary: paramText(event.summary) ?? "",
         start: event.start,

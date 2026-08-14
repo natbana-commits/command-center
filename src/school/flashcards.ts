@@ -99,7 +99,12 @@ export async function reviewFlashcard(id: number, gotIt: boolean): Promise<void>
   }
 
   const nextCount = gotIt ? data.review_count + 1 : 0;
-  const intervalDays = REVIEW_INTERVALS_DAYS[Math.min(nextCount, REVIEW_INTERVALS_DAYS.length - 1)];
+  // Index by the review just passed (data.review_count, pre-increment),
+  // not nextCount — indexing by nextCount skipped the intended 1-day
+  // first interval, jumping a brand-new card straight to 3 days on its
+  // first correct answer. A miss still resets to the shortest interval
+  // via nextCount's 0 above.
+  const intervalDays = REVIEW_INTERVALS_DAYS[Math.min(gotIt ? data.review_count : 0, REVIEW_INTERVALS_DAYS.length - 1)];
   const nextReviewAt = new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await withSupabaseRetry(() =>

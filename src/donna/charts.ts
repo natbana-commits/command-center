@@ -142,6 +142,12 @@ export function renderLineChart(
   const values = points.map((p) => p.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
+  // A perfectly flat series (balance genuinely unchanged) hits range=1 via
+  // the fallback below purely to avoid a divide-by-zero — but every point
+  // then evaluates (value-min)/range to exactly 0, which pins the line to
+  // the bottom gridline rather than showing a flat line where the value
+  // actually sits. Center it instead.
+  const isFlat = max === min;
   const range = max - min || 1;
 
   const innerWidth = width - leftPad - rightPad;
@@ -150,7 +156,7 @@ export function renderLineChart(
 
   const coords = points.map((p, i) => ({
     x: leftPad + i * stepX,
-    y: topPad + innerHeight - ((p.value - min) / range) * innerHeight,
+    y: isFlat ? topPad + innerHeight / 2 : topPad + innerHeight - ((p.value - min) / range) * innerHeight,
   }));
 
   const axesHtml = showAxes
