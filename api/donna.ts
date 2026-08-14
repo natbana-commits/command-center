@@ -65,6 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (page === "logout") {
+    // POST-only — a GET here used to be triggerable cross-site (an <img
+    // src="/donna/logout">, a prefetch, etc.), since SameSite=Lax still
+    // allows top-level-navigation GETs. A POST needs a same-origin form
+    // submission, which SameSite=Lax blocks from another origin.
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
     await destroySession(req, res);
     res.redirect(303, "/donna/login");
     return;

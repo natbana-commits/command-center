@@ -671,7 +671,9 @@ function buildJumpSections(
       ${renderSessionRows(sessions, currentSessionId)}
 
       <div style="margin-top: var(--sp-2); display:flex; gap: var(--sp-2); flex-wrap: wrap;">
-        <a class="btn btn-secondary" href="/donna/logout">Sign out of this device</a>
+        <form method="POST" action="/donna/logout">
+          <button class="btn btn-secondary" type="submit">Sign out of this device</button>
+        </form>
         ${
           sessions.length > 1
             ? `<form method="POST" action="/api/donna-settings" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
