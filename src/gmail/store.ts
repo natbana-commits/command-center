@@ -70,6 +70,37 @@ export async function getNewslettersForDay(day: string): Promise<StoredNewslette
   }));
 }
 
+export type NewsletterSummary = Omit<StoredNewsletter, "html">;
+
+// Home's tile only ever renders id/subject (see page.ts's renderNewsTile) —
+// skip the full HTML body (often 50-90KB per row) that only the News page
+// actually needs.
+export async function getNewslettersForDaySummary(day: string): Promise<NewsletterSummary[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("newsletters")
+      .select("id, day, subject, sender, received_at")
+      .eq("day", day)
+      .order("received_at", { ascending: false })
+  );
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      return [];
+    }
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    day: row.day,
+    subject: row.subject,
+    sender: row.sender,
+    receivedAt: row.received_at,
+  }));
+}
+
 // Only today's newsletters ever get shown (getNewslettersForDay), so
 // anything older is dead weight — each row carries a full HTML body,
 // often 50-90KB.

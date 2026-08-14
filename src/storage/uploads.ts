@@ -196,3 +196,32 @@ export async function getRecentUploads(limit: number): Promise<Upload[]> {
   }
   return (data ?? []).map(rowToUpload);
 }
+
+export interface UploadSummary {
+  kind: UploadKind;
+  originalFilename: string;
+  createdAt: string;
+}
+
+// Home's Recent Activity tile only reads kind/originalFilename/createdAt
+// (see page.ts's renderRecentActivityTile) — skip the transcript/notes
+// columns, which can carry a full lecture transcript's worth of text.
+export async function getRecentUploadsSummary(limit: number): Promise<UploadSummary[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("uploads")
+      .select("kind, original_filename, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+  );
+
+  if (error) {
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    kind: row.kind as UploadKind,
+    originalFilename: row.original_filename,
+    createdAt: row.created_at,
+  }));
+}

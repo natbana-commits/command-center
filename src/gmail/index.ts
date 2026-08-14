@@ -21,4 +21,4 @@ export async function fetchAndStoreNewsletters(
   return newsletters;
 }
 
-export { getNewslettersForDay, pruneOldNewsletters } from "./store.js";
+export { getNewslettersForDay, getNewslettersForDaySummary, pruneOldNewsletters } from "./store.js";

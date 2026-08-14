@@ -82,6 +82,39 @@ export async function getRecentIpoFilings(limit = 20): Promise<IpoFiling[]> {
   return (data ?? []).map(rowToFiling);
 }
 
+export interface IpoFilingSummary {
+  companyName: string;
+  filedDate: string;
+  industry: string | null;
+  isSpac: boolean;
+}
+
+// Home's tile (see page.ts's renderIposTile) only ever reads
+// companyName/filedDate/industry/isSpac — skip the LLM-generated summary
+// prose columns (business/financials/deal-terms/risk-highlights), which
+// are sizeable and only the IPOs detail page actually renders.
+export async function getRecentIpoFilingsSummary(limit = 20): Promise<IpoFilingSummary[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client
+      .from("ipo_filings")
+      .select("company_name, filed_date, industry, is_spac")
+      .order("filed_date", { ascending: false })
+      .limit(limit)
+  );
+
+  if (error) {
+    if (error.code === "PGRST205") return [];
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map((row) => ({
+    companyName: row.company_name,
+    filedDate: row.filed_date,
+    industry: row.industry,
+    isSpac: row.is_spac ?? false,
+  }));
+}
+
 export async function getIpoFilingById(id: number): Promise<IpoFiling | null> {
   const client = getSupabaseClient();
   const { data, error } = await withSupabaseRetry(() =>

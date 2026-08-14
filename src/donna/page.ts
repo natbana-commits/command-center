@@ -2,12 +2,12 @@ import type { DailyContext } from "../chat/dailyContext.js";
 import type { DashboardConfig, HomeWidgetId } from "../config.js";
 import type { Contact } from "../contacts/store.js";
 import type { ClassFolder } from "../drive/classFolders.js";
-import type { StoredNewsletter } from "../gmail/store.js";
+import type { NewsletterSummary } from "../gmail/store.js";
 import type { Reminder } from "../google/tasks.js";
 import type { ReminderNotification } from "../reminders/notifications.js";
 import type { ReminderGroup } from "../reminders/groups.js";
-import type { Upload } from "../storage/uploads.js";
-import type { IpoFiling } from "../ipos/store.js";
+import type { UploadSummary } from "../storage/uploads.js";
+import type { IpoFilingSummary } from "../ipos/store.js";
 import type { PlaidAccount } from "../finance/accounts.js";
 import type { PlaidTransaction } from "../finance/transactionsStore.js";
 import { isLiabilityType, type BalancePoint } from "../finance/balanceHistory.js";
@@ -446,7 +446,7 @@ function renderClassesTile(classFolders: ClassFolder[]): string {
 // ---------------------------------------------------------------------
 const IPO_MIX_COLORS = ["var(--hw-ipo-1)", "var(--hw-ipo-2)", "var(--hw-ipo-3)"];
 
-function renderIposTile(filings: IpoFiling[]): string {
+function renderIposTile(filings: IpoFilingSummary[]): string {
   const href = CARD_HREFS.ipos;
   const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconTrendingUp)}<div class="hw-title">IPOs</div></div>`;
   if (filings.length === 0) {
@@ -528,12 +528,12 @@ function renderFilesTile(): string {
 // ---------------------------------------------------------------------
 // Recent Activity
 // ---------------------------------------------------------------------
-function uploadLabel(u: Upload): string {
+function uploadLabel(u: UploadSummary): string {
   const kindLabel = u.kind === "lecture" ? "Transcript" : "Scan";
   return `${kindLabel}: ${u.originalFilename}`;
 }
 
-function renderRecentActivityTile(uploads: Upload[]): string {
+function renderRecentActivityTile(uploads: UploadSummary[]): string {
   const href = CARD_HREFS["recent-activity"];
   const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconClock)}<div class="hw-title">Recent Activity</div></div>`;
   const rows = uploads.length
@@ -617,7 +617,7 @@ function renderContactsTile(contacts: Contact[]): string {
 // News — top headline + a newsletter preview, both deep-linking into the
 // News tab at that exact item (see newsPage.ts's ?highlight= handling).
 // ---------------------------------------------------------------------
-function renderNewsTile(context: DailyContext | null, newsletters: StoredNewsletter[]): string {
+function renderNewsTile(context: DailyContext | null, newsletters: NewsletterSummary[]): string {
   const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconNewspaper)}<div class="hw-title">News</div></div>`;
   const topStory = context?.stories[0];
   const headlineHtml = topStory
@@ -646,15 +646,15 @@ function renderNewsTile(context: DailyContext | null, newsletters: StoredNewslet
 
 export interface DonnaPageData {
   context: DailyContext | null;
-  newsletters: StoredNewsletter[];
+  newsletters: NewsletterSummary[];
   reminders: Reminder[];
   reminderNotifications: Map<string, ReminderNotification>;
-  recentUploads: Upload[];
+  recentUploads: UploadSummary[];
   googleConfigured: boolean;
   dashboardConfig: DashboardConfig;
   contacts: Contact[];
   classFolders: ClassFolder[];
-  ipoFilings: IpoFiling[];
+  ipoFilings: IpoFilingSummary[];
   fidelityAccount: PlaidAccount | null;
   fidelityBalanceWeek: BalancePoint[];
   fidelityBalanceMonth: BalancePoint[];

@@ -2,19 +2,19 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { loadSettings } from "../src/config.js";
 import { resolveTimezone, localDateKey, dayBounds } from "../src/util/time.js";
 import { getDailyContext } from "../src/chat/dailyContext.js";
-import { getNewslettersForDay } from "../src/gmail/index.js";
+import { getNewslettersForDaySummary } from "../src/gmail/index.js";
 import { isGoogleConfigured } from "../src/google/auth.js";
 import { listRemindersSafe } from "../src/google/tasks.js";
-import { getRecentUploads } from "../src/storage/uploads.js";
+import { getRecentUploadsSummary } from "../src/storage/uploads.js";
 import { getContacts } from "../src/contacts/store.js";
 import { getClassFolders } from "../src/drive/classFolders.js";
 import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { getReminderGroups, getGroupLinksForTasks } from "../src/reminders/groups.js";
-import { getRecentIpoFilings } from "../src/ipos/store.js";
+import { getRecentIpoFilingsSummary } from "../src/ipos/store.js";
 import { isPlaidConfigured } from "../src/finance/plaidConfig.js";
 import { getAllAccounts, type PlaidAccount } from "../src/finance/accounts.js";
 import { getAllItems } from "../src/finance/items.js";
-import { getAccountBalanceHistory } from "../src/finance/balanceHistory.js";
+import { getAccountBalanceHistoryWindows } from "../src/finance/balanceHistory.js";
 import { getTransactionsForAccount } from "../src/finance/transactionsStore.js";
 import { getEventsInRange, type CalendarEvent } from "../src/calendar.js";
 import { getWatchlistEntries } from "../src/news/watchlist.js";
@@ -116,6 +116,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   })();
 
+  // Takes no arguments and has no upstream dependency, but is only ever
+  // consumed alongside taskIds-dependent reads below — starting it here
+  // lets it overlap with the first Promise.all instead of adding a third
+  // serial round-trip on top of it.
+  const reminderGroupsPromise = getReminderGroups().catch(() => []);
+
   const [
     context,
     newsletters,
@@ -130,12 +136,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     upcomingEconEvents,
   ] = await Promise.all([
     getDailyContext(day),
-    getNewslettersForDay(day).catch(() => []),
+    getNewslettersForDaySummary(day).catch(() => []),
     listRemindersSafe(),
-    getRecentUploads(3).catch(() => []),
+    getRecentUploadsSummary(3).catch(() => []),
     getContacts().catch(() => []),
     getClassFolders().catch(() => []),
-    getRecentIpoFilings(12).catch(() => []),
+    getRecentIpoFilingsSummary(12).catch(() => []),
     isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([] as PlaidAccount[]),
     isPlaidConfigured() ? getAllItems().catch(() => []) : Promise.resolve([]),
     getWatchlistEntries().catch(() => []),
@@ -175,17 +181,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     reminderGroups,
     groupLinks,
     { todayEvents, tomorrowEvents },
-    fidelityBalanceWeek,
-    fidelityBalanceMonth,
+    [fidelityBalanceWeek, fidelityBalanceMonth],
     fidelityRecentTransactions,
   ] = await Promise.all([
     getWatchlistQuotes(watchlistEntries.map((e) => e.label)).catch(() => []),
     getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
-    getReminderGroups().catch(() => []),
+    reminderGroupsPromise,
     getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
     calendarPromise,
-    fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 7).catch(() => []) : Promise.resolve([]),
-    fidelityAccount ? getAccountBalanceHistory(fidelityAccount.accountId, 30).catch(() => []) : Promise.resolve([]),
+    fidelityAccount
+      ? getAccountBalanceHistoryWindows(fidelityAccount.accountId, [7, 30]).catch(() => [[], []])
+      : Promise.resolve([[], []]),
     fidelityAccount ? getTransactionsForAccount(fidelityAccount.accountId, 2).catch(() => []) : Promise.resolve([]),
   ]);
 
