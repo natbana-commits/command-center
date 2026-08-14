@@ -14,21 +14,46 @@ import { renderDayBadge } from "./dayBadge.js";
 import { renderPageEditLink } from "./editLink.js";
 
 // Google's Tasks API silently discards the time-of-day on `due` (always
-// stores/returns midnight UTC) — the reminder_notifications row is the only
-// place a real due *time* exists, when one was set. Falls back to Google's
-// (date-only) due field when no notification is pending for this task.
-export function effectiveDue(r: Reminder, notification: ReminderNotification | undefined): string | undefined {
-  return notification?.notifyAt ?? r.due;
+// stores/returns midnight UTC, representing a calendar date rather than a
+// real instant) — the reminder_notifications row is the only place a real
+// due *time* exists, when one was set. `dateOnly` tells every consumer
+// below which of those two shapes `iso` is, since they must be read back
+// completely differently: a real instant through the local timezone, a
+// date-only value by taking its UTC calendar date directly. Converting a
+// date-only value through the local timezone (as this used to do) shifts
+// it a day whenever the zone's offset is negative, e.g. Google's midnight
+// UTC for Aug 14 reads as Aug 13, 8pm in America/New_York.
+export interface EffectiveDue {
+  iso: string;
+  dateOnly: boolean;
 }
 
-export function hasTime(dueIso: string, timezone: string): boolean {
-  return toLocalDateTimeParts(dueIso, timezone).time !== "00:00";
+// Falls back to Google's (date-only) due field when no notification is
+// pending for this task.
+export function effectiveDue(r: Reminder, notification: ReminderNotification | undefined): EffectiveDue | undefined {
+  if (notification) return { iso: notification.notifyAt, dateOnly: false };
+  if (r.due) return { iso: r.due, dateOnly: true };
+  return undefined;
 }
 
-export function formatDue(dueIso: string, timezone: string): string {
-  const date = new Date(dueIso);
+export function hasTime(due: EffectiveDue): boolean {
+  return !due.dateOnly;
+}
+
+// The UTC calendar date embedded in a date-only `due` IS the intended
+// date regardless of timezone — no conversion needed (and converting
+// through the local zone is exactly what produces the day-early bug).
+export function dueDateKey(due: EffectiveDue, timezone: string): string {
+  return due.dateOnly ? due.iso.slice(0, 10) : localDateKey(new Date(due.iso), timezone);
+}
+
+export function formatDue(due: EffectiveDue, timezone: string): string {
+  if (due.dateOnly) {
+    const [y, m, d] = due.iso.slice(0, 10).split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+  }
+  const date = new Date(due.iso);
   const datePart = date.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" });
-  if (!hasTime(dueIso, timezone)) return datePart;
   const timePart = date.toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
   return `${datePart}, ${timePart}`;
 }
@@ -60,7 +85,7 @@ function sortRemindersByDue(reminders: Reminder[], notifications: Map<string, Re
     if (!dueA && !dueB) return 0;
     if (!dueA) return 1;
     if (!dueB) return -1;
-    return new Date(dueA).getTime() - new Date(dueB).getTime();
+    return new Date(dueA.iso).getTime() - new Date(dueB.iso).getTime();
   });
 }
 
@@ -121,7 +146,7 @@ function renderReminderRow(
 
   const early = earlyNotifications.get(r.id);
   const earlyHint =
-    due && early ? `<span class="hint" style="margin:0;">+ texts ${formatLeadTime(due, early.notifyAt)} early</span>` : "";
+    due && early ? `<span class="hint" style="margin:0;">+ texts ${formatLeadTime(due.iso, early.notifyAt)} early</span>` : "";
 
   // Groups already carry a real user-picked color (see the group pill
   // below) — reused here for the row's own tint so an item's color story
@@ -139,7 +164,7 @@ function renderReminderRow(
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
         <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
       </form>
-      ${due ? renderDayBadge(localDateKey(new Date(due), timezone), badgeColor) : ""}
+      ${due ? renderDayBadge(dueDateKey(due, timezone), badgeColor) : ""}
       <div class="day-badge-body">
         ${groupPill}
         <div class="day-badge-title">${escapeHtml(withTimeSuffix(r.title, null))}</div>
@@ -327,9 +352,13 @@ function renderEditForm(
   editingGroupId: number | null | undefined
 ): string {
   const due = effectiveDue(r, notification ?? undefined);
-  const parts = due ? toLocalDateTimeParts(due, timezone) : { date: "", time: "" };
-  const timeValue = due && hasTime(due, timezone) ? parts.time : "";
-  const leadCurrent = due && earlyNotification ? leadTimeParts(due, earlyNotification.notifyAt) : undefined;
+  const parts = due
+    ? due.dateOnly
+      ? { date: due.iso.slice(0, 10), time: "" }
+      : toLocalDateTimeParts(due.iso, timezone)
+    : { date: "", time: "" };
+  const timeValue = due && hasTime(due) ? parts.time : "";
+  const leadCurrent = due && earlyNotification ? leadTimeParts(due.iso, earlyNotification.notifyAt) : undefined;
 
   return `
     <form method="POST" action="/donna/reminders" class="reminder-edit-form" data-swap-target="reminders-main">

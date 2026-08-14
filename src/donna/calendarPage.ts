@@ -5,7 +5,7 @@ import type { ReminderNotification } from "../reminders/notifications.js";
 import { escapeHtml } from "../util/html.js";
 import { localDateKey, withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
-import { effectiveDue, hasTime } from "./remindersPage.js";
+import { effectiveDue, hasTime, dueDateKey, type EffectiveDue } from "./remindersPage.js";
 import { iconBell } from "./icons.js";
 import { tileColorForSeed } from "./tileColor.js";
 
@@ -122,8 +122,8 @@ function renderTodayReminders(reminders: Reminder[], notifications: Map<string, 
   const todayKey = localDateKey(new Date(), timezone);
   const todays = reminders
     .map((r) => ({ r, due: effectiveDue(r, notifications.get(r.id)) }))
-    .filter((x): x is { r: Reminder; due: string } => Boolean(x.due) && localDateKey(new Date(x.due!), timezone) === todayKey)
-    .sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
+    .filter((x): x is { r: Reminder; due: EffectiveDue } => Boolean(x.due) && dueDateKey(x.due!, timezone) === todayKey)
+    .sort((a, b) => new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime());
 
   return `
     <div class="section" style="margin-top: var(--sp-3);">
@@ -139,7 +139,7 @@ function renderTodayReminders(reminders: Reminder[], notifications: Map<string, 
                 .map(
                   ({ r, due }) => `
                 <div class="agenda-event-row">
-                  <span class="agenda-event-time">${escapeHtml(hasTime(due, timezone) ? new Date(due).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "All day")}</span>
+                  <span class="agenda-event-time">${escapeHtml(hasTime(due) ? new Date(due.iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "All day")}</span>
                   <span class="agenda-event-title">${escapeHtml(withTimeSuffix(r.title, null))}</span>
                 </div>`
                 )

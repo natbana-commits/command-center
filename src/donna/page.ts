@@ -33,7 +33,7 @@ import {
   iconMic,
 } from "./icons.js";
 import { renderLineChart } from "./charts.js";
-import { effectiveDue, formatDue, hasTime } from "./remindersPage.js";
+import { effectiveDue, formatDue, hasTime, dueDateKey } from "./remindersPage.js";
 import { daysAwayLabel } from "./dayBadge.js";
 import { storyAnchorId } from "./newsPage.js";
 
@@ -120,10 +120,10 @@ function renderRemindersTile(
       if (!a.due && !b.due) return 0;
       if (!a.due) return 1;
       if (!b.due) return -1;
-      return new Date(a.due).getTime() - new Date(b.due).getTime();
+      return new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime();
     });
 
-  const overdueCount = withDue.filter((x) => x.due && new Date(x.due).getTime() < Date.now()).length;
+  const overdueCount = withDue.filter((x) => x.due && new Date(x.due.iso).getTime() < Date.now()).length;
   const upcomingCount = withDue.length - overdueCount;
 
   const groupById = new Map(reminderGroups.map((g) => [g.id, g]));
@@ -145,10 +145,10 @@ function renderRemindersTile(
           .slice(0, 8)
           .map(({ r, due }) => {
             const group = groupById.get(groupLinks.get(r.id) ?? -1);
-            const dateKey = due ? localDateKey(new Date(due), timezone) : null;
-            const timeLabel = due && hasTime(due, timezone) ? new Date(due).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "";
+            const dateKey = due ? dueDateKey(due, timezone) : null;
+            const timeLabel = due && hasTime(due) ? new Date(due.iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "";
             const dayLabel = dateKey ? compactDayLabel(dateKey) : "";
-            const overdue = due ? new Date(due).getTime() < Date.now() : false;
+            const overdue = due ? new Date(due.iso).getTime() < Date.now() : false;
             return `
               <div class="hw-row" data-group="${group ? group.id : ""}">
                 <div class="hw-row-main">
