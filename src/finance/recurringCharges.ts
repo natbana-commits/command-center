@@ -28,12 +28,21 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// A subscription cancelled months ago can still be sitting inside the
+// 300-row lookback window with a perfectly regular cadence — this bounds
+// how stale the *last* charge can be before it's excluded, so a dead
+// subscription stops showing up as "60 days late" in Upcoming Payments
+// and stops being counted in the Recurring Charges monthly total.
+// 1.5x the merchant's own cadence gives one missed cycle's grace before
+// concluding it's actually stopped.
+const RECENCY_TOLERANCE = 1.5;
+
 // Groups spend by merchant, then only calls it "recurring" when EVERY
 // consecutive gap between charges lands in the ~monthly window and every
 // consecutive amount stays within tolerance — a single coincidental repeat
 // purchase at a similar amount won't false-positive unless it happens to
 // also land almost exactly a month apart, which a genuine one-off won't.
-export function detectRecurringCharges(transactions: PlaidTransaction[]): RecurringCharge[] {
+export function detectRecurringCharges(transactions: PlaidTransaction[], now: Date = new Date()): RecurringCharge[] {
   // Plaid's sign convention: positive amount = money out. Pending
   // transactions haven't settled yet and can still change amount/date.
   // TRANSFER_OUT (money moved between your own accounts, e.g. a recurring
@@ -83,6 +92,9 @@ export function detectRecurringCharges(transactions: PlaidTransaction[]): Recurr
     // charges every 28 days) predicts the next date more precisely than a
     // flat 30 — gaps is non-empty here since MIN_OCCURRENCES is 2.
     const avgGapDays = gaps.reduce((sum, g) => sum + g, 0) / gaps.length;
+
+    if (daysBetween(last.transactionDate, now.toISOString()) > avgGapDays * RECENCY_TOLERANCE) continue;
+
     results.push({
       merchantKey,
       label: last.merchantName ?? last.name,
