@@ -750,6 +750,8 @@ export function buildSettingsHtml(
     </div>
     ${saved ? `<p class="hint" style="margin-bottom:20px;">Saved.</p>` : ""}
     ${error === "invalid-link" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">Couldn't read that Drive folder link. Paste the full share link.</p>` : ""}
+    ${error === "invalid-timezone" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">That's not a valid timezone (try a name like America/New_York). Settings were not saved.</p>` : ""}
+    ${error === "invalid-feed-url" ? `<p class="hint" style="margin-bottom:20px;color:var(--danger);">That feed URL isn't allowed (must be a public http/https address). Source was not added.</p>` : ""}
 
     ${renderSettingsNav(jumpSections)}
 

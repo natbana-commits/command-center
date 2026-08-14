@@ -24,11 +24,16 @@ function utcOffsetString(at: Date, timeZone: string): string {
     timeZoneName: "shortOffset",
   })
     .formatToParts(at)
-    .find((part) => part.type === "timeZoneName")!.value; // e.g. "GMT-4"
+    .find((part) => part.type === "timeZoneName")!.value; // e.g. "GMT-4" or "GMT+5:30"
 
-  const offsetHours = parseInt(offsetName.replace("GMT", ""), 10) || 0;
-  const sign = offsetHours >= 0 ? "+" : "-";
-  return `${sign}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
+  // Half-hour and 45-minute zones (India GMT+5:30, Nepal GMT+5:45) carry a
+  // ":MM" suffix that a bare parseInt on the whole string silently drops —
+  // unreachable today (only America/New_York is configured) but latent
+  // once the timezone setting accepts arbitrary IANA zones.
+  const match = offsetName.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+  if (!match) return "+00:00";
+  const [, sign, hours, minutes] = match;
+  return `${sign}${hours.padStart(2, "0")}:${(minutes ?? "00").padStart(2, "0")}`;
 }
 
 // Resolves the UTC instant for local midnight of a Y-M-D date in

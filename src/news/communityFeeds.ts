@@ -35,6 +35,42 @@ export async function getCommunityFeedSources(): Promise<CommunityFeedSource[]> 
   return data ?? [];
 }
 
+// This URL is fetched server-side (fetchOneFeed → parser.parseURL) on a
+// schedule with no further review — rejecting non-http(s) schemes and
+// obviously-internal/private hosts here (rather than trusting the caller)
+// closes the server-side-request-forgery angle at the one place that
+// actually issues the request, not just at today's single entry point.
+export function isSafeFeedUrl(rawUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+  const host = url.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host === "0.0.0.0") return false;
+
+  // IPv4 literal checks: loopback, private ranges (RFC 1918), and
+  // link-local (RFC 3927 — this range also covers the 169.254.169.254
+  // cloud-metadata endpoint AWS/GCP/Azure all use).
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (a === 127 || a === 10 || a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+
+  // IPv6 literal checks: loopback, unique-local, and link-local.
+  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:") || host.startsWith("[::1]")) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function addCommunityFeedSource(url: string, label: string): Promise<void> {
   const client = getSupabaseClient();
   const { error } = await withSupabaseRetry(() => client.from("community_feed_sources").insert({ url, label }));

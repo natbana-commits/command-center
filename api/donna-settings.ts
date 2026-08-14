@@ -17,6 +17,7 @@ import {
   getCommunityFeedSources,
   addCommunityFeedSource,
   deleteCommunityFeedSource,
+  isSafeFeedUrl,
 } from "../src/news/communityFeeds.js";
 import { buildSettingsHtml } from "../src/donna/settingsPage.js";
 import {
@@ -26,6 +27,25 @@ import {
   revokeSession,
   revokeOtherSessions,
 } from "../src/auth/session.js";
+import { invalidateCache } from "../src/util/cache.js";
+
+// Intl throws RangeError on anything that isn't a real IANA zone name —
+// including empty string, or a near-miss like "America/New York" (space
+// instead of underscore). Every page that computes "today"
+// (Home/Reminders/Calendar/Finances) and the morning-brief cron all call
+// through this same timezone string on every request, so an unvalidated
+// bad save here doesn't just fail once — it 500s the whole app until
+// manually corrected in the database.
+function isValidTimezone(candidate: string): boolean {
+  if (!candidate) return false;
+  if (candidate === "auto") return true; // resolveTimezone()'s own special case
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: candidate });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!(await requireAuth(req, res))) return;
@@ -36,8 +56,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
       if (action === "save-settings") {
+        const timezone = body.timezone?.trim();
+        if (timezone !== undefined && !isValidTimezone(timezone)) {
+          res.redirect(303, "/donna/settings?error=invalid-timezone");
+          return;
+        }
+
         await saveSettings({
-          timezone: body.timezone?.trim(),
+          timezone,
           newsletterQuery: body.newsletterQuery?.trim(),
         });
 
@@ -99,8 +125,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "add-community-feed-source") {
         const url = body.url?.trim();
         const label = body.label?.trim();
+        if (url && !isSafeFeedUrl(url)) {
+          res.redirect(303, "/donna/settings?error=invalid-feed-url");
+          return;
+        }
         if (url && label) {
           await addCommunityFeedSource(url, label);
+          // Same 15-minute cache donna-calendar.ts/donna-news.ts already
+          // invalidate for their own writes — without this, a newly added
+          // source shows no items (and a deleted one keeps showing its
+          // old items) for up to 15 minutes.
+          await invalidateCache("community-feed-items");
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -110,6 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const id = Number(body.id);
         if (Number.isFinite(id)) {
           await deleteCommunityFeedSource(id);
+          await invalidateCache("community-feed-items");
         }
         res.redirect(303, "/donna/settings?saved=1");
         return;
@@ -169,7 +205,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === "update-recurring-charge-override") {
         const merchantKey = body.merchantKey;
         const displayName = body.displayName?.trim();
-        const amountOverride = Number(body.amountOverride);
+        // Number("") is 0, which passes a bare Number.isFinite/>=0 check —
+        // trim-and-check-for-emptiness first so a blanked field is
+        // rejected instead of silently saving as a permanent $0.00/mo.
+        const rawAmount = body.amountOverride?.trim();
+        const amountOverride = rawAmount ? Number(rawAmount) : NaN;
         if (merchantKey && displayName && Number.isFinite(amountOverride) && amountOverride >= 0) {
           await upsertRecurringChargeOverride(merchantKey, { displayName, amountOverride });
         }
