@@ -32,15 +32,18 @@ async function fetchQuote(symbol: string): Promise<Quote | null> {
 
 // 60s TTL — comfortably under Finnhub's free-tier 60-calls/minute limit
 // even with a watchlist of several tickers, for a page that isn't loaded
-// more than a handful of times a minute by one person.
+// more than a handful of times a minute by one person. One cache row for
+// the whole watchlist (keyed on its sorted symbol set) rather than one
+// per ticker — same number of Finnhub calls on a cache miss (still done
+// via Promise.all below), but one Supabase round trip instead of N on
+// every warm load.
 export async function getWatchlistQuotes(labels: string[]): Promise<Quote[]> {
   if (!isFinnhubConfigured() || labels.length === 0) return [];
 
-  const results = await Promise.all(
-    labels.map((label) => {
-      const symbol = label.trim().toUpperCase();
-      return getOrFetch(`market-quote:${symbol}`, 60, () => fetchQuote(symbol));
-    })
-  );
-  return results.filter((q): q is Quote => q !== null);
+  const symbols = [...new Set(labels.map((label) => label.trim().toUpperCase()))].sort();
+  const results = await getOrFetch(`market-quotes:${symbols.join(",")}`, 60, async () => {
+    const quotes = await Promise.all(symbols.map((symbol) => fetchQuote(symbol)));
+    return quotes.filter((q): q is Quote => q !== null);
+  });
+  return results;
 }
