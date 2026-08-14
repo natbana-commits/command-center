@@ -2,6 +2,7 @@ import { fetchNewS1Entries } from "./edgarFeed.js";
 import { fetchS1Text } from "./fetchDocument.js";
 import { buildDigest } from "./digest.js";
 import { summarizeS1 } from "./summarize.js";
+import { isNewListing } from "./listingHistory.js";
 import { getProcessedAccessions, saveIpoFiling, type IpoFiling } from "./store.js";
 
 // Bounds worst-case run time inside the daily cron — ~4 original S-1
@@ -22,7 +23,16 @@ export async function summarizeCompanyOnDemand(
 ): Promise<IpoFiling> {
   const { text, sourceUrl } = await fetchS1Text(cik, accessionNo);
   const digest = buildDigest(text);
-  const summary = await summarizeS1(digest, companyName);
+  const [summary, listingResult] = await Promise.all([
+    summarizeS1(digest, companyName),
+    // Best-effort: an EDGAR hiccup here shouldn't sink the whole filing
+    // over one non-essential badge — falls back to null (shown as
+    // neither Initial nor Add-on) rather than throwing.
+    isNewListing(cik, filedDate).catch((err) => {
+      console.error(`Failed to check listing history for CIK ${cik}:`, err);
+      return null;
+    }),
+  ]);
   return saveIpoFiling({
     accessionNo,
     cik,
@@ -31,6 +41,7 @@ export async function summarizeCompanyOnDemand(
     sourceUrl,
     ticker: summary.ticker ?? undefined,
     summary,
+    isNewListing: listingResult,
   });
 }
 

@@ -49,16 +49,25 @@ function renderFollowToggle(filing: IpoFiling, followedCiks: Set<string>): strin
     </form>`;
 }
 
+// "primary"/"secondary"/"mixed" is about who's selling shares in this
+// transaction (the company vs existing holders) — a different axis from
+// isNewListing below (whether the company itself was already public
+// before this filing) — named "New Shares"/"Re-sale" here specifically
+// so it can't be confused with the Initial/Add-on badge.
 const OFFERING_TYPE_LABELS: Record<"primary" | "secondary" | "mixed", string> = {
-  primary: "Initial",
+  primary: "New Shares",
   secondary: "Re-sale",
-  mixed: "Initial + Re-sale",
+  mixed: "New + Re-sale",
 };
 
 function renderIpoBadges(filing: IpoFiling): string {
   const badges: string[] = [];
   if (filing.isSpac) {
     badges.push(`<span class="day-badge-pill" style="color:var(--text-secondary); background:var(--sidebar-bg);">SPAC</span>`);
+  } else if (filing.isNewListing === true) {
+    badges.push(`<span class="day-badge-pill" style="color:var(--hw-up); background:rgba(47,143,91,0.12);">Initial</span>`);
+  } else if (filing.isNewListing === false) {
+    badges.push(`<span class="day-badge-pill" style="color:var(--text-secondary); background:var(--sidebar-bg);">Add-on</span>`);
   }
   if (filing.offeringType) {
     badges.push(`<span class="day-badge-pill" style="color:var(--accent); background:rgba(184,107,69,0.1);">${escapeHtml(OFFERING_TYPE_LABELS[filing.offeringType])}</span>`);
@@ -113,17 +122,17 @@ export interface IposPageData {
 export function buildIposHtml(data: IposPageData): string {
   const { filings, followedCompanies, navVisibility, navOrder } = data;
   const followedCiks = new Set(followedCompanies.map((c) => c.cik));
-  // Initial offerings (new shares from the company) are more interesting
-  // than a pure secondary sale (existing holders cashing out) — push
-  // secondary-only filings down first, then blank-check SPACs (no real
-  // business to summarize) down within each group, otherwise keep the
-  // incoming filed-date order (JS sort is stable). Unclassified
-  // (offeringType null) filings rank alongside primary/mixed rather than
-  // being penalized for a gap in the data.
+  // A genuinely new company going public (Initial) is more interesting
+  // than an already-public company doing another raise (Add-on), and
+  // both are more interesting than a blank-check SPAC (no real business
+  // to summarize) — SPACs sort last regardless of anything else.
+  // Unclassified (isNewListing null — an EDGAR lookup failure) ranks
+  // alongside Add-on rather than being penalized to the very bottom for
+  // a gap in the data. Filed-date order (JS sort is stable) otherwise.
   const sortedFilings = [...filings].sort((a, b) => {
-    const offeringDiff = Number(a.offeringType === "secondary") - Number(b.offeringType === "secondary");
-    if (offeringDiff !== 0) return offeringDiff;
-    return Number(a.isSpac) - Number(b.isSpac);
+    const spacDiff = Number(a.isSpac) - Number(b.isSpac);
+    if (spacDiff !== 0) return spacDiff;
+    return Number(a.isNewListing !== true) - Number(b.isNewListing !== true);
   });
 
   const body = `

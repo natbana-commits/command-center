@@ -248,6 +248,16 @@ alter table ipo_filings add column if not exists is_spac boolean not null defaul
 -- back null.
 alter table ipo_filings add column if not exists offering_type text;
 
+-- Whether this is a genuinely new company going public for the first
+-- time ("Initial") vs an already-reporting company filing another S-1
+-- ("Add-on") — a different axis than offering_type above (that's about
+-- who's selling shares in this transaction, this is about whether the
+-- company itself was already public before it). Unlike the columns
+-- above, this is a code-based lookup against EDGAR's own filing history
+-- (src/ipos/listingHistory.ts), not an AI guess, so it's backfilled for
+-- every existing row via a one-off script rather than left null.
+alter table ipo_filings add column if not exists is_new_listing boolean;
+
 -- Companies Nathan has asked to keep tracking beyond their initial S-1 —
 -- checked daily for any new filing (amendments, the eventual 424B4
 -- pricing prospectus) via EDGAR's per-company submissions feed.

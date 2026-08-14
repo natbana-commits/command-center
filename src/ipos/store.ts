@@ -14,6 +14,7 @@ export interface IpoFiling {
   estimatedRevenue: string | null;
   isSpac: boolean;
   offeringType: "primary" | "secondary" | "mixed" | null;
+  isNewListing: boolean | null;
   businessSummary: string | null;
   financialsSummary: string | null;
   dealTermsSummary: string | null;
@@ -33,6 +34,7 @@ interface IpoFilingRow {
   estimated_revenue: string | null;
   is_spac: boolean | null;
   offering_type: "primary" | "secondary" | "mixed" | null;
+  is_new_listing: boolean | null;
   business_summary: string | null;
   financials_summary: string | null;
   deal_terms_summary: string | null;
@@ -56,6 +58,7 @@ function rowToFiling(row: IpoFilingRow): IpoFiling {
     estimatedRevenue: row.estimated_revenue,
     isSpac: row.is_spac ?? false,
     offeringType: row.offering_type,
+    isNewListing: row.is_new_listing,
     businessSummary: row.business_summary,
     financialsSummary: row.financials_summary,
     dealTermsSummary: row.deal_terms_summary,
@@ -64,7 +67,7 @@ function rowToFiling(row: IpoFilingRow): IpoFiling {
 }
 
 const SELECT_COLUMNS =
-  "id, accession_no, cik, company_name, ticker, exchange, filed_date, source_url, industry, estimated_revenue, is_spac, offering_type, business_summary, financials_summary, deal_terms_summary, risk_highlights";
+  "id, accession_no, cik, company_name, ticker, exchange, filed_date, source_url, industry, estimated_revenue, is_spac, offering_type, is_new_listing, business_summary, financials_summary, deal_terms_summary, risk_highlights";
 
 export async function getRecentIpoFilings(limit = 20): Promise<IpoFiling[]> {
   const client = getSupabaseClient();
@@ -142,6 +145,7 @@ export async function saveIpoFiling(fields: {
   filedDate: string;
   sourceUrl: string;
   summary: S1Summary;
+  isNewListing: boolean | null;
 }): Promise<IpoFiling> {
   const client = getSupabaseClient();
   const { data, error } = await withSupabaseRetry(() =>
@@ -160,6 +164,7 @@ export async function saveIpoFiling(fields: {
           estimated_revenue: fields.summary.estimatedRevenue ?? null,
           is_spac: fields.summary.isSpac ?? false,
           offering_type: fields.summary.offeringType ?? null,
+          is_new_listing: fields.isNewListing,
           business_summary: fields.summary.businessSummary,
           financials_summary: fields.summary.financialsSummary,
           deal_terms_summary: fields.summary.dealTermsSummary,
@@ -175,4 +180,31 @@ export async function saveIpoFiling(fields: {
     throw new Error(`Supabase insert error: ${error?.message ?? "no row returned"}`);
   }
   return rowToFiling(data);
+}
+
+// Used by scripts/backfill-ipo-listing-type.mjs to fill in is_new_listing
+// for filings tracked before that column existed, without needing to
+// re-run the full (AI-driven) saveIpoFiling upsert.
+export async function updateIsNewListing(id: number, isNewListing: boolean): Promise<void> {
+  const client = getSupabaseClient();
+  const { error } = await withSupabaseRetry(() =>
+    client.from("ipo_filings").update({ is_new_listing: isNewListing }).eq("id", id)
+  );
+  if (error) {
+    throw new Error(`Supabase update error: ${error.message}`);
+  }
+}
+
+// For the backfill script — every tracked filing, not just the most
+// recent window getRecentIpoFilings' default limit would return.
+export async function getAllIpoFilings(): Promise<IpoFiling[]> {
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client.from("ipo_filings").select(SELECT_COLUMNS).order("filed_date", { ascending: false })
+  );
+  if (error) {
+    if (error.code === "PGRST205") return [];
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+  return (data ?? []).map(rowToFiling);
 }
