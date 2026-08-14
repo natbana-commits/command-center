@@ -1,4 +1,5 @@
 import { getAccessToken } from "../google/auth.js";
+import { getOrFetch } from "../util/cache.js";
 import type { DriveFile } from "./list.js";
 // pdf-parse's package "main" has a buggy self-test that misfires when
 // bundled by esbuild (throws ENOENT trying to read a fixture file at
@@ -32,8 +33,17 @@ async function downloadBytes(fileId: string, accessToken: string): Promise<Buffe
 
 // Returns "" for file types we don't extract text from (spreadsheets,
 // images, etc.) rather than throwing — one unsupported file shouldn't break
-// the rest of a class folder's context.
+// the rest of a class folder's context. Cached keyed on (id, modifiedTime) —
+// unlike listFilesInFolder, this had no caching at all, so School-mode chat
+// could trigger a download + PDF-parse per file on every single message. A
+// long TTL is safe here since the key itself changes the moment the file is
+// edited (DriveFile always carries modifiedTime), so nothing ever serves
+// stale content — it just accumulates unreachable rows until they expire.
 export async function getFileContent(file: DriveFile): Promise<string> {
+  return getOrFetch(`drive:content:${file.id}:${file.modifiedTime}`, 30 * 24 * 60 * 60, () => fetchFileContent(file));
+}
+
+async function fetchFileContent(file: DriveFile): Promise<string> {
   try {
     const accessToken = await getAccessToken();
 

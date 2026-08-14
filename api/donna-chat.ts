@@ -38,8 +38,7 @@ async function handleGlobalSearch(req: VercelRequest, res: VercelResponse) {
 // backend for its School-mode tabs. The FAB's own bare GET/POST (no
 // query param) is untouched below.
 async function handleChatTabPage(req: VercelRequest, res: VercelResponse) {
-  const classFolders = await getClassFolders();
-  const settings = await loadSettings();
+  const [classFolders, settings] = await Promise.all([getClassFolders(), loadSettings()]);
 
   if (req.method === "POST") {
     const body = (req.body ?? {}) as { kind?: string; classId?: number; text?: string };
