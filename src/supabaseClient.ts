@@ -1,12 +1,22 @@
-import { createClient, type PostgrestError } from "@supabase/supabase-js";
+import { createClient, type PostgrestError, type SupabaseClient } from "@supabase/supabase-js";
 
-export function getSupabaseClient() {
+// Memoized at module scope (persists across calls within the same warm
+// serverless container, same idiom as plaidClient.ts's cachedClient) —
+// every store function in the app calls getSupabaseClient(), which used
+// to construct a brand-new client (and its own internal auth sub-client)
+// on every single call — 20+ times on a single Home render.
+let cachedClient: SupabaseClient | null = null;
+
+export function getSupabaseClient(): SupabaseClient {
+  if (cachedClient) return cachedClient;
+
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment");
   }
-  return createClient(url, key);
+  cachedClient = createClient(url, key);
+  return cachedClient;
 }
 
 // Supabase's newer sb_secret_ key format intermittently fails validation
