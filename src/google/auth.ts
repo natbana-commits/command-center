@@ -2,9 +2,20 @@
 // refresh token generated once (manually, via the Google OAuth consent
 // flow, requesting gmail.readonly, drive.readonly, tasks, and
 // calendar.events scopes on one client) is exchanged here for a
-// short-lived access token on every run. No interactive browser step at
-// runtime.
+// short-lived access token. No interactive browser step at runtime.
+//
+// Cached at module scope (persists across requests on the same warm
+// serverless container, same idiom as plaidClient.ts's cachedClient) —
+// this used to hit oauth2.googleapis.com on every single call, and there
+// are a dozen call sites across Tasks/Calendar/Drive/Gmail, several of
+// which fire more than once in a single page render.
+let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+
 export async function getAccessToken(): Promise<string> {
+  if (cachedToken && cachedToken.expiresAt > Date.now()) {
+    return cachedToken.accessToken;
+  }
+
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
@@ -28,14 +39,22 @@ export async function getAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const body = await response.text();
+    // A stale cached token that Google has since rejected shouldn't keep
+    // getting retried on every call until the container recycles.
+    cachedToken = null;
     throw new Error(`Google token refresh error ${response.status}: ${body}`);
   }
 
-  const data = (await response.json()) as { access_token?: string };
+  const data = (await response.json()) as { access_token?: string; expires_in?: number };
   if (!data.access_token) {
+    cachedToken = null;
     throw new Error("Google token refresh response missing access_token");
   }
 
+  // Google access tokens are typically valid for 3600s; refresh a minute
+  // early so a token doesn't expire mid-request.
+  const ttlSeconds = (data.expires_in ?? 3600) - 60;
+  cachedToken = { accessToken: data.access_token, expiresAt: Date.now() + ttlSeconds * 1000 };
   return data.access_token;
 }
 

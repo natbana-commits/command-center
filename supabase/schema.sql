@@ -198,6 +198,10 @@ create table if not exists reminder_notifications (
 );
 
 create index if not exists reminder_notifications_pending_idx on reminder_notifications (sent, notify_at);
+-- getPendingNotificationsForTasks/getEarlyNotificationsForTasks filter by
+-- .in("google_task_id", taskIds).eq("sent", false) on every Home, Calendar,
+-- and Reminders load — without this, that's a sequential scan every time.
+create index if not exists reminder_notifications_task_idx on reminder_notifications (google_task_id, sent);
 
 -- Links a Google Task (a reminder) to a class, for the coursework-
 -- deadlines feature — Google Tasks has no custom-field support, so this
@@ -321,6 +325,11 @@ create table if not exists plaid_transactions (
 );
 
 create index if not exists plaid_transactions_account_date_idx on plaid_transactions (account_id, transaction_date desc);
+-- getRecentTransactions orders by transaction_date desc with no account_id
+-- filter (it's a household-wide feed, not per-account) — the composite
+-- index above can't serve that, so it's a full seq-scan-plus-sort on every
+-- Finances and Settings load without this.
+create index if not exists plaid_transactions_date_idx on plaid_transactions (transaction_date desc);
 
 -- Per-class persistent chat thread for the School page — isolated from
 -- general Donna chat (chat_messages, scoped by day) and from other

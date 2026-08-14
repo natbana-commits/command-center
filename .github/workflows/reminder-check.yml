@@ -22,10 +22,13 @@ jobs:
       # container with /donna/calendar, /donna/contacts shares
       # donna-reminders.ts's with /donna/reminders, /donna/ipos shares
       # donna-finances.ts's with /donna/finances — no need to ping those
-      # separately. Best-effort: a single path being briefly unreachable
-      # shouldn't fail this job or the reminder-check step above it.
+      # separately. /donna/news is its own function (api/donna-news.ts) and
+      # shares nothing, so it needs its own ping too — it's a real nav tab,
+      # not a background job, and was cold-starting on essentially every
+      # visit before this. Best-effort: a single path being briefly
+      # unreachable shouldn't fail this job or the reminder-check step above.
       - name: Keep main pages warm
         run: |
-          for path in /donna /donna/chat /donna/settings /donna/reminders /donna/calendar /donna/finances; do
+          for path in /donna /donna/chat /donna/settings /donna/reminders /donna/calendar /donna/finances /donna/news; do
             curl -s -o /dev/null -m 15 "https://command-center-navy-pi.vercel.app$path" || true
           done
