@@ -1,5 +1,4 @@
-export const BASE_STYLES = `
-  @font-face {
+@font-face {
     font-family: "Inter";
     font-style: normal;
     font-weight: 400;
@@ -1595,4 +1594,3 @@ export const BASE_STYLES = `
     .hw-pad { padding: 9px 10px 7px; }
     .hw-kpi { font-size: 16px; }
   }
-`;
