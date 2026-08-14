@@ -204,10 +204,6 @@ function renderRecurringChargeOverrideRows(
       const dismissed = override?.dismissed ?? false;
       const displayName = override?.displayName ?? c.label;
       const displayAmount = override?.amountOverride ?? c.averageAmount;
-      // Merchant keys can contain characters (quotes, etc.) that would
-      // break a bare JS identifier if inlined into onclick — passed as a
-      // proper JSON string literal instead.
-      const keyArg = JSON.stringify(c.merchantKey);
       const formId = `rc-edit-form-${escapeHtml(encodeURIComponent(c.merchantKey))}`;
 
       return `
@@ -221,7 +217,7 @@ function renderRecurringChargeOverrideRows(
                     <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
                     <button class="btn btn-small" type="submit">Restore</button>
                   </form>`
-                : `<button type="button" class="reminder-edit-link" onclick="toggleRecurringChargeEdit(${keyArg})">Edit</button>
+                : `<button type="button" class="reminder-edit-link" data-merchant-key="${escapeHtml(c.merchantKey)}" onclick="toggleRecurringChargeEdit(this)">Edit</button>
                   <form method="POST" action="/api/donna-settings">
                     <input type="hidden" name="action" value="dismiss-recurring-charge" />
                     <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
@@ -791,8 +787,8 @@ const SETTINGS_CLIENT_SCRIPT = `
   }
   window.toggleBillEdit = toggleBillEdit;
 
-  function toggleRecurringChargeEdit(merchantKey) {
-    const form = document.getElementById("rc-edit-form-" + encodeURIComponent(merchantKey));
+  function toggleRecurringChargeEdit(button) {
+    const form = document.getElementById("rc-edit-form-" + encodeURIComponent(button.dataset.merchantKey));
     if (form) form.style.display = form.style.display === "none" ? "flex" : "none";
   }
   window.toggleRecurringChargeEdit = toggleRecurringChargeEdit;

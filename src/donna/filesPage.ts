@@ -3,7 +3,7 @@ import type { ClassFolder } from "../drive/classFolders.js";
 import type { DriveFile } from "../drive/list.js";
 import type { Reminder } from "../google/tasks.js";
 import type { Upload } from "../storage/uploads.js";
-import { escapeHtml } from "../util/html.js";
+import { escapeHtml, escapeHtmlJsString } from "../util/html.js";
 import { withTimeSuffix } from "../util/time.js";
 import { renderLayout } from "./layout.js";
 import { iconMic, iconScan, iconUpload } from "./icons.js";
@@ -134,7 +134,7 @@ export function renderLibraryTable(rows: LibraryRow[], returnTo: string, classFo
               </select>
               <button type="submit" class="btn-secondary btn-small">Move</button>
             </form>
-            <form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtml(r.title)}? This deletes it from Donna\\'s storage and can\\'t be undone.');">
+            <form method="POST" action="${escapeHtml(returnTo)}" onsubmit="return confirm('Remove ${escapeHtmlJsString(r.title)}? This deletes it from Donna\\'s storage and can\\'t be undone.');">
               <input type="hidden" name="action" value="delete-upload" />
               <input type="hidden" name="id" value="${r.uploadId}" />
               <button type="submit" class="btn-danger btn-small">Remove</button>

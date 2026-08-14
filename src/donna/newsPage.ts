@@ -149,7 +149,14 @@ export interface NewsPageData {
 export function buildNewsHtml(data: NewsPageData): string {
   const { context, newsletters, communityFeedItems, defaultNewsTab, highlight, navVisibility, navOrder } = data;
 
-  const highlightNewsletterId = highlight?.startsWith("newsletter:") ? highlight.slice("newsletter:".length) : null;
+  // Newsletter ids are Gmail message ids (hex strings) — validating against
+  // that charset before it flows into a raw <script> tag below (via
+  // highlightAnchorId) closes off a reflected-XSS path a `</script>`-laced
+  // query string would otherwise open, since JSON.stringify doesn't escape
+  // `<` or `/`.
+  const rawHighlightNewsletterId = highlight?.startsWith("newsletter:") ? highlight.slice("newsletter:".length) : null;
+  const highlightNewsletterId =
+    rawHighlightNewsletterId && /^[A-Za-z0-9_-]+$/.test(rawHighlightNewsletterId) ? rawHighlightNewsletterId : null;
   const highlightStoryUrl = highlight && !highlightNewsletterId ? highlight : null;
 
   // A highlight link always wins over the stored default tab — landing on

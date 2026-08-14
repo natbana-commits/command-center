@@ -6,7 +6,7 @@ import type { NetWorthPoint, BalancePoint, BalanceGranularity } from "../finance
 import type { RecurringCharge } from "../finance/recurringCharges.js";
 import type { SpendingPoint, CategorySpend, MerchantSpend } from "../finance/spendingAnalytics.js";
 import type { UpcomingPayment } from "../finance/upcomingPayments.js";
-import { escapeHtml } from "../util/html.js";
+import { escapeHtml, escapeHtmlJsString } from "../util/html.js";
 import { renderLayout } from "./layout.js";
 import { renderLineChart, renderBarChart } from "./charts.js";
 import { renderDayBadge } from "./dayBadge.js";
@@ -133,7 +133,7 @@ function renderItemCard(item: PlaidItem, accounts: PlaidAccount[]): string {
         ${reauthBadge}
       </div>
       <div class="finance-account-grid">${accounts.map(renderAccountRow).join("\n")}</div>
-      <form method="POST" action="/donna/finances" style="margin-top: var(--sp-2);" onsubmit="return confirm('Unlink ${escapeHtml(item.institutionName)}? This removes its accounts and transaction history from Donna.');">
+      <form method="POST" action="/donna/finances" style="margin-top: var(--sp-2);" onsubmit="return confirm('Unlink ${escapeHtmlJsString(item.institutionName)}? This removes its accounts and transaction history from Donna.');">
         <input type="hidden" name="action" value="unlink" />
         <input type="hidden" name="itemId" value="${escapeHtml(item.itemId)}" />
         <button type="submit" class="btn btn-danger btn-small">Unlink</button>
