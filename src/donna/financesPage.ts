@@ -279,16 +279,27 @@ function renderTopMerchantsSection(merchants: MerchantSpend[]): string {
   );
 }
 
-function renderRecurringChargeRow(charge: RecurringCharge): string {
+// Every charge here also shows up in Upcoming Payments (which is built
+// directly from this same detection — see upcomingPayments.ts), so this
+// widget's job isn't to re-list due dates, occurrence counts, or last-
+// charged dates a second time. It leads with the one-line answer
+// ("what am I paying monthly, in total, and to whom") and lets Upcoming
+// Payments own the due-date detail.
+function renderRecurringChargesSection(charges: RecurringCharge[]): string {
+  const total = charges.reduce((sum, c) => sum + c.averageAmount, 0);
+  const rows = charges
+    .map(
+      (c) => `
+      <div class="finance-row finance-row-compact">
+        <div class="finance-row-title">${escapeHtml(c.label)}</div>
+        <div class="finance-row-amount">${escapeHtml(formatMoney(c.averageAmount, "USD"))}/mo</div>
+      </div>`
+    )
+    .join("\n");
   return `
-    <div class="finance-row">
-      <div class="finance-row-icon" style="background:${avatarColor(charge.label)};">${escapeHtml(avatarInitial(charge.label))}</div>
-      <div class="finance-row-body">
-        <div class="finance-row-title">${escapeHtml(charge.label)}</div>
-        <div class="finance-row-meta">${charge.occurrences} charges · last ${escapeHtml(formatTransactionDate(charge.lastChargeDate))}</div>
-      </div>
-      <div class="finance-row-amount">${escapeHtml(formatMoney(charge.averageAmount, "USD"))}/mo</div>
-    </div>`;
+    <p style="font-size: 22px; font-weight: 600; margin: 0 0 2px;">${escapeHtml(formatMoney(total, "USD"))}/mo</p>
+    <p class="hint" style="margin: 0 0 12px;">${charges.length} subscription${charges.length === 1 ? "" : "s"}</p>
+    ${rows}`;
 }
 
 function renderUpcomingPaymentRow(payment: UpcomingPayment): string {
@@ -480,7 +491,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
         ? null
         : {
             title: "Recurring Charges",
-            content: recurringCharges.map(renderRecurringChargeRow).join("\n"),
+            content: renderRecurringChargesSection(recurringCharges),
             editAnchor: "settings-recurring-charges",
           },
     "upcoming-payments":

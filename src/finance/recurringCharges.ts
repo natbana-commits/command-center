@@ -36,7 +36,10 @@ function addDays(dateStr: string, days: number): string {
 export function detectRecurringCharges(transactions: PlaidTransaction[]): RecurringCharge[] {
   // Plaid's sign convention: positive amount = money out. Pending
   // transactions haven't settled yet and can still change amount/date.
-  const spend = transactions.filter((t) => t.amount > 0 && !t.pending);
+  // TRANSFER_OUT (money moved between your own accounts, e.g. a recurring
+  // brokerage contribution) isn't a "charge" even if it happens to repeat
+  // monthly at a stable amount.
+  const spend = transactions.filter((t) => t.amount > 0 && !t.pending && t.category !== "TRANSFER_OUT");
 
   const groups = new Map<string, PlaidTransaction[]>();
   for (const t of spend) {

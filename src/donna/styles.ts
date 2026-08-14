@@ -877,6 +877,12 @@ export const BASE_STYLES = `
   }
   .finance-row-amount-inflow { color: var(--accent); }
   .finance-row-date { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+  /* Slimmer variant for lists that only need a name + amount (no icon,
+     no meta line) — e.g. Recurring Charges, which already shows each
+     merchant's due date in Upcoming Payments and doesn't need to repeat
+     occurrence counts or last-charged dates here too. */
+  .finance-row-compact { padding: 6px 0; }
+  .finance-row-compact .finance-row-title { flex: 1; font-weight: 500; white-space: normal; }
 
   /* Accounts within an institution card — condensed tiles (3/row web,
      2/row mobile) instead of one full-width row per account. */

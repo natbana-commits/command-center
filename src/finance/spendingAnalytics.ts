@@ -18,10 +18,16 @@ export interface CategorySpend {
 // Plaid's sign convention: positive amount = money out (spend), negative =
 // money in (refunds, deposits) — only spend counts here, matching
 // recurringCharges.ts's own filter. Pending transactions are excluded
-// since their amount/date can still change before settling.
+// since their amount/date can still change before settling. TRANSFER_OUT
+// (Plaid's personal_finance_category for money moved between your own
+// accounts — a brokerage contribution, a P2P payment to yourself) isn't
+// spending and was dwarfing every real category/merchant with one large
+// self-transfer.
 function recentSpend(transactions: PlaidTransaction[], days: number): PlaidTransaction[] {
   const cutoff = Date.now() - days * 86_400_000;
-  return transactions.filter((t) => t.amount > 0 && !t.pending && new Date(t.transactionDate).getTime() >= cutoff);
+  return transactions.filter(
+    (t) => t.amount > 0 && !t.pending && t.category !== "TRANSFER_OUT" && new Date(t.transactionDate).getTime() >= cutoff
+  );
 }
 
 export function getSpendingHistory(transactions: PlaidTransaction[], days = 90): SpendingPoint[] {
