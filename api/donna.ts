@@ -11,7 +11,7 @@ import { getClassFolders } from "../src/drive/classFolders.js";
 import { getPendingNotificationsForTasks } from "../src/reminders/notifications.js";
 import { getReminderGroups, getGroupLinksForTasks } from "../src/reminders/groups.js";
 import { getRecentIpoFilings } from "../src/ipos/store.js";
-import { isPlaidConfigured } from "../src/finance/plaidClient.js";
+import { isPlaidConfigured } from "../src/finance/plaidConfig.js";
 import { getAllAccounts, type PlaidAccount } from "../src/finance/accounts.js";
 import { getAllItems } from "../src/finance/items.js";
 import { getAccountBalanceHistory } from "../src/finance/balanceHistory.js";

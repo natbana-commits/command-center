@@ -31,7 +31,3 @@ export function getPlaidClient(): PlaidApi {
   cachedClient = new PlaidApi(configuration);
   return cachedClient;
 }
-
-export function isPlaidConfigured(): boolean {
-  return Boolean(process.env.PLAID_CLIENT_ID && process.env.PLAID_SECRET);
-}

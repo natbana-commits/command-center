@@ -1,14 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Products, CountryCode } from "plaid";
 import { loadSettings } from "../src/config.js";
 import { requireAuth } from "../src/auth/session.js";
-import { getPlaidClient, isPlaidConfigured } from "../src/finance/plaidClient.js";
+import { isRateLimited } from "../src/auth/rateLimit.js";
+import { isPlaidConfigured } from "../src/finance/plaidConfig.js";
 import { getAllItems, getDecryptedAccessToken, saveItem, deleteItem, setNeedsReauth } from "../src/finance/items.js";
 import { getAllAccounts } from "../src/finance/accounts.js";
 import { getRecentTransactions, getTransactionsForAccount } from "../src/finance/transactionsStore.js";
 import { syncAccountsForItem, syncTransactionsForItem } from "../src/finance/sync.js";
 import { verifyPlaidWebhook } from "../src/finance/webhookVerify.js";
-import { getNetWorthHistory, getAccountBalanceHistory, bucketBalancePoints, type BalanceGranularity } from "../src/finance/balanceHistory.js";
+import { getNetWorthHistory, getAccountBalanceHistory, getAccountBalanceHistoryWindows, bucketBalancePoints, type BalanceGranularity, type BalancePoint } from "../src/finance/balanceHistory.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
 import { getRecurringChargeOverrides, applyRecurringChargeOverrides } from "../src/finance/recurringChargeOverrides.js";
 import { getSpendingHistory, getSpendingByCategory, getSpendingHistoryForAccounts, getTopMerchants } from "../src/finance/spendingAnalytics.js";
@@ -64,6 +64,14 @@ async function handlePlaidWebhook(payload: PlaidWebhookPayload): Promise<void> {
 }
 
 async function handleCreateLinkToken(res: VercelResponse) {
+  // Lazily imported — the 7.5MB "plaid" SDK only needs to load for the
+  // three POST actions that actually call the Plaid API, not for every
+  // request this file serves (Finances/IPOs page renders, the account-
+  // summary sidecar, and the webhook receiver never touch it).
+  const [{ getPlaidClient }, { Products, CountryCode }] = await Promise.all([
+    import("../src/finance/plaidClient.js"),
+    import("plaid"),
+  ]);
   const client = getPlaidClient();
   const response = await client.linkTokenCreate({
     user: { client_user_id: "nathan" },
@@ -91,6 +99,7 @@ async function handleExchangePublicToken(body: Record<string, string>, res: Verc
   }
   const institutionName = body.institutionName?.trim() || "Linked account";
 
+  const { getPlaidClient } = await import("../src/finance/plaidClient.js");
   const client = getPlaidClient();
   const exchange = await client.itemPublicTokenExchange({ public_token: publicToken });
   const { access_token: accessToken, item_id: itemId } = exchange.data;
@@ -107,6 +116,7 @@ async function handleUnlink(body: Record<string, string>, res: VercelResponse) {
   if (itemId) {
     try {
       const accessToken = await getDecryptedAccessToken(itemId);
+      const { getPlaidClient } = await import("../src/finance/plaidClient.js");
       await getPlaidClient().itemRemove({ access_token: accessToken });
     } catch (err) {
       // Still remove it locally even if Plaid's side fails (e.g. the
@@ -168,6 +178,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const plaidVerification = req.headers["plaid-verification"];
 
   if (req.method === "POST" && typeof plaidVerification === "string") {
+    // Verifying an ES256 JWT requires fetching the signing key by the
+    // token's own (attacker-controlled) `kid` first — there's no way to
+    // check auth before that fetch, since the fetch IS the auth check.
+    // verifyPlaidWebhook already rejects a malformed/expired token for
+    // free before ever reaching that fetch; this bounds the remaining
+    // case (a well-formed-but-forged token with a fresh fake `kid` on
+    // every request) so it can't be used to force unlimited live calls
+    // against Plaid's API quota. Generous limit — real webhook volume for
+    // a single-user app is a handful a day at most, and this fails open
+    // like every other rate limit in the app.
+    if (await isRateLimited(req, "plaid-webhook", 30, 5).catch(() => false)) {
+      res.status(429).send("Too many requests");
+      return;
+    }
     const rawBody = await readRawBody(req);
     const valid = await verifyPlaidWebhook(plaidVerification, rawBody);
     if (!valid) {
@@ -205,9 +229,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.status(404).json({ error: "Account not found" });
       return;
     }
-    const [weekHistory, monthHistory, recentTransactions] = await Promise.all([
-      getAccountBalanceHistory(accountId, 7).catch(() => []),
-      getAccountBalanceHistory(accountId, 30).catch(() => []),
+    const [[weekHistory, monthHistory], recentTransactions] = await Promise.all([
+      getAccountBalanceHistoryWindows(accountId, [7, 30]).catch(() => [[], []] as BalancePoint[][]),
       getTransactionsForAccount(accountId, 2).catch(() => []),
     ]);
     res.status(200).json(computeFinanceAccountSummary(account, weekHistory, monthHistory, recentTransactions));
@@ -304,18 +327,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     getRecurringChargeOverrides().catch(() => []),
   ]);
   const timezone = resolveTimezone(settings.timezone);
-  const [items, accounts, transactions, netWorthHistory, recurringChargeTransactions] = plaidConfigured
+  const [items, accounts, netWorthHistory, recurringChargeTransactions] = plaidConfigured
     ? await Promise.all([
         getAllItems(),
         getAllAccounts(),
-        getRecentTransactions(50),
         getNetWorthHistory().catch(() => []),
-        // A separate, deeper pull than the 50 shown in "Recent Transactions" —
-        // detecting a monthly pattern needs several months of history, not
-        // just what's displayed.
+        // The only transaction pull now — 300 rows is plenty deep for
+        // recurring-charge detection, and "Recent Transactions" (which
+        // only ever showed 50) is a strict prefix of the same
+        // descending-by-date query, so a second, shallower query for it
+        // was always redundant.
         getRecentTransactions(300).catch(() => []),
       ])
-    : [[], [], [], [], []];
+    : [[], [], [], []];
+  const transactions = recurringChargeTransactions.slice(0, 50);
   // Applied before this flows anywhere else — both the Recurring Charges
   // widget and buildUpcomingPayments below need a dismissed merchant to
   // already be gone, not just hidden in its own widget.

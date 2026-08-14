@@ -25,7 +25,7 @@ import { pruneOldRateLimitHits } from "./auth/rateLimit.js";
 import { pruneOldSessions } from "./auth/session.js";
 import { checkAndSummarizeNewIpos } from "./ipos/checkNewIpos.js";
 import { checkFollowedCompanyUpdates } from "./ipos/followedCompanies.js";
-import { isPlaidConfigured } from "./finance/plaidClient.js";
+import { isPlaidConfigured } from "./finance/plaidConfig.js";
 import { snapshotAccountBalances } from "./finance/balanceHistory.js";
 import { getEconomicEventsInWindow } from "./markets/economicEvents.js";
 import { getTodaysBirthdays } from "./reminders/birthdays.js";

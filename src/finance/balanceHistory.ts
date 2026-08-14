@@ -103,6 +103,21 @@ export async function getAccountBalanceHistory(accountId: string, days = 365): P
   return (data ?? []).map((row) => ({ date: row.snapshot_date, balance: row.balance }));
 }
 
+// Fetches the largest of the requested windows once and derives every
+// smaller window as a slice of it (by date cutoff — snapshots aren't
+// guaranteed one-per-day, so this isn't just an array-index slice)
+// instead of one Supabase query per window. Used wherever a caller needs
+// the same account's history at more than one granularity at once (e.g.
+// a 7-day sparkline alongside a 30-day one for the same account).
+export async function getAccountBalanceHistoryWindows(accountId: string, windowsDays: number[]): Promise<BalancePoint[][]> {
+  const maxDays = Math.max(...windowsDays);
+  const full = await getAccountBalanceHistory(accountId, maxDays);
+  return windowsDays.map((days) => {
+    const cutoff = localDateKey(new Date(Date.now() - days * 24 * 60 * 60 * 1000), "UTC");
+    return full.filter((p) => p.date >= cutoff);
+  });
+}
+
 // Collapses daily snapshots into one point per week/month/year — the last
 // snapshot within each bucket, since a balance is a point-in-time value,
 // not something that makes sense to sum or average across days the way a

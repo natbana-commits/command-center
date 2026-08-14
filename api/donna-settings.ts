@@ -6,7 +6,7 @@ import { parseDriveFolderId } from "../src/drive/list.js";
 import { getWatchlistEntries, addWatchlistEntry, deleteWatchlistEntry } from "../src/news/watchlist.js";
 import { getReminderGroups, addReminderGroup, deleteReminderGroup } from "../src/reminders/groups.js";
 import { getManualBills, addManualBill, deleteManualBill, updateManualBill } from "../src/finance/manualBills.js";
-import { isPlaidConfigured } from "../src/finance/plaidClient.js";
+import { isPlaidConfigured } from "../src/finance/plaidConfig.js";
 import { getRecentTransactions } from "../src/finance/transactionsStore.js";
 import { detectRecurringCharges } from "../src/finance/recurringCharges.js";
 import {
