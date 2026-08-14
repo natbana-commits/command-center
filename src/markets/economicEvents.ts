@@ -12,9 +12,9 @@ function rowToEvent(row: { id: number; event_name: string; event_date: string; c
   return { id: row.id, eventName: row.event_name, eventDate: row.event_date, category: row.category };
 }
 
-export async function getUpcomingEconomicEvents(limit = 5): Promise<EconomicEvent[]> {
+export async function getUpcomingEconomicEvents(timezone: string, limit = 5): Promise<EconomicEvent[]> {
   const client = getSupabaseClient();
-  const today = localDateKey(new Date(), "UTC");
+  const today = localDateKey(new Date(), timezone);
   const { data, error } = await withSupabaseRetry(() =>
     client
       .from("economic_events")

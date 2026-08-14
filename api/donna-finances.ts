@@ -277,6 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const settings = await loadSettings();
     const html = buildFinancesHtml({
       plaidConfigured,
+      timezone: resolveTimezone(settings.timezone),
       items: [],
       accounts: [],
       transactions: [],
@@ -323,6 +324,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const html = buildFinancesHtml({
     plaidConfigured,
+    timezone,
     items,
     accounts,
     transactions,

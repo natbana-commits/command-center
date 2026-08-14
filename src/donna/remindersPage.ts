@@ -164,7 +164,7 @@ function renderReminderRow(
         <input type="hidden" name="id" value="${escapeHtml(r.id)}" />
         <input type="checkbox" onchange="this.closest('.reminder-row').classList.add('reminder-row-completing'); this.form.requestSubmit()" aria-label="Mark done" />
       </form>
-      ${due ? renderDayBadge(dueDateKey(due, timezone), badgeColor) : ""}
+      ${due ? renderDayBadge(dueDateKey(due, timezone), badgeColor, timezone) : ""}
       <div class="day-badge-body">
         ${groupPill}
         <div class="day-badge-title">${escapeHtml(withTimeSuffix(r.title, null))}</div>

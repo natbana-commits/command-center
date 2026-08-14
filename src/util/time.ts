@@ -31,15 +31,51 @@ function utcOffsetString(at: Date, timeZone: string): string {
   return `${sign}${String(Math.abs(offsetHours)).padStart(2, "0")}:00`;
 }
 
+// Resolves the UTC instant for local midnight of a Y-M-D date in
+// `timeZone`, using the offset actually in effect AT that midnight rather
+// than at some other moment. A single offset("now") lookup — the previous
+// approach — is wrong on the two DST-transition days each year: the offset
+// sampled at, say, 10am can differ from the offset that was in effect at
+// midnight that same local day, since the transition happens a couple
+// hours after midnight. Two passes converge because a timezone's offset
+// changes by a fixed amount at most once around any given calendar day —
+// pass 1 gets close enough that pass 2, evaluated at that near-midnight
+// guess instead of an arbitrary "now", lands on the correct side of the
+// transition.
+function zonedMidnight(year: string, month: string, day: string, timeZone: string): Date {
+  const naive = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  const guessOffset = utcOffsetString(naive, timeZone);
+  const guess = new Date(`${year}-${month}-${day}T00:00:00${guessOffset}`);
+  const offset = utcOffsetString(guess, timeZone);
+  return new Date(`${year}-${month}-${day}T00:00:00${offset}`);
+}
+
+// Plain calendar-date arithmetic (Y-M-D + 1, with month/year rollover
+// handled by the Date constructor's own normalization) — deliberately not
+// "add N hours and re-derive the date", which was tried and is wrong: no
+// fixed number of hours reliably lands one calendar day forward for every
+// day length a DST transition can produce (23h/24h/25h).
+function nextDayParts(year: string, month: string, day: string): { year: string; month: string; day: string } {
+  const d = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  d.setUTCDate(d.getUTCDate() + 1);
+  return {
+    year: String(d.getUTCFullYear()),
+    month: String(d.getUTCMonth() + 1).padStart(2, "0"),
+    day: String(d.getUTCDate()).padStart(2, "0"),
+  };
+}
+
 // Computes midnight-to-midnight in the given IANA timezone as absolute UTC
-// instants, correctly handling DST — the server's own clock runs in UTC,
-// which drifts from any local calendar date for several hours each evening.
+// instants — the server's own clock runs in UTC, which drifts from any
+// local calendar date for several hours each evening. `end` is resolved as
+// its own local midnight (not `start + 24h`) since the day `now` falls on
+// can itself be 23 or 25 hours long on a DST-transition day.
 export function dayBounds(now: Date, timeZone: string): { start: Date; end: Date } {
   const { year, month, day } = dateParts(now, timeZone);
-  const offset = utcOffsetString(now, timeZone);
+  const start = zonedMidnight(year, month, day, timeZone);
 
-  const start = new Date(`${year}-${month}-${day}T00:00:00${offset}`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const next = nextDayParts(year, month, day);
+  const end = zonedMidnight(next.year, next.month, next.day, timeZone);
   return { start, end };
 }
 

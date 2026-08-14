@@ -302,11 +302,11 @@ function renderRecurringChargesSection(charges: RecurringCharge[]): string {
     ${rows}`;
 }
 
-function renderUpcomingPaymentRow(payment: UpcomingPayment): string {
+function renderUpcomingPaymentRow(payment: UpcomingPayment, timezone: string): string {
   const color = payment.source === "manual" ? "var(--olive)" : "var(--accent)";
   return `
     <div class="day-badge-row">
-      ${renderDayBadge(payment.dueDate, color)}
+      ${renderDayBadge(payment.dueDate, color, timezone)}
       <div class="day-badge-body">
         <div class="day-badge-title">${escapeHtml(payment.label)}</div>
         <span class="hint" style="margin:0;">${escapeHtml(formatMoney(payment.amount, "USD"))}${payment.source === "manual" ? " · manual" : ""}</span>
@@ -323,6 +323,7 @@ export interface AccountDetailData {
 
 export interface FinancesPageData {
   plaidConfigured: boolean;
+  timezone: string;
   items: PlaidItem[];
   accounts: PlaidAccount[];
   transactions: PlaidTransaction[];
@@ -419,6 +420,7 @@ function renderAccountDetail(detail: AccountDetailData): string {
 export function buildFinancesHtml(data: FinancesPageData): string {
   const {
     plaidConfigured,
+    timezone,
     items,
     accounts,
     transactions,
@@ -499,7 +501,7 @@ export function buildFinancesHtml(data: FinancesPageData): string {
         ? null
         : {
             title: "Upcoming Payments",
-            content: upcomingPayments.map(renderUpcomingPaymentRow).join("\n"),
+            content: upcomingPayments.map((p) => renderUpcomingPaymentRow(p, timezone)).join("\n"),
             editAnchor: "settings-manual-bills",
           },
     transactions: {

@@ -82,8 +82,8 @@ function greetingWord(timezone: string): string {
 // Compact "Xd" / "1d late" / "today" label — same day-diff math as the big
 // day-badge component, just rendered as plain inline text since these
 // widgets are far too condensed for the full badge.
-function compactDayLabel(dateKey: string): string {
-  const label = daysAwayLabel(dateKey);
+function compactDayLabel(dateKey: string, timezone: string): string {
+  const label = daysAwayLabel(dateKey, timezone);
   if (label.big === "Today") return "today";
   return label.overdue ? `${label.big}d late` : `${label.big}d`;
 }
@@ -147,7 +147,7 @@ function renderRemindersTile(
             const group = groupById.get(groupLinks.get(r.id) ?? -1);
             const dateKey = due ? dueDateKey(due, timezone) : null;
             const timeLabel = due && hasTime(due) ? new Date(due.iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }) : "";
-            const dayLabel = dateKey ? compactDayLabel(dateKey) : "";
+            const dayLabel = dateKey ? compactDayLabel(dateKey, timezone) : "";
             const overdue = due ? new Date(due.iso).getTime() < Date.now() : false;
             return `
               <div class="hw-row" data-group="${group ? group.id : ""}">
@@ -546,7 +546,7 @@ function renderRecentActivityTile(uploads: Upload[]): string {
 // ---------------------------------------------------------------------
 // Econ Events
 // ---------------------------------------------------------------------
-function renderEconEventsTile(events: EconomicEvent[]): string {
+function renderEconEventsTile(events: EconomicEvent[], timezone: string): string {
   const href = CARD_HREFS["econ-events"];
   const headHtml = `<div class="hw-head-left">${widgetHeadIcon(iconBarChart)}<div class="hw-title">Econ Events</div></div>`;
   if (events.length === 0) {
@@ -567,7 +567,7 @@ function renderEconEventsTile(events: EconomicEvent[]): string {
     <div class="hw-tile hw-gw-econ" data-tint="econ" onclick="navigateCard(event, '${href}')">
       <div class="hw-pad">
         <div class="hw-head">${headHtml}</div>
-        <div class="hw-kpi-row"><div class="hw-kpi">${compactDayLabel(next.eventDate)}</div><div class="hw-trend">${escapeHtml(next.eventName)}</div></div>
+        <div class="hw-kpi-row"><div class="hw-kpi">${compactDayLabel(next.eventDate, timezone)}</div><div class="hw-trend">${escapeHtml(next.eventName)}</div></div>
         <div class="hw-rows">${rows}</div>
       </div>
     </div>`;
@@ -694,7 +694,7 @@ function renderWidgetGrid(data: DonnaPageData, timezone: string): string {
     ipos: () => renderIposTile(ipoFilings),
     files: () => renderFilesTile(),
     "recent-activity": () => renderRecentActivityTile(recentUploads),
-    "econ-events": () => renderEconEventsTile(upcomingEconEvents),
+    "econ-events": () => renderEconEventsTile(upcomingEconEvents, timezone),
     contacts: () => renderContactsTile(contacts),
     news: () => renderNewsTile(context, newsletters),
   };

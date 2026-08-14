@@ -139,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     isPlaidConfigured() ? getAllAccounts().catch(() => []) : Promise.resolve([] as PlaidAccount[]),
     isPlaidConfigured() ? getAllItems().catch(() => []) : Promise.resolve([]),
     getWatchlistEntries().catch(() => []),
-    getUpcomingEconomicEvents().catch(() => []),
+    getUpcomingEconomicEvents(timezone).catch(() => []),
   ]);
   const taskIds = reminders.map((r) => r.id);
 
