@@ -14,8 +14,7 @@ import {
 import {
   scheduleNotification,
   clearPendingNotificationsForTask,
-  getPendingNotificationsForTasks,
-  getEarlyNotificationsForTasks,
+  getNotificationsForTasks,
 } from "../src/reminders/notifications.js";
 import { linkReminderToClass, clearClassLink, getClassIdForTask, getClassLinksForTasks } from "../src/reminders/classLinks.js";
 import {
@@ -75,7 +74,15 @@ function resolveIsoDate(raw: string | undefined): string | undefined {
 }
 
 async function handleContactsPage(req: VercelRequest, res: VercelResponse) {
-  const settings = await loadSettings();
+  const settingsPromise = loadSettings();
+  // Doesn't depend on settings, and only the GET branch below actually
+  // needs it — started immediately so its latency overlaps loadSettings'
+  // instead of adding a second serial round-trip in front of the
+  // editing/interactions chain further down.
+  const contactsPromise = getContacts();
+  contactsPromise.catch(() => undefined);
+
+  const settings = await settingsPromise;
   const timezone = resolveTimezone(settings.timezone);
 
   if (req.method === "POST") {
@@ -172,7 +179,7 @@ async function handleContactsPage(req: VercelRequest, res: VercelResponse) {
   const error = req.query.error === "1" ? "Something went wrong. Try again." : undefined;
   const editId = typeof req.query.edit === "string" ? Number(req.query.edit) : undefined;
 
-  const contacts = await getContacts();
+  const contacts = await contactsPromise;
   const editing = editId ? contacts.find((c) => c.id === editId) ?? null : null;
   const editingInteractions = editing ? await getInteractionsForContact(editing.id) : undefined;
 
@@ -248,11 +255,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "POST") {
     const body = (req.body ?? {}) as Record<string, string>;
     const action = body.action;
-    // The Home page's Reminders widget completes reminders in place (see
-    // page.ts's renderRemindersCard) — its checkbox form sets this so the
-    // scoped swap it triggers lands back on Home, not the full Reminders
-    // page, which wouldn't contain the widget's element id to swap into.
-    const returnTo = body.returnTo === "home" ? "/donna" : "/donna/reminders";
 
     try {
       if (action === "add") {
@@ -376,10 +378,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await deleteBirthday(id);
         }
       }
-      res.redirect(303, returnTo);
+      res.redirect(303, "/donna/reminders");
     } catch (err) {
       console.error("Reminder action failed:", err);
-      res.redirect(303, returnTo === "/donna" ? "/donna" : "/donna/reminders?error=1");
+      res.redirect(303, "/donna/reminders?error=1");
     }
     return;
   }
@@ -397,24 +399,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const editId = typeof req.query.edit === "string" ? req.query.edit : undefined;
   const editing = editId && googleConfigured ? await getReminder(editId).catch(() => null) : null;
 
-  const [editingNotificationMap, editingEarlyNotificationMap, editingClassId, editingGroupId] = editing
+  const [editingNotifications, editingClassId, editingGroupId] = editing
     ? await Promise.all([
-        getPendingNotificationsForTasks([editing.id]).catch(() => new Map()),
-        getEarlyNotificationsForTasks([editing.id]).catch(() => new Map()),
+        getNotificationsForTasks([editing.id]).catch(() => ({ main: new Map(), early: new Map() })),
         getClassIdForTask(editing.id).catch(() => null),
         getGroupIdForTask(editing.id).catch(() => null),
       ])
-    : [new Map(), new Map(), null, null];
-  const editingNotification = editing ? editingNotificationMap.get(editing.id) ?? null : null;
-  const editingEarlyNotification = editing ? editingEarlyNotificationMap.get(editing.id) ?? null : null;
+    : [{ main: new Map(), early: new Map() }, null, null];
+  const editingNotification = editing ? editingNotifications.main.get(editing.id) ?? null : null;
+  const editingEarlyNotification = editing ? editingNotifications.early.get(editing.id) ?? null : null;
 
   const reminders = editing ? [] : await listRemindersSafe();
   const taskIds = reminders.map((r) => r.id);
-  const [notifications, earlyNotifications, classLinks, groupLinks, habits] = editing
-    ? [new Map(), new Map(), new Map<string, number>(), new Map<string, number>(), []]
+  const [{ main: notifications, early: earlyNotifications }, classLinks, groupLinks, habits] = editing
+    ? [{ main: new Map(), early: new Map() }, new Map<string, number>(), new Map<string, number>(), []]
     : await Promise.all([
-        getPendingNotificationsForTasks(taskIds).catch(() => new Map()),
-        getEarlyNotificationsForTasks(taskIds).catch(() => new Map()),
+        getNotificationsForTasks(taskIds).catch(() => ({ main: new Map(), early: new Map() })),
         getClassLinksForTasks(taskIds).catch(() => new Map<string, number>()),
         getGroupLinksForTasks(taskIds).catch(() => new Map<string, number>()),
         getHabits().catch(() => []),

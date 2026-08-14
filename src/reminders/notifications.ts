@@ -80,20 +80,23 @@ export async function markNotificationSent(id: number): Promise<void> {
   }
 }
 
-async function getPendingNotificationsByKind(
-  taskIds: string[],
-  kind: NotificationKind
+// Google Tasks' `due` field silently discards whatever time-of-day is sent
+// and always stores midnight UTC (confirmed directly against the live API,
+// not just a client-display quirk) — so this table is the only place a
+// reminder's actual due *time* exists. Building a map keyed by task id lets
+// the Reminders page show/edit the real time instead of Google's zeroed one.
+// Filtered to kind="main" so an early heads-up notification (which fires
+// before the real due time, not at it) never gets picked up as "the" due
+// time here. For callers that need both kinds at once, see
+// getNotificationsForTasks below — one query instead of two.
+export async function getPendingNotificationsForTasks(
+  taskIds: string[]
 ): Promise<Map<string, ReminderNotification>> {
   if (taskIds.length === 0) return new Map();
 
   const client = getSupabaseClient();
   const { data, error } = await withSupabaseRetry(() =>
-    client
-      .from("reminder_notifications")
-      .select("*")
-      .in("google_task_id", taskIds)
-      .eq("sent", false)
-      .eq("kind", kind)
+    client.from("reminder_notifications").select("*").in("google_task_id", taskIds).eq("sent", false).eq("kind", "main")
   );
 
   if (error) {
@@ -107,27 +110,31 @@ async function getPendingNotificationsByKind(
   return map;
 }
 
-// Google Tasks' `due` field silently discards whatever time-of-day is sent
-// and always stores midnight UTC (confirmed directly against the live API,
-// not just a client-display quirk) — so this table is the only place a
-// reminder's actual due *time* exists. Building a map keyed by task id lets
-// the Reminders page show/edit the real time instead of Google's zeroed one.
-// Filtered to kind="main" so an early heads-up notification (which fires
-// before the real due time, not at it) never gets picked up as "the" due
-// time here.
-export async function getPendingNotificationsForTasks(
+// Same shape as getPendingNotificationsForTasks, but returns both the
+// "main" (real due-time) and "early" (optional heads-up) notification maps
+// from a single query — for callers (the Reminders page) that need both at
+// once instead of issuing two nearly-identical queries.
+export async function getNotificationsForTasks(
   taskIds: string[]
-): Promise<Map<string, ReminderNotification>> {
-  return getPendingNotificationsByKind(taskIds, "main");
-}
+): Promise<{ main: Map<string, ReminderNotification>; early: Map<string, ReminderNotification> }> {
+  const main = new Map<string, ReminderNotification>();
+  const early = new Map<string, ReminderNotification>();
+  if (taskIds.length === 0) return { main, early };
 
-// Same shape, for the "remind me earlier" lead time — used to prefill the
-// edit form and to show a hint on the reminders list that an early ping
-// is scheduled.
-export async function getEarlyNotificationsForTasks(
-  taskIds: string[]
-): Promise<Map<string, ReminderNotification>> {
-  return getPendingNotificationsByKind(taskIds, "early");
+  const client = getSupabaseClient();
+  const { data, error } = await withSupabaseRetry(() =>
+    client.from("reminder_notifications").select("*").in("google_task_id", taskIds).eq("sent", false)
+  );
+
+  if (error) {
+    throw new Error(`Supabase read error: ${error.message}`);
+  }
+
+  for (const row of data ?? []) {
+    const notification = rowToNotification(row);
+    (notification.kind === "early" ? early : main).set(row.google_task_id, notification);
+  }
+  return { main, early };
 }
 
 // Removes any not-yet-sent notification for a task, of either kind — used
