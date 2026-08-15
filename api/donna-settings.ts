@@ -27,7 +27,7 @@ import {
   revokeSession,
   revokeOtherSessions,
 } from "../src/auth/session.js";
-import { invalidateCache } from "../src/util/cache.js";
+import { getOrFetch, invalidateCache } from "../src/util/cache.js";
 
 // Intl throws RangeError on anything that isn't a real IANA zone name —
 // including empty string, or a near-miss like "America/New York" (space
@@ -360,9 +360,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Same 300-transaction pull donna-finances.ts uses for its own
       // recurring-charge detection — this page needs the raw (pre-
       // dismissal) list so a dismissed merchant still shows up here to
-      // restore, unlike the Finances widget.
-      isPlaidConfigured() ? getRecentTransactions(300).catch(() => []) : Promise.resolve([]),
+      // restore, unlike the Finances widget. Cached for 90s: every one of
+      // this page's ~20 form actions re-renders the full page after its
+      // own write, and none of them ever touch Plaid transaction data
+      // (the 3 recurring-charge actions write only to a separate
+      // overrides table, merged against this at render time below) — so
+      // it's always safe to reuse a recent pull instead of re-fetching it
+      // on every single save. Scoped to this call site only; Finances'
+      // own call to getRecentTransactions(300) is untouched.
+      isPlaidConfigured()
+        ? getOrFetch("settings:recurring-charge-transactions", 90, () => getRecentTransactions(300)).catch(() => [])
+        : Promise.resolve([]),
     ]);
+  // Recomputed fresh every time (only the fetch above is cached) —
+  // detectRecurringCharges' recency-tolerance check depends on its
+  // now:Date=new Date() default being the real current time, not whatever
+  // it happened to be when the transaction pull was cached.
   const recurringCharges = detectRecurringCharges(recurringChargeTransactions);
   const saved = req.query.saved === "1";
   const error = typeof req.query.error === "string" ? req.query.error : undefined;

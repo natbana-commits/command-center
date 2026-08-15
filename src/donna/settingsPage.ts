@@ -137,14 +137,14 @@ function renderClassRows(classFolders: ClassFolder[]): string {
           <span>${escapeHtml(cls.className)}</span>
           <div style="display:flex; gap:8px;">
             <button type="button" class="reminder-edit-link" onclick="toggleClassRename(${cls.id})">Rename</button>
-            <form method="POST" action="/api/donna-settings">
+            <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
               <input type="hidden" name="action" value="delete-class" />
               <input type="hidden" name="id" value="${cls.id}" />
               <button class="btn btn-danger" type="submit">Remove</button>
             </form>
           </div>
         </div>
-        <form method="POST" action="/api/donna-settings" class="add-class-form" id="class-rename-form-${cls.id}" style="display:none; margin-top:6px;">
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="class-rename-form-${cls.id}" style="display:none; margin-top:6px;" data-swap-target="settings-main">
           <input type="hidden" name="action" value="rename-class" />
           <input type="hidden" name="id" value="${cls.id}" />
           <input type="text" name="className" value="${escapeHtml(cls.className)}" required />
@@ -166,14 +166,14 @@ function renderManualBillRows(bills: ManualBill[]): string {
           <span>${escapeHtml(b.name)}: $${escapeHtml(b.amount.toFixed(2))}, due the ${escapeHtml(String(b.dueDay))}${escapeHtml(ordinalSuffix(b.dueDay))}</span>
           <div style="display:flex; gap:8px;">
             <button type="button" class="reminder-edit-link" onclick="toggleBillEdit(${b.id})">Edit</button>
-            <form method="POST" action="/api/donna-settings">
+            <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
               <input type="hidden" name="action" value="delete-manual-bill" />
               <input type="hidden" name="id" value="${b.id}" />
               <button class="btn btn-danger" type="submit">Remove</button>
             </form>
           </div>
         </div>
-        <form method="POST" action="/api/donna-settings" class="add-class-form" id="bill-edit-form-${b.id}" style="display:none; margin-top:6px;">
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="bill-edit-form-${b.id}" style="display:none; margin-top:6px;" data-swap-target="settings-main">
           <input type="hidden" name="action" value="update-manual-bill" />
           <input type="hidden" name="id" value="${b.id}" />
           <input type="text" name="name" value="${escapeHtml(b.name)}" required />
@@ -212,13 +212,13 @@ function renderRecurringChargeOverrideRows(
           <div style="display:flex; gap:8px;">
             ${
               dismissed
-                ? `<form method="POST" action="/api/donna-settings">
+                ? `<form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
                     <input type="hidden" name="action" value="restore-recurring-charge" />
                     <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
                     <button class="btn btn-small" type="submit">Restore</button>
                   </form>`
                 : `<button type="button" class="reminder-edit-link" data-merchant-key="${escapeHtml(c.merchantKey)}" onclick="toggleRecurringChargeEdit(this)">Edit</button>
-                  <form method="POST" action="/api/donna-settings">
+                  <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
                     <input type="hidden" name="action" value="dismiss-recurring-charge" />
                     <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
                     <button class="btn btn-danger" type="submit">Dismiss</button>
@@ -226,7 +226,7 @@ function renderRecurringChargeOverrideRows(
             }
           </div>
         </div>
-        <form method="POST" action="/api/donna-settings" class="add-class-form" id="${formId}" style="display:none; margin-top:6px;">
+        <form method="POST" action="/api/donna-settings" class="add-class-form" id="${formId}" style="display:none; margin-top:6px;" data-swap-target="settings-main">
           <input type="hidden" name="action" value="update-recurring-charge-override" />
           <input type="hidden" name="merchantKey" value="${escapeHtml(c.merchantKey)}" />
           <input type="text" name="displayName" value="${escapeHtml(displayName)}" required />
@@ -254,7 +254,7 @@ function renderReminderGroupRows(groups: ReminderGroup[]): string {
       (g) => `
         <div class="class-row">
           <span><span class="group-swatch" style="background:${escapeHtml(g.color)};"></span>${escapeHtml(g.name)}</span>
-          <form method="POST" action="/api/donna-settings">
+          <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
             <input type="hidden" name="action" value="delete-reminder-group" />
             <input type="hidden" name="id" value="${g.id}" />
             <button class="btn btn-danger" type="submit">Remove</button>
@@ -274,7 +274,7 @@ function renderWatchlistRows(entries: WatchlistEntry[]): string {
       (e) => `
         <div class="class-row">
           <span>${escapeHtml(e.label)}</span>
-          <form method="POST" action="/api/donna-settings">
+          <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
             <input type="hidden" name="action" value="delete-watchlist-entry" />
             <input type="hidden" name="id" value="${e.id}" />
             <button class="btn btn-danger" type="submit">Remove</button>
@@ -294,7 +294,7 @@ function renderCommunityFeedRows(sources: CommunityFeedSource[]): string {
       (s) => `
         <div class="class-row">
           <span>${escapeHtml(s.label)}</span>
-          <form method="POST" action="/api/donna-settings">
+          <form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
             <input type="hidden" name="action" value="delete-community-feed-source" />
             <input type="hidden" name="id" value="${s.id}" />
             <button class="btn btn-danger" type="submit">Remove</button>
@@ -347,7 +347,7 @@ function renderSessionRow(session: SessionInfo, currentSessionId: string | null)
       ${
         isCurrent
           ? ""
-          : `<form method="POST" action="/api/donna-settings">
+          : `<form method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="revoke-session" />
         <input type="hidden" name="id" value="${escapeHtml(session.id)}" />
         <button class="btn btn-danger" type="submit">Sign out</button>
@@ -469,7 +469,7 @@ function buildJumpSections(
       "settings-brief",
       "Brief settings",
       `
-      <form class="settings-form" method="POST" action="/api/donna-settings">
+      <form class="settings-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="save-settings" />
 
         <div class="field">
@@ -492,7 +492,7 @@ function buildJumpSections(
       "settings-dashboard",
       "Dashboard",
       `
-      <form id="dashboard-settings-form" class="settings-form" method="POST" action="/api/donna-settings">
+      <form id="dashboard-settings-form" class="settings-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <div class="field">
           <label>Home cards</label>
           <div class="reorder-list" data-reorder-list data-reorder-action="reorder-widgets">
@@ -534,7 +534,7 @@ function buildJumpSections(
       "settings-morning-text",
       "Morning text",
       `
-      <form class="settings-form" method="POST" action="/api/donna-settings">
+      <form class="settings-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="save-brief-settings" />
         <div class="field">
           <label for="sendTime">Send time</label>
@@ -593,7 +593,7 @@ function buildJumpSections(
       `
       ${renderWatchlistRows(watchlistEntries)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings">
+      <form class="add-class-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="add-watchlist-entry" />
         <input type="text" name="label" placeholder="Company or ticker, e.g. Klarna or KLAR" required />
         <button class="btn" type="submit">Add</button>
@@ -606,7 +606,7 @@ function buildJumpSections(
       `
       ${renderCommunityFeedRows(communityFeedSources)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings">
+      <form class="add-class-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="add-community-feed-source" />
         <input type="text" name="label" placeholder="Label, e.g. r/investing" required />
         <input type="text" name="url" placeholder="RSS feed URL" required style="flex: 2 1 220px;" />
@@ -620,7 +620,7 @@ function buildJumpSections(
       `
       ${renderClassRows(classFolders)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings">
+      <form class="add-class-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="add-class" />
         <input type="text" name="className" placeholder="Class name, e.g. ECO 301" required />
         <input type="text" name="driveFolderLink" placeholder="Paste Drive folder link" required />
@@ -634,7 +634,7 @@ function buildJumpSections(
       `
       ${renderReminderGroupRows(reminderGroups)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings">
+      <form class="add-class-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="add-reminder-group" />
         <input type="text" name="name" placeholder="Group name, e.g. Work" required />
         <input type="color" name="color" value="#b86b45" />
@@ -648,7 +648,7 @@ function buildJumpSections(
       `
       ${renderManualBillRows(manualBills)}
 
-      <form class="add-class-form" method="POST" action="/api/donna-settings">
+      <form class="add-class-form" method="POST" action="/api/donna-settings" data-swap-target="settings-main">
         <input type="hidden" name="action" value="add-manual-bill" />
         <input type="text" name="name" placeholder="Bill name, e.g. Rent" required />
         <input type="number" name="amount" placeholder="Amount" min="0" step="0.01" required style="width:100px;" />
@@ -676,7 +676,7 @@ function buildJumpSections(
         </form>
         ${
           sessions.length > 1
-            ? `<form method="POST" action="/api/donna-settings" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
+            ? `<form method="POST" action="/api/donna-settings" data-swap-target="settings-main" onsubmit="return confirm('Sign out every other device? This one stays signed in.');">
           <input type="hidden" name="action" value="revoke-other-sessions" />
           <button class="btn btn-danger" type="submit">Sign out all other devices</button>
         </form>`
@@ -746,7 +746,16 @@ export function buildSettingsHtml(
     recurringChargeOverrides
   );
 
+  // Wrapped as one scoped-swap target (mirrors reminders-main) so every
+  // form below patches just this region in place on submit instead of
+  // reloading the whole page — see data-swap-target on each form and
+  // SETTINGS_CLIENT_SCRIPT's bindSettingsInteractive()/donna:swapped pair,
+  // which re-bind the theme toggle, nav pills, and reorder lists (all
+  // rendered inside here) after every scoped swap since a swap destroys
+  // and recreates their DOM nodes without re-running this page's own
+  // <script> tag (which lives outside this div).
   const body = `
+    <div id="settings-main">
     <div class="section">
       <h1 class="page-title">Settings</h1>
     </div>
@@ -757,7 +766,8 @@ export function buildSettingsHtml(
 
     ${renderSettingsNav(jumpSections)}
 
-    ${jumpSections.map((s) => s.html).join("\n")}`;
+    ${jumpSections.map((s) => s.html).join("\n")}
+    </div>`;
 
   return renderLayout({
     title: "Donna Settings",
@@ -797,12 +807,20 @@ const SETTINGS_CLIENT_SCRIPT = `
   }
   window.toggleRecurringChargeEdit = toggleRecurringChargeEdit;
 
-  // Moved here from the sidebar/mobile menu — this button and its icon
-  // are part of Settings' own swapped content, so (unlike the old
-  // persistent-shell version) a plain direct bind is safe: the element is
-  // destroyed and recreated in lockstep with this script re-running on
-  // every visit, never stale.
-  (function () {
+  // Every form on this page is a scoped swap of #settings-main (see
+  // data-swap-target on each <form> and ROUTER_SCRIPT's support for it) —
+  // a submit replaces just that div's contents with fresh server HTML
+  // instead of reloading the page. That means the theme toggle, nav
+  // pills, and reorder lists below (all rendered inside #settings-main)
+  // get destroyed and recreated on every swap WITHOUT this <script> tag
+  // re-running — it lives outside #settings-main (see buildSettingsHtml's
+  // pageScript param), so a plain one-time addEventListener on them would
+  // silently stop working after the very first swap. Each bind function
+  // is instead called once here (handles first load / a full-page
+  // navigation back to Settings) and again from the donna:swapped
+  // listener below (handles every scoped swap) — always safe to re-run,
+  // since a swap always produces entirely fresh, listener-free nodes.
+  function bindThemeToggle() {
     const btn = document.getElementById("settings-theme-toggle");
     const icon = document.getElementById("settings-theme-icon");
     if (!btn || !icon) return;
@@ -822,14 +840,6 @@ const SETTINGS_CLIENT_SCRIPT = `
       updateIcon();
     });
     updateIcon();
-  })();
-
-  if (window.location.hash === "#how-this-works") {
-    const details = document.getElementById("how-this-works");
-    if (details) {
-      details.open = true;
-      details.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   }
 
   // The section nav pills drive scrolling explicitly via scrollIntoView
@@ -841,27 +851,26 @@ const SETTINGS_CLIENT_SCRIPT = `
   // exact cause). preventDefault here also means the click never reaches
   // the router's own click handling, so there's no separate fetch+swap
   // triggered either.
-  document.querySelectorAll('.settings-nav-pill[href^="#"]').forEach(function (pill) {
-    pill.addEventListener("click", function (e) {
-      const id = pill.getAttribute("href").slice(1);
-      const target = document.getElementById(id);
-      if (!target) return;
-      e.preventDefault();
-      if (id === "how-this-works") target.open = true;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-      history.replaceState(null, "", "#" + id);
+  function bindNavPillScroll() {
+    document.querySelectorAll('.settings-nav-pill[href^="#"]').forEach(function (pill) {
+      pill.addEventListener("click", function (e) {
+        const id = pill.getAttribute("href").slice(1);
+        const target = document.getElementById(id);
+        if (!target) return;
+        e.preventDefault();
+        if (id === "how-this-works") target.open = true;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", "#" + id);
+      });
     });
-  });
+  }
 
   // Touch-friendly drag-to-reorder for the three lists on this page (Home
   // cards, Finance widgets, Sidebar pages) — replaces the old up/down
   // arrow buttons entirely. Each [data-reorder-list] posts its new order
   // as a standalone request (not the whole Dashboard form) the moment a
   // drag ends, so it never touches unsaved checkbox/select edits sitting
-  // elsewhere in that form. Elements here live inside #page-content and
-  // are destroyed/recreated by the router on every visit (see the theme
-  // toggle above), so — unlike the old document-level click listener this
-  // replaces — plain addEventListener needs no dedupe guard.
+  // elsewhere in that form.
   function initReorderList(list) {
     const action = list.getAttribute("data-reorder-action");
     let dragRow = null;
@@ -963,9 +972,44 @@ const SETTINGS_CLIENT_SCRIPT = `
     });
   }
 
-  const reorderLists = document.querySelectorAll("[data-reorder-list]");
-  for (let i = 0; i < reorderLists.length; i++) {
-    initReorderList(reorderLists[i]);
+  function bindReorderLists() {
+    const reorderLists = document.querySelectorAll("[data-reorder-list]");
+    for (let i = 0; i < reorderLists.length; i++) {
+      initReorderList(reorderLists[i]);
+    }
+  }
+
+  function bindSettingsInteractive() {
+    bindThemeToggle();
+    bindNavPillScroll();
+    bindReorderLists();
+  }
+  bindSettingsInteractive();
+
+  // Guarded on window (not just a local variable), since this whole
+  // script re-runs on every client-routed visit to this page, but
+  // document itself — what the listener is actually on — persists across
+  // visits. Without the guard, each full navigation back to Settings
+  // would stack another duplicate listener. Same pattern as
+  // remindersPage.ts's own donna:swapped listener.
+  if (!window.__settingsSwapListenerBound) {
+    window.__settingsSwapListenerBound = true;
+    document.addEventListener("donna:swapped", function (e) {
+      if (!e.detail || e.detail.target !== "settings-main") return;
+      bindSettingsInteractive();
+    });
+  }
+
+  // Only meant to fire once per real navigation that lands with this
+  // hash already in the URL — not on every unrelated scoped swap (e.g.
+  // saving the timezone shouldn't force this open and re-scroll to it if
+  // the hash happens to still be there from earlier).
+  if (window.location.hash === "#how-this-works") {
+    const details = document.getElementById("how-this-works");
+    if (details) {
+      details.open = true;
+      details.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 })();
 `;
