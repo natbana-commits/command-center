@@ -64,7 +64,13 @@ export function isSafeFeedUrl(rawUrl: string): boolean {
   }
 
   // IPv6 literal checks: loopback, unique-local, and link-local.
-  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:") || host.startsWith("[::1]")) {
+  // url.hostname keeps the brackets for an IPv6 literal (e.g. "[fe80::1]"),
+  // so match against the address with them stripped rather than the raw
+  // hostname — a bare startsWith("fc") etc. against "[fc00::1]" would
+  // never match and silently let every IPv6 unique-local/link-local
+  // address through.
+  const ipv6 = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : null;
+  if (ipv6 && (ipv6 === "::1" || ipv6.startsWith("fc") || ipv6.startsWith("fd") || ipv6.startsWith("fe80:"))) {
     return false;
   }
 

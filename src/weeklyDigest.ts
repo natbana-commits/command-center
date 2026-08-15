@@ -2,7 +2,7 @@ import { getEventsInRange, type CalendarEvent } from "./calendar.js";
 import { listRemindersSafe, type Reminder } from "./google/tasks.js";
 import { escapeHtml } from "./util/html.js";
 import { dayBounds, localDateKey } from "./util/time.js";
-import { effectiveDue, dueDateKey } from "./donna/remindersPage.js";
+import { effectiveDue, dueDateKey, compareByDue } from "./donna/remindersPage.js";
 import { getPendingNotificationsForTasks, type ReminderNotification } from "./reminders/notifications.js";
 import type { BriefMessage } from "./formatBrief.js";
 
@@ -70,7 +70,7 @@ function formatRemindersSection(
         ? dueDateKey(due, timezone) >= startKey && dueDateKey(due, timezone) <= endKey
         : new Date(due.iso) >= rangeStart && new Date(due.iso) < rangeEnd
     )
-    .sort((a, b) => new Date(a.due.iso).getTime() - new Date(b.due.iso).getTime());
+    .sort((a, b) => compareByDue(a.due, b.due, timezone));
 
   if (dueThisWeek.length === 0) return "Nothing due this week.";
   return dueThisWeek.map(({ r }) => `• ${escapeHtml(r.title)}`).join("\n");
